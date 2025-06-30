@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, Index } from "typeorm";
+import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
 import { IsNotEmpty, MaxLength, IsArray, IsUrl, IsOptional } from "class-validator";
 import { BaseEntity } from "./base.entity";
 import { ChatSession } from "./chat-session.entity";
@@ -12,6 +12,7 @@ export enum SocialPlatform {
 }
 
 @Entity("social_posts")
+@Unique(["chat_session_id", "platform"])
 export class SocialPost extends BaseEntity {
     @Column({
         type: "varchar",

@@ -1,4 +1,5 @@
 import { langChainService } from '../../services/ai/langchain.service';
+import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
 import { ChatSessionService } from '../../services/chat-session.service';
 import { AICallbackData } from '../../types/ai.types';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
@@ -51,7 +52,7 @@ export class ChatController {
             };
 
             // 5. Stream AI response (AI determines intent and response type)
-            const streamingResponse = await langChainService.streamMessage(
+            const streamingResponse = await langGraphChatService.processMessage(
                 content,
                 sessionId,
                 context,

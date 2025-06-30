@@ -11,11 +11,6 @@ export interface PlatformConfig {
     guidelines: string;
 }
 
-export interface PlatformDetectionResult {
-    platform?: SocialPlatform;
-    needsClarification: boolean;
-    confidence: number;
-}
 
 export class SocialPostGeneratorService {
     private platformConfigs: Record<SocialPlatform, PlatformConfig> = {
@@ -69,64 +64,6 @@ export class SocialPostGeneratorService {
         }
     };
 
-    private platformKeywords = {
-        [SocialPlatform.TWITTER]: ['twitter', 'tweet', 'x.com', 'x post'],
-        [SocialPlatform.LINKEDIN]: ['linkedin', 'professional', 'business network'],
-        [SocialPlatform.FACEBOOK]: ['facebook', 'fb', 'facebook post'],
-        [SocialPlatform.INSTAGRAM]: ['instagram', 'insta', 'ig', 'visual']
-    };
-
-    /**
-     * Detects platform from user message with confidence scoring
-     */
-    detectPlatform(userMessage: string): PlatformDetectionResult {
-        const message = userMessage.toLowerCase();
-        let detectedPlatform: SocialPlatform | undefined = undefined;
-        let maxConfidence = 0;
-
-        // Check for explicit platform mentions
-        for (const [platform, keywords] of Object.entries(this.platformKeywords)) {
-            for (const keyword of keywords) {
-                if (message.includes(keyword)) {
-                    const confidence = keyword.length > 2 ? 0.9 : 0.7; // Longer keywords = higher confidence
-                    if (confidence > maxConfidence) {
-                        maxConfidence = confidence;
-                        detectedPlatform = platform as SocialPlatform;
-                    }
-                }
-            }
-        }
-
-        const needsClarification = !detectedPlatform || maxConfidence < 0.8;
-
-        logger.info('Platform detection result', {
-            userMessage,
-            detectedPlatform,
-            confidence: maxConfidence,
-            needsClarification
-        });
-
-        return {
-            platform: detectedPlatform,
-            needsClarification,
-            confidence: maxConfidence
-        };
-    }
-
-    /**
-     * Generate platform clarification message
-     */
-    generatePlatformClarificationMessage(): string {
-        return `I'd be happy to create a social post for you! Which platform would you like this optimized for?
-
-**Available platforms:**
-🐦 **Twitter** - Short & punchy (280 characters, hashtags)
-💼 **LinkedIn** - Professional & thoughtful (longer format, industry focus)
-👥 **Facebook** - Community-focused & engaging (storytelling approach)
-📸 **Instagram** - Visual & hashtag-rich (authentic voice, visual context)
-
-Just let me know which platform you prefer, and I'll create the perfect post for that audience!`;
-    }
 
     /**
      * Build enhanced social post prompt template
@@ -161,7 +98,23 @@ Create an engaging ${platform} post based on the original content. The user is c
 **Content Guidelines:**
 ${config.guidelines}
 
-Make sure the post captures the essence of the original content while being perfectly optimized for ${platform}'s audience and format.`],
+**CRITICAL: User Requirements Analysis**
+Before creating the post, carefully analyze the user's message for ANY specific requirements, preferences, or instructions they may have included. Look for:
+
+- **Specific hashtags** they want included (e.g., #hashtag)
+- **Mentions** they want added (e.g., @username)
+- **Tone adjustments** (e.g., "make it more professional", "keep it casual", "make it funny")
+- **Content modifications** (e.g., "add more details about X", "focus on Y", "don't mention Z")
+- **Specific phrases or quotes** they want included
+- **Length preferences** (e.g., "keep it short", "make it longer")
+- **Call-to-action requests** (e.g., "ask a question", "include a CTA")
+- **Emoji preferences** (e.g., "add emojis", "no emojis")
+- **Links or URLs** they want preserved or added
+- **Any other specific instructions** about format, style, or content
+
+**IMPORTANT**: These user-specified requirements take absolute priority over the general platform guidelines. If there's any conflict between platform best practices and what the user specifically requested, follow the user's requirements.
+
+Make sure the post captures the essence of the original content while being perfectly optimized for ${platform}'s audience and format, and most importantly, incorporates ALL specific requirements mentioned in the user's message.`],
             ['human', '{userMessage}']
         ]);
     }
@@ -263,52 +216,6 @@ Respond with a clear message asking them to choose from the available platform o
         return details.length > 0 ? details.join('\n') : 'Standard preferences - engaging and authentic';
     }
 
-    /**
-     * Check if user message is responding to platform clarification
-     */
-    isRespondingToPlatformQuestion(userMessage: string, conversationHistory?: any[]): boolean {
-        const message = userMessage.toLowerCase();
-
-        // Check if user is selecting a platform after clarification
-        const platformMentions = Object.values(this.platformKeywords).flat();
-        const containsPlatform = platformMentions.some(keyword => message.includes(keyword));
-
-        // Check if recent conversation mentioned platform selection
-        const recentClarification = conversationHistory?.some(msg =>
-            msg.content?.includes('Which platform would you like') ||
-            msg.content?.includes('Available platforms')
-        );
-
-        return containsPlatform && (recentClarification || message.includes('platform'));
-    }
-
-    /**
-     * Enhanced platform detection that considers conversation context
-     */
-    detectPlatformWithContext(userMessage: string, conversationHistory?: any[]): PlatformDetectionResult {
-        // First try normal detection
-        const result = this.detectPlatform(userMessage);
-
-        // If platform was detected with high confidence, return it
-        if (result.platform && result.confidence >= 0.8) {
-            return result;
-        }
-
-        // Check if this is a response to platform clarification
-        if (this.isRespondingToPlatformQuestion(userMessage, conversationHistory)) {
-            // User is choosing a platform after being asked
-            const platformResult = this.detectPlatform(userMessage);
-            if (platformResult.platform) {
-                return {
-                    platform: platformResult.platform,
-                    needsClarification: false,
-                    confidence: 0.9 // High confidence since user is responding to our question
-                };
-            }
-        }
-
-        return result;
-    }
 }
 
 // Export singleton instance

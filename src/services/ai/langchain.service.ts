@@ -3,6 +3,7 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { ChatOllama } from '@langchain/ollama';
+import { SocialPlatform } from '../../entities/social-post.entity';
 import {
     AIContext,
     AIStreamCallback,
@@ -13,7 +14,7 @@ import { logger } from '../../utils/logger';
 import { IntentDetectionService } from './intent-detection.service';
 import { MemoryService } from './memory.service';
 import { socialPostGeneratorService } from './social-post-generator.service';
-import { SocialPlatform } from '../../entities/social-post.entity';
+import { PlatformDetectionService } from './platform-detection.service';
 
 // Custom WebSocket streaming callback handler
 class WebSocketStreamCallback extends BaseCallbackHandler {
@@ -61,6 +62,7 @@ export class LangChainService {
     private chatModel!: ChatOllama;
     private config: LangChainServiceConfig;
     private cleanupInterval!: NodeJS.Timeout;
+    private platformDetectionService!: PlatformDetectionService;
     private intentService!: IntentDetectionService;
     private memoryService!: MemoryService;
 
@@ -84,6 +86,7 @@ export class LangChainService {
 
         this.intentService = new IntentDetectionService(this.chatModel);
         this.memoryService = new MemoryService(this.chatModel);
+        this.platformDetectionService = new PlatformDetectionService(this.chatModel);
     }
 
 
@@ -109,7 +112,7 @@ export class LangChainService {
             ] : [];
 
             // Get the prompt Template
-            const promptTemplate = this.buildPromptTemplate(intentResult.intent.type, context, message);
+            const promptTemplate = await this.buildPromptTemplate(intentResult.intent.type, context, message);
 
             // Build Runnable sequence pipeline
             const chain = RunnableSequence.from([
@@ -144,7 +147,10 @@ export class LangChainService {
             let isSocialPost = false;
             let socialPlatform: SocialPlatform | undefined;
             if (intentResult.intent.type === 'social_post') {
-                const detectedPlatform = socialPostGeneratorService.detectPlatform(message);
+                const detectedPlatform = await this.platformDetectionService.detectPlatform({
+                    userMessage: message,
+                    conversationHistory: context.previousMessages
+                });
                 if (detectedPlatform && detectedPlatform.confidence >= 0.8) {
                     isSocialPost = true;
                     socialPlatform = detectedPlatform.platform;
@@ -179,7 +185,7 @@ export class LangChainService {
         }
     }
 
-    private buildPromptTemplate(intentType: 'question' | 'social_post', context: AIContext, userMessage?: string): ChatPromptTemplate {
+    private async buildPromptTemplate(intentType: 'question' | 'social_post', context: AIContext, userMessage?: string): Promise<ChatPromptTemplate> {
         if (intentType == 'question') {
             return ChatPromptTemplate.fromMessages([
                 ['system', `You are an intelligent AI assistant that helps users understand and discuss content. You have access to both the original post content and the conversation history. Use this context to provide helpful, accurate, and relevant responses.
@@ -211,16 +217,16 @@ Remember: You can reference both the original post content and our entire conver
             ])
         } else {
             // Enhanced social post handling
-            return this.buildSocialPostPromptTemplate(context, userMessage);
+            return await this.buildSocialPostPromptTemplate(context, userMessage);
         }
     }
 
-    private buildSocialPostPromptTemplate(context: AIContext, userMessage?: string): ChatPromptTemplate {
+    private async buildSocialPostPromptTemplate(context: AIContext, userMessage?: string): Promise<ChatPromptTemplate> {
         // Detect platform from current user message with conversation context
-        const platformDetection = socialPostGeneratorService.detectPlatformWithContext(
-            userMessage || '',
-            context.previousMessages
-        );
+        const platformDetection = await this.platformDetectionService.detectPlatform({
+            userMessage: userMessage || '',
+            conversationHistory: context.previousMessages
+        });
 
         console.log('Platform detection result:', platformDetection);
         if (platformDetection.needsClarification) {
