@@ -3,18 +3,20 @@ import { IntentDetectionResult } from '../../../../types/ai.types';
 import { IntentDetectionService } from '../../intent-detection.service';
 
 export class IntentDetectionNode extends BaseNode {
-    private intentService: IntentDetectionService;
-
-    constructor(intentService: IntentDetectionService) {
+    constructor() {
         super('IntentDetection');
-        this.intentService = intentService;
     }
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
             this.logInfo('Detecting intent', state.sessionId);
 
-            const intentResult: IntentDetectionResult = await this.intentService.detectIntent(
+            if (!state.models?.intentDetection) {
+                throw new Error('Intent detection model not available in state');
+            }
+
+            const intentService = new IntentDetectionService(state.models.intentDetection);
+            const intentResult: IntentDetectionResult = await intentService.detectIntent(
                 state.userMessage,
                 state.context?.previousMessages
             );

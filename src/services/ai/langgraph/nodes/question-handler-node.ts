@@ -47,7 +47,6 @@ class WebSocketStreamCallback extends BaseCallbackHandler {
 }
 
 export class QuestionHandlerNode extends BaseNode {
-    private chatModel: ChatOllama;
     private readonly QUESTION_SYSTEM_PROMPT = `You are an intelligent AI assistant that helps users understand and discuss content. You have access to both the original post content and the conversation history. Use this context to provide helpful, accurate, and relevant responses.
 
 ## Post Content:
@@ -73,14 +72,17 @@ export class QuestionHandlerNode extends BaseNode {
 
 Remember: You can reference both the original post content and our entire conversation history to provide contextual, meaningful responses.`;
 
-    constructor(chatModel: ChatOllama) {
+    constructor() {
         super('QuestionHandler');
-        this.chatModel = chatModel;
     }
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
             this.logInfo('Handling question', state.sessionId);
+
+            if (!state.models?.questionHandler) {
+                throw new Error('Question handler model not available in state');
+            }
 
             const prompt = ChatPromptTemplate.fromMessages([
                 ['system', this.QUESTION_SYSTEM_PROMPT],
@@ -88,7 +90,7 @@ Remember: You can reference both the original post content and our entire conver
                 ['human', '{userMessage}']
             ]);
 
-            const chain = prompt.pipe(this.chatModel).pipe(new StringOutputParser());
+            const chain = prompt.pipe(state.models.questionHandler).pipe(new StringOutputParser());
 
             const chatHistory = state.memory ? await state.memory.chatHistory.getMessages() : [];
 

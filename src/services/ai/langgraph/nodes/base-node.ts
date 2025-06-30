@@ -2,6 +2,7 @@ import { logger } from '../../../../utils/logger';
 import { AIContext, AIStreamCallback, UserIntent } from '../../../../types/ai.types';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
 import { PlatformDetectionResult } from '../../platform-detection.service';
+import { WorkflowModels } from '../../../../types/model-config.types';
 
 export interface ChatState {
     // Input
@@ -12,6 +13,9 @@ export interface ChatState {
     conversationSummary?: string;
     userPreferences?: any;
     callback?: AIStreamCallback;
+
+    // Model Configuration
+    models?: WorkflowModels;
 
     // Processing State
     memory?: any;

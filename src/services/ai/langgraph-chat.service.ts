@@ -1,4 +1,3 @@
-import { ChatOllama } from '@langchain/ollama';
 import { SocialPlatform } from '../../entities/social-post.entity';
 import {
     AIContext,
@@ -7,12 +6,10 @@ import {
     StreamingAIResponse
 } from '../../types/ai.types';
 import { logger } from '../../utils/logger';
-import { IntentDetectionService } from './intent-detection.service';
-import { MemoryService } from './memory.service';
 import { SocialPostGeneratorService } from './social-post-generator.service';
-import { PlatformDetectionService } from './platform-detection.service';
 import { WorkflowBuilder } from './langgraph/builders/workflow-builder';
 import { ChatState } from './langgraph/nodes/base-node';
+import { WorkflowModelConfigs, DEFAULT_MODEL_CONFIGS } from '../../types/model-config.types';
 import fs from 'fs';
 
 
@@ -20,35 +17,21 @@ import fs from 'fs';
 export class LangGraphChatService {
     private app: any;
     private activeRequests = new Map<string, AbortController>();
-
-    private chatModel: ChatOllama;
-    private intentService: IntentDetectionService;
+    private modelConfigs: WorkflowModelConfigs;
     private socialPostGeneratorService: SocialPostGeneratorService;
-    private platformDetectionService: PlatformDetectionService;
-    private memoryService: MemoryService;
     private workflowBuilder: WorkflowBuilder;
 
-    constructor() {
-        // Initialize chat model
-        this.chatModel = new ChatOllama({
-            baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-            model: process.env.OLLAMA_MODEL || 'mistral:7b',
-            temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
-        });
+    constructor(modelConfigs?: WorkflowModelConfigs) {
+        // Use provided configs or defaults
+        this.modelConfigs = modelConfigs || DEFAULT_MODEL_CONFIGS;
 
-        // Initialize services
-        this.intentService = new IntentDetectionService(this.chatModel);
+        // Initialize services that don't depend on models
         this.socialPostGeneratorService = new SocialPostGeneratorService();
-        this.platformDetectionService = new PlatformDetectionService(this.chatModel);
-        this.memoryService = new MemoryService(this.chatModel);
 
-        // Initialize workflow builder
+        // Initialize workflow builder with model configurations
         this.workflowBuilder = new WorkflowBuilder(
-            this.chatModel,
-            this.intentService,
-            this.socialPostGeneratorService,
-            this.platformDetectionService,
-            this.memoryService
+            this.modelConfigs,
+            this.socialPostGeneratorService
         );
 
         this.app = this.workflowBuilder.buildWorkflow();
@@ -123,7 +106,7 @@ export class LangGraphChatService {
                 isComplete: true,
                 content: result.aiResponse || 'No response generated',
                 error: result.error,
-                summary: this.memoryService.getMovingSummary(sessionId),
+                summary: '', // Summary will be handled within the workflow
                 isSocialPost: result.isSocialPost || false,
                 socialPlatform: result.socialPlatform
             };
@@ -206,22 +189,53 @@ export class LangGraphChatService {
      * Clear memory for a session
      */
     public async clearMemory(sessionId: string): Promise<void> {
-        this.memoryService.clearMemory(sessionId);
+        const { createModelFromConfig } = await import('../../types/model-config.types');
+        const { MemoryService } = await import('./memory.service');
+        
+        const memoryModel = createModelFromConfig(this.modelConfigs.memoryService);
+        const memoryService = new MemoryService(memoryModel);
+        memoryService.clearMemory(sessionId);
+        
         logger.info(`[LangGraph] Cleared memory for session: ${sessionId}`);
     }
 
     /**
-     * Test connection to Ollama
+     * Test connection to Ollama with a specific model
      */
-    public async testConnection(): Promise<boolean> {
+    public async testConnection(modelType: keyof WorkflowModelConfigs = 'questionHandler'): Promise<boolean> {
         try {
-            const response = await this.chatModel.invoke("Test connection");
-            logger.info('LangGraph Chat service connection test successful');
+            const { createModelFromConfig } = await import('../../types/model-config.types');
+            const testModel = createModelFromConfig(this.modelConfigs[modelType]);
+            const response = await testModel.invoke("Test connection");
+            logger.info(`LangGraph Chat service connection test successful for ${modelType} model`);
             return true;
         } catch (error) {
-            logger.error('LangGraph Chat service connection test failed:', error);
+            logger.error(`LangGraph Chat service connection test failed for ${modelType} model:`, error);
             return false;
         }
+    }
+
+    /**
+     * Get current model configurations
+     */
+    public getModelConfigs(): WorkflowModelConfigs {
+        return { ...this.modelConfigs };
+    }
+
+    /**
+     * Update model configurations and rebuild workflow
+     */
+    public updateModelConfigs(newConfigs: Partial<WorkflowModelConfigs>): void {
+        this.modelConfigs = { ...this.modelConfigs, ...newConfigs };
+        
+        // Rebuild workflow with new configurations
+        this.workflowBuilder = new WorkflowBuilder(
+            this.modelConfigs,
+            this.socialPostGeneratorService
+        );
+        this.app = this.workflowBuilder.buildWorkflow();
+        
+        logger.info('Model configurations updated and workflow rebuilt');
     }
 
 }

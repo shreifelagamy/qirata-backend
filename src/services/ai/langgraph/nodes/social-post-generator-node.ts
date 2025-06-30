@@ -47,12 +47,10 @@ class WebSocketStreamCallback extends BaseCallbackHandler {
 }
 
 export class SocialPostGeneratorNode extends BaseNode {
-    private chatModel: ChatOllama;
     private socialPostGeneratorService: SocialPostGeneratorService;
 
-    constructor(chatModel: ChatOllama, socialPostGeneratorService: SocialPostGeneratorService) {
+    constructor(socialPostGeneratorService: SocialPostGeneratorService) {
         super('SocialPostGenerator');
-        this.chatModel = chatModel;
         this.socialPostGeneratorService = socialPostGeneratorService;
     }
 
@@ -60,10 +58,14 @@ export class SocialPostGeneratorNode extends BaseNode {
         try {
             this.logInfo('Generating social post', state.sessionId);
 
+            if (!state.models?.socialPostGenerator) {
+                throw new Error('Social post generator model not available in state');
+            }
+
             const platform = state.platformDetection?.platform || state.socialPlatform!;
             const prompt = this.socialPostGeneratorService.buildSocialPostPromptTemplate(platform);
 
-            const chain = prompt.pipe(this.chatModel).pipe(new StringOutputParser());
+            const chain = prompt.pipe(state.models.socialPostGenerator).pipe(new StringOutputParser());
 
             const callbacks = state.callback ? [
                 new WebSocketStreamCallback(state.sessionId, state.callback)

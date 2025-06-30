@@ -2,18 +2,18 @@ import { BaseNode, ChatState } from './base-node';
 import { PlatformDetectionService } from '../../platform-detection.service';
 
 export class PlatformClarificationNode extends BaseNode {
-    private platformDetectionService: PlatformDetectionService;
-
-    constructor(platformDetectionService: PlatformDetectionService) {
+    constructor() {
         super('PlatformClarification');
-        this.platformDetectionService = platformDetectionService;
     }
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
             this.logInfo('Generating platform clarification', state.sessionId);
 
-            const clarificationMessage = this.platformDetectionService.generatePlatformClarificationMessage();
+            // Create a temporary service just to get the clarification message
+            // This doesn't require a model since it's just a static message
+            const platformDetectionService = new PlatformDetectionService(state.models?.platformDetection!);
+            const clarificationMessage = platformDetectionService.generatePlatformClarificationMessage();
             const tokenCount = this.estimateTokenCount(state.userMessage + clarificationMessage);
 
             state.callback?.({

@@ -2,24 +2,26 @@ import { BaseNode, ChatState } from './base-node';
 import { PlatformDetectionService, PlatformDetectionContext } from '../../platform-detection.service';
 
 export class PlatformDetectionNode extends BaseNode {
-    private platformDetectionService: PlatformDetectionService;
-
-    constructor(platformDetectionService: PlatformDetectionService) {
+    constructor() {
         super('PlatformDetection');
-        this.platformDetectionService = platformDetectionService;
     }
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
             this.logInfo('Detecting platform using AI', state.sessionId);
 
+            if (!state.models?.platformDetection) {
+                throw new Error('Platform detection model not available in state');
+            }
+
+            const platformDetectionService = new PlatformDetectionService(state.models.platformDetection);
             const context: PlatformDetectionContext = {
                 userMessage: state.userMessage,
                 conversationHistory: state.context?.previousMessages,
                 previousMessages: state.context?.previousMessages
             };
 
-            const platformDetection = await this.platformDetectionService.detectPlatform(context);
+            const platformDetection = await platformDetectionService.detectPlatform(context);
 
             return {
                 platformDetection,

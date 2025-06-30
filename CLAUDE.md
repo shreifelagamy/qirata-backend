@@ -5,6 +5,73 @@ This is an Express.js backend application with TypeScript that integrates AI ser
 
 ## Recent Development Context
 
+### Centralized Model Configuration System (December 2024)
+
+**Project**: Qirata Express Backend - Centralized AI model configuration for LangGraph workflow
+
+#### Latest Updates:
+1. **Centralized Model Management**:
+   - **Per-Service Models**: Each workflow node can use a different model optimized for its specific task
+   - **Environment-Based Configuration**: Model selection via environment variables with intelligent fallbacks
+   - **Runtime Model Updates**: Ability to update model configurations and rebuild workflow without restart
+   - **Specialized Configurations**: Pre-built configurations for development, production, and specialized use cases
+
+2. **Model Configuration Structure**:
+   ```typescript
+   interface WorkflowModelConfigs {
+       intentDetection: ModelConfig;      // Fast classification model
+       platformDetection: ModelConfig;   // Deterministic detection model
+       questionHandler: ModelConfig;      // Balanced Q&A model
+       socialPostGenerator: ModelConfig; // Creative content model
+       memoryService: ModelConfig;       // Efficient summarization model
+   }
+   ```
+
+3. **Environment Variables for Model Control**:
+   ```bash
+   # Global settings
+   OLLAMA_URL=http://localhost:11434
+   OLLAMA_MODEL=mistral:7b  # Default fallback model
+   
+   # Service-specific models
+   INTENT_MODEL=llama3:8b
+   PLATFORM_MODEL=mistral:7b-instruct
+   QUESTION_MODEL=mistral:7b
+   SOCIAL_POST_MODEL=mistral:7b
+   MEMORY_MODEL=llama3:8b
+   
+   # Service-specific temperatures
+   INTENT_TEMPERATURE=0.3
+   PLATFORM_TEMPERATURE=0.1
+   QUESTION_TEMPERATURE=0.7
+   SOCIAL_POST_TEMPERATURE=0.8
+   MEMORY_TEMPERATURE=0.5
+   ```
+
+4. **Workflow Integration**:
+   - **State-Based Models**: Models injected into workflow state and accessed by nodes
+   - **Dynamic Service Creation**: Services instantiated with appropriate models at runtime
+   - **Type-Safe Configuration**: Full TypeScript support for model configurations
+   - **Error Handling**: Graceful fallbacks when models are unavailable
+
+5. **Usage Examples**:
+   ```typescript
+   // Use default configuration
+   const chatService = new LangGraphChatService();
+   
+   // Use custom configuration
+   const customConfig = {
+       intentDetection: { model: 'llama3:8b', temperature: 0.1 },
+       questionHandler: { model: 'mistral:7b', temperature: 0.8 }
+   };
+   const chatService = new LangGraphChatService(customConfig);
+   
+   // Update configuration at runtime
+   chatService.updateModelConfigs({
+       socialPostGenerator: { model: 'mistral:7b-instruct', temperature: 0.9 }
+   });
+   ```
+
 ### AI Platform Detection Enhancement (December 2024)
 
 **Project**: Qirata Express Backend - AI-powered platform detection with Zod validation

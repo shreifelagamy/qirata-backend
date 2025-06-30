@@ -1,22 +1,18 @@
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import { ChatOllama } from '@langchain/ollama';
-import { ChatState } from '../nodes/base-node';
-import { LoadContentNode } from '../nodes/load-content-node';
-import { IntentDetectionNode } from '../nodes/intent-detection-node';
-import { PlatformDetectionNode } from '../nodes/platform-detection-node';
-import { PlatformClarificationNode } from '../nodes/platform-clarification-node';
-import { QuestionHandlerNode } from '../nodes/question-handler-node';
-import { SocialPostGeneratorNode } from '../nodes/social-post-generator-node';
-import { UpdateMemoryNode } from '../nodes/update-memory-node';
-import { IntentRouter } from '../routers/intent-router';
-import { PlatformRouter } from '../routers/platform-router';
-import { IntentDetectionService } from '../../intent-detection.service';
-import { SocialPostGeneratorService } from '../../social-post-generator.service';
-import { PlatformDetectionService } from '../../platform-detection.service';
-import { MemoryService } from '../../memory.service';
-import { AIContext, AIStreamCallback, UserIntent } from '../../../../types/ai.types';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
+import { AIContext, AIStreamCallback, UserIntent } from '../../../../types/ai.types';
+import { DEFAULT_MODEL_CONFIGS, WorkflowModelConfigs, WorkflowModels, createWorkflowModels } from '../../../../types/model-config.types';
 import { PlatformDetectionResult } from '../../platform-detection.service';
+import { SocialPostGeneratorService } from '../../social-post-generator.service';
+import {
+    ConversationSummaryNode,
+    IntentDetectionNode,
+    PlatformClarificationNode,
+    PlatformDetectionNode,
+    QuestionHandlerNode,
+    SocialPostGeneratorNode
+} from '../nodes';
+import { IntentRouter, PlatformRouter } from '../routers';
 
 const ChatStateAnnotation = Annotation.Root({
     // Input
@@ -27,6 +23,9 @@ const ChatStateAnnotation = Annotation.Root({
     conversationSummary: Annotation<string>(),
     userPreferences: Annotation<any>(),
     callback: Annotation<AIStreamCallback>(),
+
+    // Model Configuration
+    models: Annotation<WorkflowModels>(),
 
     // Processing State
     memory: Annotation<any>(),
@@ -49,60 +48,63 @@ const ChatStateAnnotation = Annotation.Root({
 
 export class WorkflowBuilder {
     private memorySaver: MemorySaver;
-    private chatModel: ChatOllama;
-    
+    private modelConfigs: WorkflowModelConfigs;
+    private workflowModels: WorkflowModels;
+
     // Services
-    private intentService: IntentDetectionService;
     private socialPostGeneratorService: SocialPostGeneratorService;
-    private platformDetectionService: PlatformDetectionService;
-    private memoryService: MemoryService;
-    
+
     // Nodes
-    private loadContentNode!: LoadContentNode;
+    private conversationSummaryNode!: ConversationSummaryNode;
     private intentDetectionNode!: IntentDetectionNode;
     private platformDetectionNode!: PlatformDetectionNode;
     private platformClarificationNode!: PlatformClarificationNode;
     private questionHandlerNode!: QuestionHandlerNode;
     private socialPostGeneratorNode!: SocialPostGeneratorNode;
-    private updateMemoryNode!: UpdateMemoryNode;
 
     constructor(
-        chatModel: ChatOllama,
-        intentService: IntentDetectionService,
-        socialPostGeneratorService: SocialPostGeneratorService,
-        platformDetectionService: PlatformDetectionService,
-        memoryService: MemoryService
+        modelConfigs: WorkflowModelConfigs = DEFAULT_MODEL_CONFIGS,
+        socialPostGeneratorService?: SocialPostGeneratorService
     ) {
         this.memorySaver = new MemorySaver();
-        this.chatModel = chatModel;
-        this.intentService = intentService;
-        this.socialPostGeneratorService = socialPostGeneratorService;
-        this.platformDetectionService = platformDetectionService;
-        this.memoryService = memoryService;
+        this.modelConfigs = modelConfigs;
+        this.workflowModels = createWorkflowModels(modelConfigs);
+
+        // Only social post generator doesn't use models directly
+        this.socialPostGeneratorService = socialPostGeneratorService || new SocialPostGeneratorService();
 
         this.initializeNodes();
     }
 
     private initializeNodes(): void {
-        this.loadContentNode = new LoadContentNode(this.memoryService);
-        this.intentDetectionNode = new IntentDetectionNode(this.intentService);
-        this.platformDetectionNode = new PlatformDetectionNode(this.platformDetectionService);
-        this.platformClarificationNode = new PlatformClarificationNode(this.platformDetectionService);
-        this.questionHandlerNode = new QuestionHandlerNode(this.chatModel);
-        this.socialPostGeneratorNode = new SocialPostGeneratorNode(this.chatModel, this.socialPostGeneratorService);
-        this.updateMemoryNode = new UpdateMemoryNode(this.memoryService);
+        this.conversationSummaryNode = new ConversationSummaryNode();
+        this.intentDetectionNode = new IntentDetectionNode();
+        this.platformDetectionNode = new PlatformDetectionNode();
+        this.platformClarificationNode = new PlatformClarificationNode();
+        this.questionHandlerNode = new QuestionHandlerNode();
+        this.socialPostGeneratorNode = new SocialPostGeneratorNode(this.socialPostGeneratorService);
+    }
+
+    /**
+     * Inject models into the workflow state
+     */
+    private async injectModels(state: any): Promise<Partial<any>> {
+        return {
+            models: this.workflowModels
+        };
     }
 
     public buildWorkflow(): any {
         const workflow = new StateGraph(ChatStateAnnotation)
-            .addNode("load_content", this.loadContentNode.execute.bind(this.loadContentNode))
+            .addNode("inject_models", this.injectModels.bind(this))
+            .addNode("conversation_summary", this.conversationSummaryNode.execute.bind(this.conversationSummaryNode))
             .addNode("intent_detection", this.intentDetectionNode.execute.bind(this.intentDetectionNode))
             .addNode("platform_detection", this.platformDetectionNode.execute.bind(this.platformDetectionNode))
             .addNode("platform_clarification", this.platformClarificationNode.execute.bind(this.platformClarificationNode))
             .addNode("social_post_generator", this.socialPostGeneratorNode.execute.bind(this.socialPostGeneratorNode))
             .addNode("question_handler", this.questionHandlerNode.execute.bind(this.questionHandlerNode))
-            .addNode("update_memory", this.updateMemoryNode.execute.bind(this.updateMemoryNode))
-            .addEdge("load_content", "intent_detection")
+            .addEdge("inject_models", "conversation_summary")
+            .addEdge("conversation_summary", "intent_detection")
             // Intent Router - route based on detected intent
             .addConditionalEdges(
                 "intent_detection",
@@ -121,10 +123,9 @@ export class WorkflowBuilder {
                     "social_post_generator": "social_post_generator"
                 }
             )
-            .addEdge("social_post_generator", "update_memory")
-            .addEdge("question_handler", "update_memory")
-            .addEdge(START, "load_content")
-            .addEdge("update_memory", END)
+            .addEdge("social_post_generator", END)
+            .addEdge("question_handler", END)
+            .addEdge(START, "inject_models")
             .addEdge("platform_clarification", END);
 
         return workflow.compile({ checkpointer: this.memorySaver });
