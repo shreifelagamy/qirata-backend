@@ -38,7 +38,7 @@ const ChatStateAnnotation = Annotation.Root({
 
     // Output
     aiResponse: Annotation<string>(),
-    responseType: Annotation<'question_answer' | 'social_post' | 'platform_clarification'>(),
+    responseType: Annotation<'question_answer' | 'social' | 'platform_clarification'>(),
     socialPlatform: Annotation<SocialPlatform>(),
     isSocialPost: Annotation<boolean>(),
     error: Annotation<string>(),

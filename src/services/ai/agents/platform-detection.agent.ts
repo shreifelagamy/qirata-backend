@@ -65,7 +65,7 @@ interface PlatformDetectionOptions {
 
 export async function detectPlatform(options: PlatformDetectionOptions): Promise<PlatformDetectionResponse> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.5 }),
+        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.3 }),
         userMessage,
         conversationHistory
     } = options;

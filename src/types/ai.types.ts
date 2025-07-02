@@ -13,7 +13,7 @@ export interface AIStreamCallback {
 }
 
 export interface UserIntent {
-    type: 'question' | 'social_post';
+    type: 'question' | 'social';
     confidence: number;
     keywords: string[];
 }

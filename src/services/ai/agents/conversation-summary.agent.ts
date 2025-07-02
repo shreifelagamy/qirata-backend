@@ -1,37 +1,41 @@
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOllama } from "@langchain/ollama";
 import { Message } from "../../../entities";
+import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
 
 const MESSAGE_THRESHOLD = 2; // Trigger summary every 2 messages
 const KEEP_RECENT = 8; // Keep last 8 messages after summarization
 
-const CONVERSATION_SUMMARY_PROMPT = `
-<POST_SUMMARY>
-{post_summary}
-</POST_SUMMARY>
+// Static system message (cacheable)
+const SYSTEM_MESSAGE = `You are an expert conversation analyst specialized in creating contextual summaries for ongoing AI interactions. Your role is to synthesize conversation history with post context to maintain continuity in future interactions.
 
-<PREVIOUS_SUMMARY>
-{existing_summary}
-</PREVIOUS_SUMMARY>
+## Summarization Framework:
 
-<RECENT_CONVERSATION>
-{recent_messages}
-</RECENT_CONVERSATION>
+### Key Elements to Capture:
+1. **Content Discussion**: Main topics discussed in relation to the original post
+2. **User Engagement**: Questions asked, insights shared, and interaction patterns
+3. **Platform Preferences**: Social media platforms mentioned or preferred
+4. **Content Requests**: Social post generation requests and outcomes
+5. **User Interests**: Emerging themes, preferences, and engagement styles
+6. **Conversation Flow**: Important context that aids future interactions
 
-Summarize this conversation focusing on:
-- Main topics discussed about the content in relation to the post summary
-- Key questions asked and insights shared
-- Social media platform preferences mentioned (Twitter, LinkedIn, Instagram, etc.)
-- Content sharing requests and outcomes
-- User's engagement patterns and interests
-- Important context for future interactions
+### Summary Requirements:
+- **Format**: Brief, coherent paragraph
+- **Length**: Concise yet comprehensive
+- **Focus**: Preserve context for personalized future responses
+- **Integration**: Connect conversation topics with original post context
+- **Continuity**: Enable smooth continuation of discussions
 
-Keep the summary concise but preserve context for personalized responses.
-Format as a brief, coherent paragraph.
-
-Summary:`;
+### Quality Guidelines:
+- Maintain chronological flow of important events
+- Highlight user preferences and patterns
+- Connect discussion points to original content
+- Preserve context that enables personalized responses
+- Balance brevity with contextual richness
+- Focus on actionable insights for future interactions`;
 
 interface ConversationSummaryOptions {
     model?: ChatOllama;
@@ -55,19 +59,22 @@ export async function generateConversationSummary(options: ConversationSummaryOp
     }
 
     try {
+        logger.info('Generating conversation summary');
 
-        const prompt = ChatPromptTemplate.fromTemplate(CONVERSATION_SUMMARY_PROMPT);
+        // Build messages array with conversation history
+        const messageArray = buildMessagesArray(messages, existingSummary, postSummary);
+
+        const prompt = ChatPromptTemplate.fromMessages(messageArray);
         const chain = prompt.pipe(model).pipe(new StringOutputParser());
 
-        // Format recent messages for context
-        const recentMessages = formatMessages(messages);
+        // Create debug callback
+        const debugCallback = createDebugCallback('conversation-summary');
 
-        const summary = await chain.invoke({
-            post_summary: postSummary || "No post summary available",
-            existing_summary: existingSummary || "Beginning of conversation",
-            recent_messages: recentMessages
+        const summary = await chain.invoke({}, {
+            callbacks: [debugCallback]
         });
 
+        logger.info('Conversation summary generated successfully');
         return summary;
 
     } catch (error) {
@@ -81,16 +88,41 @@ function shouldSummarize(messageCount: number, threshold: number = 6): boolean {
     return messageCount >= threshold && messageCount % threshold === 0;
 }
 
-// Helper function to format messages
-function formatMessages(messages: Message[]): string {
-    const formattedMessages = messages
-        .slice(-KEEP_RECENT) // Use last 8 messages for context
-        .map(msg => `User: ${msg.user_message}\nAssistant: ${msg.ai_response}`)
-        .filter(msg => msg.trim() !== ''); // Remove empty messages
+// Helper function to build messages array for prompt
+function buildMessagesArray(messages: Message[], existingSummary: string, postSummary?: string): BaseMessage[] {
+    const messageArray: BaseMessage[] = [];
 
-    if (formattedMessages.length === 0) {
-        return 'No previous conversation history.';
+    // Static system message (cacheable)
+    messageArray.push(new SystemMessage(SYSTEM_MESSAGE));
+
+    // Add post summary as context if available
+    if (postSummary?.trim()) {
+        messageArray.push(new HumanMessage(`<POST_SUMMARY>\n${postSummary}\n</POST_SUMMARY>`));
+        messageArray.push(new AIMessage('I have the post summary and will use it as context for the conversation summary.'));
     }
 
-    return formattedMessages.join('\n\n---\n\n');
+    // Add existing summary if available
+    if (existingSummary?.trim() && existingSummary !== 'Beginning of conversation') {
+        messageArray.push(new HumanMessage(`<PREVIOUS_SUMMARY>\n${existingSummary}\n</PREVIOUS_SUMMARY>`));
+        messageArray.push(new AIMessage('I have the previous conversation summary and will build upon it.'));
+    }
+
+    // Add recent conversation messages
+    const recentMessages = messages.slice(-KEEP_RECENT);
+    
+    for (const msg of recentMessages) {
+        if (msg.user_message?.trim()) {
+            messageArray.push(new HumanMessage(msg.user_message));
+        }
+        if (msg.ai_response?.trim()) {
+            messageArray.push(new AIMessage(msg.ai_response));
+        }
+    }
+
+    // Request for summary
+    messageArray.push(new HumanMessage(`Please create a conversation summary following the framework outlined in your instructions. Focus on main topics discussed, user engagement patterns, platform preferences, content requests, and important context for future interactions.
+
+Format as a brief, coherent paragraph that will help maintain continuity in future conversations.`));
+
+    return messageArray;
 }

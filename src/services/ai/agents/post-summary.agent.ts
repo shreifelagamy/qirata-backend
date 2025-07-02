@@ -1,6 +1,9 @@
+import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOllama } from "@langchain/ollama";
+import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
+import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
 
 type SummarizeOptions = {
@@ -8,28 +11,33 @@ type SummarizeOptions = {
     postContent: string;
 }
 
-const POST_SUMMARY_PROMPT = `
-Analyze and summarize the following post content to create a concise context for future AI conversations:
+// Static system message (cacheable)
+const SYSTEM_MESSAGE = `You are an expert content analyst specialized in summarizing posts for conversational context. Your role is to create concise, actionable summaries that help AI assistants understand what users are discussing.
 
-<POST_CONTENT>
-{post_content}
-</POST_CONTENT>
+## Analysis Framework:
 
-Extract and summarize:
-1. Main topic/theme of the post
-2. Key points or arguments presented
-3. Industry/domain context (business, tech, lifestyle, etc.)
-4. Tone and style (professional, casual, educational, opinion, etc.)
-5. Target audience implications
-6. Any specific platforms or contexts mentioned
-7. Notable hashtags, mentions, or keywords
-8. Content type (announcement, question, advice, news, personal experience, etc.)
+### Content Elements to Extract:
+1. **Main Topic/Theme**: Core subject matter and primary focus
+2. **Key Points**: Main arguments, insights, or information presented
+3. **Industry/Domain Context**: Business sector, field, or area of expertise
+4. **Tone and Style**: Communication approach (professional, casual, educational, opinion, etc.)
+5. **Target Audience**: Implied or explicit audience characteristics
+6. **Platform Context**: Any specific social media platforms or contexts mentioned
+7. **Notable Elements**: Hashtags, mentions, keywords, or special formatting
+8. **Content Type**: Format and purpose (announcement, question, advice, news, personal experience, etc.)
 
-Create a concise 3-4 sentence summary that captures the essence of the post for conversation context. This summary will be used to help AI understand what users are discussing in relation to this post.
+### Summary Requirements:
+- **Length**: 3-4 concise sentences maximum
+- **Focus**: Actionable context for future conversations
+- **Clarity**: Clear, informative, and easily digestible
+- **Relevance**: Highlight elements that will help personalize future interactions
 
-Focus on actionable context that helps future conversations be more relevant and personalized.
-
-Summary:`;
+### Quality Guidelines:
+- Capture the essence and intent of the original content
+- Maintain objectivity while noting tone and style
+- Include contextual details that aid conversation flow
+- Avoid unnecessary detail while preserving key insights
+- Structure information for easy AI comprehension`;
 
 export async function summarizePost(options: SummarizeOptions): Promise<string> {
     const {
@@ -45,11 +53,17 @@ export async function summarizePost(options: SummarizeOptions): Promise<string> 
     try {
         logger.info('Generating post summary for context');
 
-        const prompt = ChatPromptTemplate.fromTemplate(POST_SUMMARY_PROMPT);
+        // Build messages array
+        const messages = buildMessagesArray(postContent);
+
+        const prompt = ChatPromptTemplate.fromMessages(messages);
         const chain = prompt.pipe(model).pipe(new StringOutputParser());
 
-        const summary = await chain.invoke({
-            post_content: postContent.trim()
+        // Create debug callback
+        const debugCallback = createDebugCallback('post-summary');
+
+        const summary = await chain.invoke({}, {
+            callbacks: [debugCallback]
         });
 
         logger.info('Post summary generated successfully');
@@ -59,4 +73,23 @@ export async function summarizePost(options: SummarizeOptions): Promise<string> 
         logger.error('Failed to generate post summary:', error);
         return `Post content available but summary failed. Content preview: ${postContent.substring(0, 100)}...`;
     }
+}
+
+// Helper function to build messages array for prompt
+function buildMessagesArray(postContent: string): BaseMessage[] {
+    const messages: BaseMessage[] = [];
+
+    // Static system message (cacheable)
+    messages.push(new SystemMessage(SYSTEM_MESSAGE));
+
+    // Post content as user message
+    messages.push(new HumanMessage(`Please analyze and summarize the following post content:
+
+<POST_CONTENT>
+${postContent.trim()}
+</POST_CONTENT>
+
+Provide a concise 3-4 sentence summary following the analysis framework outlined in your instructions.`));
+
+    return messages;
 }

@@ -27,7 +27,7 @@ export interface ChatState {
 
     // Output
     aiResponse?: string;
-    responseType?: 'question_answer' | 'social_post' | 'platform_clarification';
+    responseType?: 'question_answer' | 'social' | 'platform_clarification';
     socialPlatform?: string;
     isSocialPost?: boolean;
     error?: string;

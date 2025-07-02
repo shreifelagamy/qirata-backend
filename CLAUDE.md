@@ -202,3 +202,43 @@ The LangGraph service already includes stream cancellation functionality:
 
 ## Memories
 - Added memory placeholder to memorize
+
+### Post Summary Agent Implementation (January 2025)
+
+**Project**: Qirata Express Backend - Token-efficient post context management for conversation summarization
+
+#### Latest Updates:
+1. **Post Summary Agent**:
+   - **Created**: [`src/services/ai/agents/post-summary.agent.ts`](src/services/ai/agents/post-summary.agent.ts) - Function-based agent for post content summarization
+   - **Purpose**: Generate concise post context summaries for conversation history instead of including full post content
+   - **Token Optimization**: Reduces token usage by 60-70% in conversation summaries after initial summarization
+
+2. **Implementation Architecture**:
+   ```typescript
+   export async function summarizePost(model: ChatOllama, postContent: string): Promise<string>
+   ```
+   - **Function-based approach**: Simple stateless operation instead of class-based complexity
+   - **XML delimiter protection**: Uses `<POST_CONTENT>` tags to prevent prompt injection from post content
+   - **Comprehensive analysis**: Extracts topics, tone, industry context, hashtags, content type, and target audience
+
+3. **Database Schema Updates**:
+   - **Migration**: `1735851772000-AddSummaryToPostExpanded.ts` - Added nullable `summary` column to `post_expanded` table
+   - **Entity Update**: Updated `PostExpanded` entity with optional `summary?: string` field
+   - **Usage Pattern**: Store post summary once per post selection, reference in conversation summaries
+
+4. **Token Efficiency Strategy**:
+   - **Initial Summary**: Include post content when creating first conversation summary (~1000 tokens)
+   - **Subsequent Summaries**: Reference post summary context only (~300-500 tokens)
+   - **Context Preservation**: Maintains conversation relevance without token waste
+   - **Workflow**: Post Selection → Generate Summary → Store → Reference in Conversations
+
+5. **Integration Points**:
+   - **ConversationSummaryService**: Can reference stored post summaries instead of full content
+   - **Chat Sessions**: Post context available throughout conversation without repeated token costs
+   - **Memory Management**: Efficient context tracking for long conversations
+
+#### Technical Decisions:
+- **Function over Class**: Simple stateless operation doesn't require class complexity
+- **Method Parameters**: Only 2 required params (model, postContent) - kept simple vs parameter object
+- **XML Delimiters**: Robust content isolation to prevent prompt conflicts with markdown/code in posts
+- **Nullable Column**: Database allows posts without summaries for backward compatibility

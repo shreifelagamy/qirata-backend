@@ -148,7 +148,7 @@ export class LangGraphChatService {
 
         return {
             content: streamingResponse.content,
-            intent: { type: streamingResponse.isSocialPost ? 'social_post' : 'question', confidence: 0.9, keywords: [] },
+            intent: { type: streamingResponse.isSocialPost ? 'social' : 'question', confidence: 0.9, keywords: [] },
             sessionId: streamingResponse.sessionId,
             tokenCount: this.estimateTokenCount(streamingResponse.content),
             processingTime: 0

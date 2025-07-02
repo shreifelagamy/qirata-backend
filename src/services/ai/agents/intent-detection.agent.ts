@@ -12,7 +12,7 @@ const KEEP_RECENT = 3; // Keep last 3 messages for context
 
 // Zod schema for structured AI response
 const IntentDetectionSchema = z.object({
-    intent: z.enum(['social_post', 'question']).describe('The detected user intent'),
+    intent: z.enum(['social', 'question']).describe('The detected user intent'),
     confidence: z.number().min(0.1).max(1.0).describe('Confidence score between 0.1 and 1.0'),
     reasoning: z.string().describe('Brief explanation of why this intent was chosen')
 });
@@ -23,7 +23,7 @@ export type IntentDetectionResponse = z.infer<typeof IntentDetectionSchema>;
 const SYSTEM_MESSAGE = `You are an AI assistant specialized in analyzing user messages to determine their intent. Your role is to classify whether a user wants to create social media content or ask questions.
 
 ## Intent Categories:
-1. **social_post**: User wants to create, write, generate, compose, or draft social media content (posts, tweets, LinkedIn updates, etc.)
+1. **social**: User wants to create, write, generate, compose, or draft social media content (posts, tweets, LinkedIn updates, etc.)
 2. **question**: User wants to ask questions, get information, seek clarification, or request explanations
 
 ## Detection Guidelines:
@@ -41,9 +41,9 @@ const SYSTEM_MESSAGE = `You are an AI assistant specialized in analyzing user me
 
 ### Context-Aware Rules:
 1. **Priority to Latest Message**: Focus primarily on the user's most recent message
-2. **Platform Context**: If previous messages discuss social platforms and current message mentions a platform → likely "social_post"
-3. **Conversation Flow**: If conversation is about content creation and user provides brief responses → likely "social_post"
-4. **Clarification Responses**: If previous message asked about platform preference and current message contains platform name → "social_post"
+2. **Platform Context**: If previous messages discuss social platforms and current message mentions a platform → likely "social"
+3. **Conversation Flow**: If conversation is about content creation and user provides brief responses → likely "social"
+4. **Clarification Responses**: If previous message asked about platform preference and current message contains platform name → "social"
 
 ### Confidence Scoring:
 - **0.9-1.0**: Clear intent keywords and context
@@ -63,7 +63,7 @@ interface IntentDetectionOptions {
 
 export async function detectIntent(options: IntentDetectionOptions): Promise<IntentDetectionResponse> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.5 }),
+        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.7 }),
         message,
         conversationHistory
     } = options;

@@ -22,7 +22,7 @@ export interface UserPreferences {
 
 export interface AIStreamData extends AICallbackData {
     sessionId: string;
-    intentType?: 'question' | 'social_post';
+    intentType?: 'question' | 'social';
 }
 
 export interface StreamInterruptData {

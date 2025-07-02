@@ -88,7 +88,7 @@ export class SocialPostGeneratorNode extends BaseNode {
 
             return {
                 aiResponse: response,
-                responseType: 'social_post',
+                responseType: 'social',
                 socialPlatform: platform,
                 isSocialPost: true,
                 tokenCount
