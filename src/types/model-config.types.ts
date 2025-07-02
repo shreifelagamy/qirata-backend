@@ -7,6 +7,7 @@ export interface ModelConfig {
 }
 
 export interface WorkflowModelConfigs {
+    conversationSummary: ModelConfig;
     intentDetection: ModelConfig;
     platformDetection: ModelConfig;
     questionHandler: ModelConfig;
@@ -15,6 +16,7 @@ export interface WorkflowModelConfigs {
 }
 
 export interface WorkflowModels {
+    conversationSummary: ChatOllama;
     intentDetection: ChatOllama;
     platformDetection: ChatOllama;
     questionHandler: ChatOllama;
@@ -23,6 +25,11 @@ export interface WorkflowModels {
 }
 
 export const DEFAULT_MODEL_CONFIGS: WorkflowModelConfigs = {
+    conversationSummary: {
+        baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+        model: process.env.SUMMARY_MODEL || process.env.OLLAMA_MODEL || 'mistral:7b',
+        temperature: parseFloat(process.env.SUMMARY_TEMPERATURE || '0.5'),
+    },
     intentDetection: {
         baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
         model: process.env.INTENT_MODEL || process.env.OLLAMA_MODEL || 'mistral:7b',
@@ -60,6 +67,7 @@ export function createModelFromConfig(config: ModelConfig): ChatOllama {
 
 export function createWorkflowModels(configs: WorkflowModelConfigs): WorkflowModels {
     return {
+        conversationSummary: createModelFromConfig(configs.conversationSummary),
         intentDetection: createModelFromConfig(configs.intentDetection),
         platformDetection: createModelFromConfig(configs.platformDetection),
         questionHandler: createModelFromConfig(configs.questionHandler),

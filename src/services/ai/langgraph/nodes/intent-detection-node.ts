@@ -1,6 +1,5 @@
+import { detectIntent } from '../../agents/intent-detection.agent';
 import { BaseNode, ChatState } from './base-node';
-import { IntentDetectionResult } from '../../../../types/ai.types';
-import { IntentDetectionService } from '../../intent-detection.service';
 
 export class IntentDetectionNode extends BaseNode {
     constructor() {
@@ -9,22 +8,21 @@ export class IntentDetectionNode extends BaseNode {
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
-            this.logInfo('Detecting intent', state.sessionId);
+            this.logInfo(`Detecting intent ${state.sessionId}`);
 
             if (!state.models?.intentDetection) {
                 throw new Error('Intent detection model not available in state');
             }
 
-            const intentService = new IntentDetectionService(state.models.intentDetection);
-            const intentResult: IntentDetectionResult = await intentService.detectIntent(
-                state.userMessage,
-                state.context?.previousMessages
-            );
+            const intent = await detectIntent({
+                message: state.userMessage,
+                conversationHistory: state.previousMessages || [],
+            });
 
-            return {
-                intent: intentResult.intent,
-                confidence: intentResult.intent.confidence
-            };
+            // log intent output
+            this.logInfo(`Detected intent: ${intent.intent} with confidence ${intent.confidence} with reasoning: ${intent.reasoning}`);
+
+            return { intent };
         } catch (error) {
             this.logError('Intent detection error', error, state.sessionId);
             return this.handleError('Intent detection', error);

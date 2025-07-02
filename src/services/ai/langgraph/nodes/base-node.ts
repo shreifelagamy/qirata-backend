@@ -1,14 +1,16 @@
-import { logger } from '../../../../utils/logger';
-import { AIContext, AIStreamCallback, UserIntent } from '../../../../types/ai.types';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
-import { PlatformDetectionResult } from '../../platform-detection.service';
+import { AIContext, AIStreamCallback } from '../../../../types/ai.types';
 import { WorkflowModels } from '../../../../types/model-config.types';
+import { logger } from '../../../../utils/logger';
+import { IntentDetectionResponse } from '../../agents/intent-detection.agent';
+import { PlatformDetectionResponse } from '../../agents/platform-detection.agent';
 
 export interface ChatState {
     // Input
     sessionId: string;
     userMessage: string;
     postContent?: string;
+    postSummary?: string;
     previousMessages?: any[];
     conversationSummary?: string;
     userPreferences?: any;
@@ -20,16 +22,13 @@ export interface ChatState {
     // Processing State
     memory?: any;
     context?: AIContext;
-    intent?: UserIntent;
-    confidence?: number;
-    platformDetection?: PlatformDetectionResult;
-    needsPlatformClarification?: boolean;
-    waitingForPlatformChoice?: boolean;
+    intent?: IntentDetectionResponse;
+    platformDetection?: PlatformDetectionResponse;
 
     // Output
     aiResponse?: string;
     responseType?: 'question_answer' | 'social_post' | 'platform_clarification';
-    socialPlatform?: SocialPlatform;
+    socialPlatform?: string;
     isSocialPost?: boolean;
     error?: string;
     tokenCount?: number;
@@ -44,14 +43,14 @@ export abstract class BaseNode {
     }
 
     protected logInfo(message: string, sessionId?: string): void {
-        const logMessage = sessionId 
+        const logMessage = sessionId
             ? `[LangGraph:${this.nodeName}] ${message} for session: ${sessionId}`
             : `[LangGraph:${this.nodeName}] ${message}`;
         logger.info(logMessage);
     }
 
     protected logError(message: string, error: unknown, sessionId?: string): void {
-        const logMessage = sessionId 
+        const logMessage = sessionId
             ? `[LangGraph:${this.nodeName}] ${message} for session: ${sessionId}`
             : `[LangGraph:${this.nodeName}] ${message}`;
         logger.error(logMessage, error);

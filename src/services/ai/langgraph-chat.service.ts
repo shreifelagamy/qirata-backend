@@ -1,16 +1,14 @@
-import { SocialPlatform } from '../../entities/social-post.entity';
+import fs from 'fs';
 import {
     AIContext,
     AIResponse,
     AIStreamCallback,
     StreamingAIResponse
 } from '../../types/ai.types';
+import { DEFAULT_MODEL_CONFIGS, WorkflowModelConfigs } from '../../types/model-config.types';
 import { logger } from '../../utils/logger';
-import { SocialPostGeneratorService } from './social-post-generator.service';
 import { WorkflowBuilder } from './langgraph/builders/workflow-builder';
 import { ChatState } from './langgraph/nodes/base-node';
-import { WorkflowModelConfigs, DEFAULT_MODEL_CONFIGS } from '../../types/model-config.types';
-import fs from 'fs';
 
 
 
@@ -18,21 +16,15 @@ export class LangGraphChatService {
     private app: any;
     private activeRequests = new Map<string, AbortController>();
     private modelConfigs: WorkflowModelConfigs;
-    private socialPostGeneratorService: SocialPostGeneratorService;
     private workflowBuilder: WorkflowBuilder;
 
     constructor(modelConfigs?: WorkflowModelConfigs) {
         // Use provided configs or defaults
         this.modelConfigs = modelConfigs || DEFAULT_MODEL_CONFIGS;
 
-        // Initialize services that don't depend on models
-        this.socialPostGeneratorService = new SocialPostGeneratorService();
 
         // Initialize workflow builder with model configurations
-        this.workflowBuilder = new WorkflowBuilder(
-            this.modelConfigs,
-            this.socialPostGeneratorService
-        );
+        this.workflowBuilder = new WorkflowBuilder(this.modelConfigs);
 
         this.app = this.workflowBuilder.buildWorkflow();
     }
@@ -56,11 +48,8 @@ export class LangGraphChatService {
         try {
             const startTime = Date.now();
 
-            // Generate visual representation
-            const graphBlob = await this.app.getGraph().drawMermaidPng();
-            const graphBuffer = Buffer.from(await graphBlob.arrayBuffer());
-            fs.writeFileSync('graph.png', graphBuffer);
-
+            // Generate visual representation for LangGraph Studio
+            await this.generateGraphVisualization();
 
             // Cancel any existing request for this session
             this.cancelExistingRequest(sessionId);
@@ -80,6 +69,7 @@ export class LangGraphChatService {
                 sessionId,
                 userMessage: message,
                 postContent: context.postContent,
+                postSummary: context.postSummary,
                 previousMessages: context.previousMessages,
                 conversationSummary: context.conversationSummary,
                 userPreferences: context.userPreferences,
@@ -106,7 +96,7 @@ export class LangGraphChatService {
                 isComplete: true,
                 content: result.aiResponse || 'No response generated',
                 error: result.error,
-                summary: '', // Summary will be handled within the workflow
+                summary: result.conversationSummary || '', // Summary will be handled within the workflow
                 isSocialPost: result.isSocialPost || false,
                 socialPlatform: result.socialPlatform
             };
@@ -191,11 +181,11 @@ export class LangGraphChatService {
     public async clearMemory(sessionId: string): Promise<void> {
         const { createModelFromConfig } = await import('../../types/model-config.types');
         const { MemoryService } = await import('./memory.service');
-        
+
         const memoryModel = createModelFromConfig(this.modelConfigs.memoryService);
         const memoryService = new MemoryService(memoryModel);
         memoryService.clearMemory(sessionId);
-        
+
         logger.info(`[LangGraph] Cleared memory for session: ${sessionId}`);
     }
 
@@ -227,17 +217,32 @@ export class LangGraphChatService {
      */
     public updateModelConfigs(newConfigs: Partial<WorkflowModelConfigs>): void {
         this.modelConfigs = { ...this.modelConfigs, ...newConfigs };
-        
+
         // Rebuild workflow with new configurations
-        this.workflowBuilder = new WorkflowBuilder(
-            this.modelConfigs,
-            this.socialPostGeneratorService
-        );
+        this.workflowBuilder = new WorkflowBuilder(this.modelConfigs);
         this.app = this.workflowBuilder.buildWorkflow();
-        
+
         logger.info('Model configurations updated and workflow rebuilt');
     }
 
+    /**
+     * Generate graph visualization for LangGraph Studio
+     */
+    private async generateGraphVisualization(): Promise<void> {
+        try {
+            const graphBlob = await this.app.getGraph().drawMermaidPng();
+            const graphBuffer = Buffer.from(await graphBlob.arrayBuffer());
+            fs.writeFileSync('graph.png', graphBuffer);
+
+            // Also generate mermaid text for Studio
+            const mermaidText = this.app.getGraph().drawMermaid();
+            fs.writeFileSync('graph.mermaid', mermaidText);
+
+            logger.info('Graph visualization generated for LangGraph Studio');
+        } catch (error) {
+            logger.warn('Failed to generate graph visualization:', error);
+        }
+    }
 }
 
 // Export singleton instance

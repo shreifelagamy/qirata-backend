@@ -16,6 +16,9 @@ export class PostExpanded extends BaseEntity {
     @IsNotEmpty()
     content: string = "";
 
+    @Column({ type: "text", nullable: true })
+    summary?: string;
+
     @CreateDateColumn({ type: "timestamp with time zone" })
     created_at: Date = new Date();
 

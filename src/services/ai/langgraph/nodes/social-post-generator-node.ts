@@ -1,9 +1,7 @@
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import { ChatOllama } from '@langchain/ollama';
-import { BaseNode, ChatState } from './base-node';
 import { AIStreamCallback } from '../../../../types/ai.types';
-import { SocialPostGeneratorService } from '../../social-post-generator.service';
+import { generateSocialPost } from '../../agents/social-post-generator.agent';
+import { BaseNode, ChatState } from './base-node';
 
 class WebSocketStreamCallback extends BaseCallbackHandler {
     name = 'websocket_stream_callback';
@@ -47,12 +45,10 @@ class WebSocketStreamCallback extends BaseCallbackHandler {
 }
 
 export class SocialPostGeneratorNode extends BaseNode {
-    private socialPostGeneratorService: SocialPostGeneratorService;
-
-    constructor(socialPostGeneratorService: SocialPostGeneratorService) {
+    constructor() {
         super('SocialPostGenerator');
-        this.socialPostGeneratorService = socialPostGeneratorService;
     }
+
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
@@ -62,21 +58,31 @@ export class SocialPostGeneratorNode extends BaseNode {
                 throw new Error('Social post generator model not available in state');
             }
 
-            const platform = state.platformDetection?.platform || state.socialPlatform!;
-            const prompt = this.socialPostGeneratorService.buildSocialPostPromptTemplate(platform);
+            if (!state.platformDetection?.platform) {
+                throw new Error('Platform not detected for social post generation');
+            }
 
-            const chain = prompt.pipe(state.models.socialPostGenerator).pipe(new StringOutputParser());
+            const platform = state.platformDetection.platform;
 
-            const callbacks = state.callback ? [
+            // Get conversation history from previous messages
+            const conversationHistory = state.previousMessages || [];
+
+            // Prepare streaming callbacks if available
+            const streamingCallbacks = state.callback ? [
                 new WebSocketStreamCallback(state.sessionId, state.callback)
             ] : [];
 
-            const response = await chain.invoke({
+            // Build user preferences context
+
+            const response = await generateSocialPost({
+                model: state.models.socialPostGenerator,
                 userMessage: state.userMessage,
-                postContent: state.context?.postContent || 'No post content provided',
-                conversationSummary: state.context?.conversationSummary || '',
-                userPreferences: this.socialPostGeneratorService.buildUserPreferencesContext(state.context)
-            }, { callbacks });
+                conversationHistory,
+                postContent: state.postContent,
+                conversationSummary: state.conversationSummary,
+                platform,
+                streamingCallbacks
+            });
 
             const tokenCount = this.estimateTokenCount(state.userMessage + response);
 

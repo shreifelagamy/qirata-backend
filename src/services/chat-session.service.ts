@@ -135,6 +135,7 @@ export class ChatSessionService {
 
         return {
             postContent: session?.post?.expanded?.content,
+            postSummary: session?.post?.expanded?.summary,
             previousMessages: messages,
             conversationSummary: session?.summary,
             userPreferences: userPreferences

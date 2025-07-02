@@ -1,9 +1,9 @@
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
-import { AIContext, AIStreamCallback, UserIntent } from '../../../../types/ai.types';
+import { AIContext, AIStreamCallback } from '../../../../types/ai.types';
 import { DEFAULT_MODEL_CONFIGS, WorkflowModelConfigs, WorkflowModels, createWorkflowModels } from '../../../../types/model-config.types';
-import { PlatformDetectionResult } from '../../platform-detection.service';
-import { SocialPostGeneratorService } from '../../social-post-generator.service';
+import { IntentDetectionResponse } from '../../agents/intent-detection.agent';
+import { PlatformDetectionResponse } from '../../agents/platform-detection.agent';
 import {
     ConversationSummaryNode,
     IntentDetectionNode,
@@ -19,6 +19,7 @@ const ChatStateAnnotation = Annotation.Root({
     sessionId: Annotation<string>(),
     userMessage: Annotation<string>(),
     postContent: Annotation<string>(),
+    postSummary: Annotation<string>(),
     previousMessages: Annotation<any[]>(),
     conversationSummary: Annotation<string>(),
     userPreferences: Annotation<any>(),
@@ -30,9 +31,8 @@ const ChatStateAnnotation = Annotation.Root({
     // Processing State
     memory: Annotation<any>(),
     context: Annotation<AIContext>(),
-    intent: Annotation<UserIntent>(),
-    confidence: Annotation<number>(),
-    platformDetection: Annotation<PlatformDetectionResult>(),
+    intent: Annotation<IntentDetectionResponse>(),
+    platformDetection: Annotation<PlatformDetectionResponse>(),
     needsPlatformClarification: Annotation<boolean>(),
     waitingForPlatformChoice: Annotation<boolean>(),
 
@@ -51,9 +51,6 @@ export class WorkflowBuilder {
     private modelConfigs: WorkflowModelConfigs;
     private workflowModels: WorkflowModels;
 
-    // Services
-    private socialPostGeneratorService: SocialPostGeneratorService;
-
     // Nodes
     private conversationSummaryNode!: ConversationSummaryNode;
     private intentDetectionNode!: IntentDetectionNode;
@@ -62,16 +59,12 @@ export class WorkflowBuilder {
     private questionHandlerNode!: QuestionHandlerNode;
     private socialPostGeneratorNode!: SocialPostGeneratorNode;
 
-    constructor(
-        modelConfigs: WorkflowModelConfigs = DEFAULT_MODEL_CONFIGS,
-        socialPostGeneratorService?: SocialPostGeneratorService
-    ) {
+    constructor(modelConfigs: WorkflowModelConfigs = DEFAULT_MODEL_CONFIGS) {
         this.memorySaver = new MemorySaver();
         this.modelConfigs = modelConfigs;
         this.workflowModels = createWorkflowModels(modelConfigs);
 
         // Only social post generator doesn't use models directly
-        this.socialPostGeneratorService = socialPostGeneratorService || new SocialPostGeneratorService();
 
         this.initializeNodes();
     }
@@ -82,7 +75,7 @@ export class WorkflowBuilder {
         this.platformDetectionNode = new PlatformDetectionNode();
         this.platformClarificationNode = new PlatformClarificationNode();
         this.questionHandlerNode = new QuestionHandlerNode();
-        this.socialPostGeneratorNode = new SocialPostGeneratorNode(this.socialPostGeneratorService);
+        this.socialPostGeneratorNode = new SocialPostGeneratorNode();
     }
 
     /**

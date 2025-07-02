@@ -1,6 +1,7 @@
-import { langChainService } from '../../services/ai/langchain.service';
+import { summarizePost } from '../../services/ai/agents/post-summary.agent';
 import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
 import { ChatSessionService } from '../../services/chat-session.service';
+import { PostsService } from '../../services/posts.service';
 import { AICallbackData } from '../../types/ai.types';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
 import { logger } from '../../utils/logger';
@@ -11,6 +12,7 @@ import { logger } from '../../utils/logger';
  */
 export class ChatController {
     private chatSessionService = new ChatSessionService();
+    private postService = new PostsService();
     private activeStreams = new Map<string, boolean>();
 
     /**
@@ -45,6 +47,9 @@ export class ChatController {
 
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
+
+            // log context as string
+            logger.info(`[ChatController] Context for session ${sessionId}:`, JSON.stringify(context, null, 2));
 
             // 4. Create stream callback for real-time updates
             const streamCallback = (callbackData: AICallbackData) => {

@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import TurndownService from 'turndown';
-import { EntityManager } from 'typeorm';
+import { EntityManager, Repository, UpdateResult } from 'typeorm';
 import { AppDataSource } from '../app';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostExpanded } from '../entities/post-expanded.entity';
@@ -8,6 +8,7 @@ import { Post } from '../entities/post.entity';
 import { HttpError } from '../middleware/error.middleware';
 import { PostModel } from '../models/post.model';
 import { logger } from '../utils/logger';
+import { summarizePost } from './ai/agents/post-summary.agent';
 import { ChatSessionService } from './chat-session.service';
 import scraper from './content/scraper.service';
 
@@ -23,11 +24,14 @@ interface PostFilters {
 export class PostsService {
     private postModel: PostModel;
     private chatSessionService: ChatSessionService;
+    private postExpandedRepository: Repository<PostExpanded>;
     private turndownService: TurndownService;
 
     constructor() {
         this.postModel = new PostModel();
         this.chatSessionService = new ChatSessionService();
+        this.postExpandedRepository = AppDataSource.getRepository(PostExpanded);
+
         this.turndownService = new TurndownService({
             headingStyle: 'atx',
             codeBlockStyle: 'fenced',
@@ -160,6 +164,12 @@ export class PostsService {
                     }
                 }
 
+                // Generate summary
+                const summary = await summarizePost({
+                    postContent: expanded.content,
+                })
+                expanded.summary = summary;
+
                 // Save expanded content
                 await AppDataSource.manager.save(PostExpanded, expanded);
             }
@@ -172,6 +182,19 @@ export class PostsService {
         } catch (error) {
             logger.error(`Error expanding post ${id}:`, error);
             throw error instanceof HttpError ? error : new HttpError(500, 'Failed to expand post');
+        }
+    }
+
+    async updateExpandedSummary(postId: string, summary: string): Promise<UpdateResult> {
+        try {
+            const expanded = await this.postExpandedRepository.update(
+                { post_id: postId }, { summary }
+            );
+
+            return expanded;
+        } catch (error) {
+            logger.error(`Error updating summary for post ${postId}:`, error);
+            throw new HttpError(500, 'Failed to update post summary');
         }
     }
 }

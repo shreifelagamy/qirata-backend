@@ -1,5 +1,5 @@
+import { detectPlatform } from '../../agents/platform-detection.agent';
 import { BaseNode, ChatState } from './base-node';
-import { PlatformDetectionService, PlatformDetectionContext } from '../../platform-detection.service';
 
 export class PlatformDetectionNode extends BaseNode {
     constructor() {
@@ -10,23 +10,16 @@ export class PlatformDetectionNode extends BaseNode {
         try {
             this.logInfo('Detecting platform using AI', state.sessionId);
 
-            if (!state.models?.platformDetection) {
-                throw new Error('Platform detection model not available in state');
-            }
-
-            const platformDetectionService = new PlatformDetectionService(state.models.platformDetection);
-            const context: PlatformDetectionContext = {
+            const platformDetection = await detectPlatform({
                 userMessage: state.userMessage,
-                conversationHistory: state.context?.previousMessages,
-                previousMessages: state.context?.previousMessages
-            };
+                conversationHistory: state.previousMessages
+            });
 
-            const platformDetection = await platformDetectionService.detectPlatform(context);
+            // log platform detection result as string
+            this.logInfo('[PlatformDetection] Result:', JSON.stringify(platformDetection, null, 2));
 
             return {
                 platformDetection,
-                needsPlatformClarification: platformDetection.needsClarification,
-                socialPlatform: platformDetection.platform
             };
         } catch (error) {
             this.logError('AI platform detection error', error, state.sessionId);

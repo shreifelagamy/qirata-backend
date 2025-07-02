@@ -20,6 +20,7 @@ export interface UserIntent {
 
 export interface AIContext {
     postContent?: string;
+    postSummary?: string;
     previousMessages?: Message[];
     userPreferences?: {
         tone?: string;
