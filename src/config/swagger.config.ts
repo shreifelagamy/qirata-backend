@@ -641,6 +641,62 @@ Authorization header as \`Bearer <token>\`.
                         },
                     },
                 },
+                SocialPost: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Unique identifier for the social post',
+                        },
+                        platform: {
+                            type: 'string',
+                            enum: ['twitter', 'linkedin', 'facebook', 'instagram'],
+                            description: 'Social media platform',
+                            example: 'linkedin',
+                        },
+                        content: {
+                            type: 'string',
+                            description: 'Social post content text',
+                        },
+                        image_urls: {
+                            type: 'array',
+                            items: {
+                                type: 'string',
+                                format: 'uri',
+                            },
+                            nullable: true,
+                            description: 'URLs of images attached to the post',
+                        },
+                        chat_session_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Associated chat session ID',
+                        },
+                        post_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            nullable: true,
+                            description: 'Associated post ID',
+                        },
+                        published_at: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            description: 'When the post was published',
+                        },
+                        created_at: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When the social post was created',
+                        },
+                        updated_at: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When the social post was last updated',
+                        },
+                    },
+                },
             },
         },
     },

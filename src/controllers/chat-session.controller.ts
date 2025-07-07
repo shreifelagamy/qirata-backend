@@ -103,7 +103,13 @@ export class ChatSessionController {
      *         content:
      *           application/json:
      *             schema:
-     *               $ref: '#/components/schemas/ChatSession'
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   $ref: '#/components/schemas/ChatSession'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
      *       401:
      *         description: Unauthorized
      *         content:
@@ -121,7 +127,7 @@ export class ChatSessionController {
         try {
             const session = await this.service.findOne(req.params.id);
             if (!session) return res.status(404).json({ error: { code: '404', message: 'Chat session not found' } });
-            res.json(session);
+            res.json({ data: session, status: 200 });
         } catch (err) {
             next(err);
         }
@@ -263,5 +269,58 @@ export class ChatSessionController {
         }
     }
 
-    
+    /**
+     * @swagger
+     * /chat-sessions/{id}/social-posts:
+     *   get:
+     *     summary: Get social posts for a chat session
+     *     description: Retrieves all social posts generated in a chat session
+     *     tags: [Chat Sessions]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Chat session ID
+     *     responses:
+     *       200:
+     *         description: List of social posts
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: array
+     *                   items:
+     *                     $ref: '#/components/schemas/SocialPost'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
+     *       401:
+     *         description: Unauthorized
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *       404:
+     *         description: Chat session not found
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async getSocialPosts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const sessionId = req.params.id;
+            const posts = await this.service.getSocialPosts(sessionId);
+            res.json({ data: posts, status: 200 });
+        } catch (err) {
+            next(err);
+        }
+    }
 }

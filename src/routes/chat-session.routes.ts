@@ -39,5 +39,14 @@ export function createChatSessionRouter(): Router {
         controller.getMessages.bind(controller)
     );
 
+    // Social posts endpoint
+    router.get(
+        '/:id/social-posts',
+        validate([
+            ...commonValidation.id(),
+        ]),
+        controller.getSocialPosts.bind(controller)
+    );
+
     return router;
 }

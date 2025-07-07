@@ -291,4 +291,22 @@ export class ChatSessionService {
             throw error;
         }
     }
+
+    async getSocialPosts(sessionId: string): Promise<SocialPost[]> {
+        try {
+            const session = await this.getCachedSession(sessionId);
+            if (!session) throw new Error('Chat session not found');
+
+            const posts = await this.socialPostRepository.find({
+                where: { chat_session_id: sessionId },
+                order: { created_at: 'DESC' },
+            });
+
+            return posts;
+        } catch (error) {
+            logger.error(`Error getting social posts for session ${sessionId}:`, error);
+            throw error;
+        }
+    }
+    
 }
