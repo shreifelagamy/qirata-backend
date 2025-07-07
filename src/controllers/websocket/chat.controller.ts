@@ -93,7 +93,7 @@ export class ChatController {
                     console.log(`Social post saved for session ${post}`);
 
                     // Emit social post response
-                    emit('chat:social:response', {
+                    emit('chat:social:post', {
                         sessionId,
                         socialContent: streamingResponse.content || '',
                         platform: streamingResponse.socialPlatform,
