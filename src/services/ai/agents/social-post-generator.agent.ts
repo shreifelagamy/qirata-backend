@@ -110,7 +110,13 @@ When modifying existing posts:
 - **Always start with existing post for modifications**
 - **Only change what was specifically requested**
 - **Never create new content when user wants modifications**
-- **Provide clear, actionable content ready for posting**`;
+- **Provide clear, actionable content ready for posting**
+
+## OUTPUT FORMAT:
+- Return ONLY the social media post content
+- Do NOT include any explanations, introductions, or additional context
+- Do NOT use phrases like "Here's your post:", "Post:", or any other prefixes
+- The output should be ready to copy and paste directly to the social platform`;
 
 interface SocialPostGeneratorOptions {
     model?: ChatOllama;

@@ -6,7 +6,7 @@ import { Message } from "../../../entities";
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
 
-const MESSAGE_THRESHOLD = 2; // Trigger summary every 2 messages
+const MESSAGE_THRESHOLD = 5; // Trigger summary every 2 messages
 const KEEP_RECENT = 8; // Keep last 8 messages after summarization
 
 // Static system message (cacheable)
@@ -109,7 +109,7 @@ function buildMessagesArray(messages: Message[], existingSummary: string, postSu
 
     // Add recent conversation messages
     const recentMessages = messages.slice(-KEEP_RECENT);
-    
+
     for (const msg of recentMessages) {
         if (msg.user_message?.trim()) {
             messageArray.push(new HumanMessage(msg.user_message));

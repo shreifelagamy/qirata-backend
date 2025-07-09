@@ -4,7 +4,6 @@ import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { ChatSession } from '../entities/chat-session.entity';
 import { Message } from '../entities/message.entity';
 import { Post } from '../entities/post.entity';
-import { SocialPlatform, SocialPost } from '../entities/social-post.entity';
 import { AIContext } from '../types/ai.types';
 import { logger } from '../utils/logger';
 
@@ -12,7 +11,6 @@ export class ChatSessionService {
     private readonly chatSessionRepository: Repository<ChatSession>;
     private readonly postRepository: Repository<Post>;
     private readonly messageRepository: Repository<Message>;
-    private readonly socialPostRepository: Repository<SocialPost>;
     private sessionCache = new Map<string, {
         chatSession: ChatSession,
         cacheAt: Date
@@ -22,7 +20,6 @@ export class ChatSessionService {
         this.chatSessionRepository = AppDataSource.getRepository(ChatSession);
         this.postRepository = AppDataSource.getRepository(Post);
         this.messageRepository = AppDataSource.getRepository(Message);
-        this.socialPostRepository = AppDataSource.getRepository(SocialPost); // Assuming SocialPost is registered in the data source
     }
 
     async findAll(page = 1, pageSize = 10) {
@@ -265,48 +262,5 @@ export class ChatSessionService {
         }
     }
 
-    async saveSocialPost(
-        sessionId: string,
-        socialPostdata: {
-            platform: SocialPlatform;
-            content: string;
-            imageUrls?: string[];
-            publishedAt?: Date;
-        }
-    ) {
-        try {
-            const session = await this.getCachedSession(sessionId);
-            if (!session) throw new Error('Chat session not found');
-
-            const socialPost = this.socialPostRepository.upsert({
-                platform: socialPostdata.platform,
-                content: socialPostdata.content,
-                chat_session_id: sessionId,
-            }, ['chat_session_id', 'platform']);
-
-            logger.info(`Saved social post for session ${sessionId} on platform ${socialPostdata.platform}`);
-            return socialPost;
-        } catch (error) {
-            logger.error(`Error saving social post for session ${sessionId}:`, error);
-            throw error;
-        }
-    }
-
-    async getSocialPosts(sessionId: string): Promise<SocialPost[]> {
-        try {
-            const session = await this.getCachedSession(sessionId);
-            if (!session) throw new Error('Chat session not found');
-
-            const posts = await this.socialPostRepository.find({
-                where: { chat_session_id: sessionId },
-                order: { created_at: 'DESC' },
-            });
-
-            return posts;
-        } catch (error) {
-            logger.error(`Error getting social posts for session ${sessionId}:`, error);
-            throw error;
-        }
-    }
     
 }

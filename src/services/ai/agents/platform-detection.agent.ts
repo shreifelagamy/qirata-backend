@@ -11,51 +11,43 @@ const KEEP_RECENT = 5; // Keep last 5 user messages for context
 
 // Zod schema for platform detection response
 const PlatformDetectionSchema = z.object({
-    platform: z.enum(['twitter', 'linkedin', 'facebook', 'instagram']).nullable(),
-    confidence: z.number().min(0).max(1),
-    needsClarification: z.boolean(),
-    reasoning: z.string(),
-    clarificationQuery: z.string().optional().describe('Question to ask user when clarification is needed')
+    platform: z.enum(['twitter', 'linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'])
+        .nullable()
+        .describe('The detected social media platform where user wants to share content. Null if no platform could be determined with reasonable confidence'),
+
+    confidence: z.number()
+        .min(0)
+        .max(1)
+        .describe('Confidence score from 0.0 to 1.0 indicating how certain the agent is about the platform detection. Higher values mean more certainty'),
+
+    needsClarification: z.boolean()
+        .describe('Whether the user input requires clarification to determine the platform. Set to true when both current message and conversation context are unclear or ambiguous'),
+
+    reasoning: z.string()
+        .min(1)
+        .describe('Brief explanation of why this platform was chosen or why clarification is needed. Should consider both current message and conversation context'),
+
+    clarificationQuery: z.string()
+        .nullable()
+        .describe('Specific question to ask the user when clarification is needed. Should be present when needsClarification is true. Example: "Which platform would you like to share this on - Twitter, LinkedIn, or Instagram?"')
 });
 
 export type PlatformDetectionResponse = z.infer<typeof PlatformDetectionSchema>;
 
 // Static system message (cacheable)
-const SYSTEM_MESSAGE = `You are an expert social media platform detection assistant. Your role is to identify which social media platform a user wants to create content for.
+const SYSTEM_MESSAGE = `Analyze the user message to detect which social media platform they want.
 
-## Available Platforms:
-- **twitter**: Short-form content, tweets, microblogging (280 characters)
-- **linkedin**: Professional networking, business content, career-focused
-- **facebook**: Community engagement, personal and business posts, longer content
-- **instagram**: Visual content, photos, stories, reels, lifestyle content
+CONSIDERATIONS:
+- USER MIGHT SAY PARTIAL NAMES, ABBREVIATIONS, OR COMMON TERMS
+- USER MIGHT USE ARABIC LANGUAGE
+- TWITTER MIGHT BE REFERRED TO AS "X"
 
-## Platform Keywords & Recognition:
-**Twitter/X**: twitter, tweet, x.com, x post, تويتر, تغريدة
-**LinkedIn**: linkedin, لينكد إن
-**Facebook**: facebook, fb, فيسبوك
-**Instagram**: instagram, insta, ig, انستغرام, انستا
-
-## Detection Rules:
-1. **Priority to Latest Message**: Always prioritize the user's most recent message for platform detection
-2. **Smart Pattern Matching**:
-   - Match complete words: "twitter" → twitter
-   - Match partial words: "twit", "linke", "face", "insta" → respective platforms
-   - Match abbreviations: "x", "fb", "ig" → respective platforms
-   - Match similar spellings: "twiter", "linkdin", "instgram" → respective platforms
-   - Match different cases: "TWITTER", "LinkedIn", "facebook" → respective platforms
-3. **Context Analysis**: Only use conversation history when the latest message is unclear
-4. **Confidence Scoring**:
-   - 0.9-1.0: Exact match or clear abbreviation
-   - 0.7-0.8: Partial match or similar spelling
-   - 0.5-0.6: Contextual indication
-   - 0.0-0.4: Unclear, needs clarification
-5. **Clarification Strategy**: When confidence < 0.5, ask user to specify platform
-
-## Response Guidelines:
-- Set \`needsClarification: true\` when confidence < 0.5
-- Generate helpful \`clarificationQuery\` when clarification needed
-- Include available platform options in clarification
-- Be conversational and helpful in queries`;
+RULES:
+- IGNORE CASE SENSITIVITY WHEN MATCHING PLATFORM NAMES
+- MUST SET YOUR CONFIDENCE SCORE BETWEEN 0.0 AND 1.0
+- MUST CLARIFY YOUR REASON FOR THE PLATFORM CHOICE
+- DONT TAKE GUESSES, IF UNCLEAR, ASK FOR CLARIFICATION
+`;
 
 interface PlatformDetectionOptions {
     model?: ChatOllama;

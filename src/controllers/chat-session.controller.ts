@@ -2,15 +2,18 @@ import { NextFunction, Request, Response } from 'express';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { SendMessageDto, StreamMessageDto } from '../dtos/ai-chat.dto';
 import { ChatSessionService } from '../services/chat-session.service';
+import { SocialPostsService } from '../services/social-posts.service';
 import { AIStreamCallback } from '../types/ai.types';
 import { logger } from '../utils/logger';
 
 export class ChatSessionController {
     // The service is initialized in the constructor, so we don't need to assign it here.
     private service: ChatSessionService;
+    private socialPostsService: SocialPostsService;
 
     constructor() {
         this.service = new ChatSessionService();
+        this.socialPostsService = new SocialPostsService();
     }
 
     /**
@@ -317,9 +320,145 @@ export class ChatSessionController {
     async getSocialPosts(req: Request, res: Response, next: NextFunction) {
         try {
             const sessionId = req.params.id;
-            const posts = await this.service.getSocialPosts(sessionId);
+            const posts = await this.socialPostsService.findByChatSession(sessionId);
             res.json({ data: posts, status: 200 });
         } catch (err) {
+            next(err);
+        }
+    }
+
+    /**
+     * @swagger
+     * /chat-sessions/{id}/social-posts/{postId}:
+     *   put:
+     *     summary: Update a social post
+     *     description: Updates the content of an existing social post in a chat session
+     *     tags: [Chat Sessions]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Chat session ID
+     *       - in: path
+     *         name: postId
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Social post ID
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - content
+     *             properties:
+     *               content:
+     *                 type: string
+     *                 description: The updated social post content
+     *               image_urls:
+     *                 type: array
+     *                 items:
+     *                   type: string
+     *                   format: url
+     *                 description: Array of image URLs
+     *     responses:
+     *       200:
+     *         description: Social post updated successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   $ref: '#/components/schemas/SocialPost'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
+     *       400:
+     *         description: Bad request
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *       404:
+     *         description: Social post not found
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async updateSocialPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const sessionId = req.params.id;
+            const postId = req.params.postId;
+            const { content, image_urls } = req.body;
+
+            const updatedPost = await this.socialPostsService.update(sessionId, postId, {
+                content,
+                image_urls
+            });
+
+            res.json({ data: updatedPost, status: 200 });
+        } catch (err) {
+            if (err instanceof Error && err.message === 'Social post not found') {
+                return res.status(404).json({ error: { code: '404', message: err.message } });
+            }
+            next(err);
+        }
+    }
+
+    /**
+     * @swagger
+     * /chat-sessions/{id}/social-posts/{postId}:
+     *   delete:
+     *     summary: Delete a social post
+     *     description: Deletes a social post from a chat session
+     *     tags: [Chat Sessions]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Chat session ID
+     *       - in: path
+     *         name: postId
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Social post ID
+     *     responses:
+     *       204:
+     *         description: Social post deleted successfully
+     *       404:
+     *         description: Social post not found
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async deleteSocialPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const postId = req.params.postId;
+            
+            await this.socialPostsService.delete(postId);
+            res.status(204).send();
+        } catch (err) {
+            if (err instanceof Error && err.message === 'Social post not found') {
+                return res.status(404).json({ error: { code: '404', message: err.message } });
+            }
             next(err);
         }
     }

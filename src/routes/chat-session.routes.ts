@@ -39,13 +39,34 @@ export function createChatSessionRouter(): Router {
         controller.getMessages.bind(controller)
     );
 
-    // Social posts endpoint
+    // Social posts endpoints
     router.get(
         '/:id/social-posts',
         validate([
             ...commonValidation.id(),
         ]),
         controller.getSocialPosts.bind(controller)
+    );
+
+    router.put(
+        '/:id/social-posts/:postId',
+        validate([
+            ...commonValidation.id(),
+            ...commonValidation.id('postId'),
+            body('content').isString().trim().notEmpty().withMessage('Content is required'),
+            body('image_urls').optional().isArray().withMessage('Image URLs must be an array'),
+            body('image_urls.*').optional().isURL().withMessage('Each image URL must be valid')
+        ]),
+        controller.updateSocialPost.bind(controller)
+    );
+
+    router.delete(
+        '/:id/social-posts/:postId',
+        validate([
+            ...commonValidation.id(),
+            ...commonValidation.id('postId')
+        ]),
+        controller.deleteSocialPost.bind(controller)
     );
 
     return router;

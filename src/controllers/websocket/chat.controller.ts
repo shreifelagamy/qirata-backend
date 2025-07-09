@@ -2,6 +2,7 @@ import { summarizePost } from '../../services/ai/agents/post-summary.agent';
 import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
 import { ChatSessionService } from '../../services/chat-session.service';
 import { PostsService } from '../../services/posts.service';
+import { SocialPostsService } from '../../services/social-posts.service';
 import { AICallbackData } from '../../types/ai.types';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
 import { logger } from '../../utils/logger';
@@ -13,6 +14,7 @@ import { logger } from '../../utils/logger';
 export class ChatController {
     private chatSessionService = new ChatSessionService();
     private postService = new PostsService();
+    private socialPostsService = new SocialPostsService();
     private activeStreams = new Map<string, boolean>();
 
     /**
@@ -85,12 +87,12 @@ export class ChatController {
                 if (streamingResponse.isSocialPost) {
                     console.log(`Detected social post intent for session ${sessionId}`);
                     // Save social post to database
-                    const post = await this.chatSessionService.saveSocialPost(sessionId, {
+                    const post = await this.socialPostsService.create(sessionId, {
                         platform: streamingResponse.socialPlatform!,
                         content: streamingResponse.content,
                     });
 
-                    console.log(`Social post saved for session ${post}`);
+                    console.log(`Social post saved for session ${post.id}`);
 
                     // Emit social post response
                     emit('chat:social:post', {
