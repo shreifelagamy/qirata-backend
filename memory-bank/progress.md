@@ -25,6 +25,7 @@
 - **Platform Detection**: Identify target social media platforms (Twitter, LinkedIn, Facebook, Instagram)
 - **Question Handling**: Context-aware Q&A responses
 - **Social Post Generation**: Platform-optimized content creation
+- **Social Post Management**: RESTful API for editing and deleting generated posts
 - **Content Summarization**: AI-powered post summarization for token efficiency
 
 ### ✅ Real-Time Communication
@@ -75,11 +76,12 @@
 ## Recent Major Achievements
 
 ### December 2024 - January 2025
-1. **✅ Post Summary Agent**: Token-efficient conversation context management
-2. **✅ Centralized Model Configuration**: Environment-based model selection per service
-3. **✅ Modular LangGraph Architecture**: Separated nodes, routers, and builders
-4. **✅ AI Platform Detection**: Enhanced with Zod validation and conservative detection
-5. **✅ Database Schema Evolution**: Added summary fields and optimized relationships
+1. **✅ Social Posts RESTful API**: Complete CRUD operations for social post management
+2. **✅ Post Summary Agent**: Token-efficient conversation context management
+3. **✅ Centralized Model Configuration**: Environment-based model selection per service
+4. **✅ Modular LangGraph Architecture**: Separated nodes, routers, and builders
+5. **✅ AI Platform Detection**: Enhanced with Zod validation and conservative detection
+6. **✅ Database Schema Evolution**: Added summary fields and optimized relationships
 
 ### Earlier 2024
 1. **✅ LangGraph Integration**: Migrated from simple LangChain to workflow-based processing

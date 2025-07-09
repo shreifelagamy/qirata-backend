@@ -87,7 +87,7 @@ export class ChatController {
                 if (streamingResponse.isSocialPost) {
                     console.log(`Detected social post intent for session ${sessionId}`);
                     // Save social post to database
-                    const post = await this.socialPostsService.create(sessionId, {
+                    const post = await this.socialPostsService.upsert(sessionId, {
                         platform: streamingResponse.socialPlatform!,
                         content: streamingResponse.content,
                     });

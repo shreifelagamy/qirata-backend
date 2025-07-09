@@ -202,6 +202,7 @@ The LangGraph service already includes stream cancellation functionality:
 
 ## Memories
 - Added memory placeholder to memorize
+- `to memorize`
 
 ### Post Summary Agent Implementation (January 2025)
 

@@ -144,4 +144,37 @@ export class SocialPostsService {
             throw error;
         }
     }
+
+    /**
+     * Upsert a social post - update if exists for session/platform, create if not
+     */
+    async upsert(sessionOrId: string | ChatSession, data: CreateSocialPostData): Promise<SocialPost> {
+        try {
+            const sessionId = typeof sessionOrId === 'string' ? sessionOrId : sessionOrId.id;
+            const postId = typeof sessionOrId === 'string' ? undefined : sessionOrId.post_id;
+
+            // Use TypeORM's upsert method with unique constraint
+            const result = await this.socialPostRepository.upsert({
+                chat_session_id: sessionId,
+                content: data.content,
+                platform: data.platform,
+                image_urls: data.image_urls || [],
+                post_id: postId
+            }, ['chat_session_id', 'platform']);
+
+            // Get the upserted post
+            const upsertedPost = await this.socialPostRepository.findOne({
+                where: {
+                    chat_session_id: sessionId,
+                    platform: data.platform
+                }
+            });
+
+            logger.info(`Upserted social post for session ${sessionId} on platform ${data.platform}`);
+            return upsertedPost!;
+        } catch (error) {
+            logger.error(`Error upserting social post for session:`, error);
+            throw error;
+        }
+    }
 }

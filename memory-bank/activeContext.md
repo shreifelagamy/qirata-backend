@@ -4,7 +4,14 @@
 
 ### Primary Development Areas (January 2025)
 
-#### 1. Token-Efficient Context Management
+#### 1. Social Posts RESTful API Implementation
+**Current Priority**: Social post management capabilities
+- **Status**: Completed RESTful API for social post edit/delete operations
+- **Location**: `src/services/social-posts.service.ts`, `src/controllers/chat-session.controller.ts`
+- **Purpose**: Enable users to edit and delete generated social posts
+- **Impact**: Full CRUD operations for social post management
+
+#### 2. Token-Efficient Context Management
 **Current Priority**: Post Summary Agent Implementation
 - **Status**: Recently completed post summary agent for token optimization
 - **Location**: `src/services/ai/agents/post-summary.agent.ts`
@@ -32,6 +39,31 @@
 ## Recent Changes & Implementation Notes
 
 ### Latest Implementations
+
+#### Social Posts RESTful API (January 2025)
+**Implementation Approach**: Dedicated service with nested REST endpoints
+```typescript
+// Key API endpoints
+PUT    /chat-sessions/:id/social-posts/:postId  // Update content only
+DELETE /chat-sessions/:id/social-posts/:postId  // Delete social post
+```
+
+**Key Technical Decisions**:
+- **Dedicated Service**: Created `SocialPostsService` separate from `ChatSessionService`
+- **No DTOs**: Direct request body handling for simplicity
+- **Content-Only Updates**: Users cannot change platform after creation
+- **Flexible Service Methods**: Accept either session ID or ChatSession entity
+- **ID-Based Operations**: Use post ID for operations instead of platform
+
+**Architecture Pattern**:
+```typescript
+// Service methods
+findByChatSession(sessionId: string): Promise<SocialPost[]>
+findOne(sessionId: string, postId: string): Promise<SocialPost | null>
+update(sessionId: string, postId: string, data: UpdateSocialPostData): Promise<SocialPost>
+delete(postId: string): Promise<void>
+create(sessionOrId: string | ChatSession, data: CreateSocialPostData): Promise<SocialPost>
+```
 
 #### Post Summary Agent (January 2025)
 **Implementation Approach**: Function-based agent for simplicity
