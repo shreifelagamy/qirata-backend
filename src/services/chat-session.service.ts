@@ -6,11 +6,13 @@ import { Message } from '../entities/message.entity';
 import { Post } from '../entities/post.entity';
 import { AIContext } from '../types/ai.types';
 import { logger } from '../utils/logger';
+import { SocialPostsService } from './social-posts.service';
 
 export class ChatSessionService {
     private readonly chatSessionRepository: Repository<ChatSession>;
     private readonly postRepository: Repository<Post>;
     private readonly messageRepository: Repository<Message>;
+    private readonly socialPostsService: SocialPostsService;
     private sessionCache = new Map<string, {
         chatSession: ChatSession,
         cacheAt: Date
@@ -18,6 +20,7 @@ export class ChatSessionService {
 
     constructor() {
         this.chatSessionRepository = AppDataSource.getRepository(ChatSession);
+        this.socialPostsService = new SocialPostsService();
         this.postRepository = AppDataSource.getRepository(Post);
         this.messageRepository = AppDataSource.getRepository(Message);
     }
@@ -129,11 +132,19 @@ export class ChatSessionService {
     async buildAIContext(sessionId: string, userPreferences?: any): Promise<AIContext> {
         const session = await this.getCachedSession(sessionId);
         const messages = await this.getRecentMessages(sessionId, 10);
+        const socialPosts = await this.socialPostsService.findByChatSession(sessionId);
 
         return {
             postContent: session?.post?.expanded?.content,
             postSummary: session?.post?.expanded?.summary,
             previousMessages: messages,
+            socialPosts: socialPosts.map(post => ({
+                platform: post.platform,
+                content: post.content,
+                id: post.id,
+                createdAt: post.created_at,
+                publishedAt: post.published_at
+            })),
             conversationSummary: session?.summary,
             userPreferences: userPreferences
         };

@@ -22,6 +22,13 @@ export interface AIContext {
     postContent?: string;
     postSummary?: string;
     previousMessages?: Message[];
+    socialPosts?: {
+        platform: SocialPlatform;
+        content: string;
+        id: string;
+        createdAt: Date;
+        publishedAt?: Date;
+    }[];
     userPreferences?: {
         tone?: string;
         platform?: 'twitter' | 'linkedin' | 'general';

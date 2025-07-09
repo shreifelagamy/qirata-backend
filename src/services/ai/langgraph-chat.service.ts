@@ -22,7 +22,6 @@ export class LangGraphChatService {
         // Use provided configs or defaults
         this.modelConfigs = modelConfigs || DEFAULT_MODEL_CONFIGS;
 
-
         // Initialize workflow builder with model configurations
         this.workflowBuilder = new WorkflowBuilder(this.modelConfigs);
 
@@ -73,10 +72,12 @@ export class LangGraphChatService {
                 previousMessages: context.previousMessages,
                 conversationSummary: context.conversationSummary,
                 userPreferences: context.userPreferences,
+                socialPosts: context.socialPosts,
                 callback: streamCallback,
             };
 
             logger.info(`[LangGraph] Starting workflow for session: ${sessionId}`);
+            logger.info(`[LangGraph] social posts: ${initialState.socialPosts}`);
 
             if (streamCallback) {
                 streamCallback({

@@ -78,6 +78,22 @@ const SYSTEM_MESSAGE = `You are an expert social media content creator. Your rol
 - Analyze conversation context for modification vs new post requests
 - Apply user-requested changes to existing posts
 - Optimize content for platform-specific best practices
+- Be aware of previously created social posts to avoid repetition and understand user preferences
+- Detect when a user refers to deleting a post (if mentioned in conversation but not in social posts list)
+
+## Social Posts Context:
+You will be provided with a list of previously created social posts for this session. Use this information to:
+- Avoid creating duplicate content
+- Build upon previous successful posts
+- Understand the user's content style and preferences
+- Detect if the user deleted a post (mentioned in conversation history but missing from current posts)
+
+## Deleted Post Detection:
+If you notice that conversation history references social posts that are not in the current social posts list, this indicates the user deleted those posts. Consider this as negative feedback:
+- The user likely didn't like that content style
+- Avoid similar approaches or themes
+- Ask for clarification if the user wants to recreate something similar
+- Learn from the deletion pattern to improve future suggestions
 
 ## Content Analysis Protocol:
 
@@ -127,6 +143,13 @@ interface SocialPostGeneratorOptions {
     platform: string;
     userPreferences?: string;
     streamingCallbacks?: BaseCallbackHandler[];
+    socialPosts?: {
+        platform: SocialPlatform;
+        content: string;
+        id: string;
+        createdAt: Date;
+        publishedAt?: Date;
+    }[];
 }
 
 export async function generateSocialPost(options: SocialPostGeneratorOptions): Promise<string> {
@@ -138,7 +161,8 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions): P
         conversationSummary,
         platform,
         userPreferences,
-        streamingCallbacks
+        streamingCallbacks,
+        socialPosts
     } = options;
 
     try {
@@ -151,7 +175,8 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions): P
             postContent,
             conversationSummary,
             platform,
-            userPreferences
+            userPreferences,
+            socialPosts
         );
 
         const prompt = ChatPromptTemplate.fromMessages(messages);
@@ -183,7 +208,14 @@ function buildMessagesArray(
     postContent?: string,
     conversationSummary?: string,
     platform?: string,
-    userPreferences?: string
+    userPreferences?: string,
+    socialPosts?: {
+        platform: SocialPlatform;
+        content: string;
+        id: string;
+        createdAt: Date;
+        publishedAt?: Date;
+    }[]
 ): BaseMessage[] {
     const messages: BaseMessage[] = [];
 
@@ -224,6 +256,23 @@ ${config.guidelines}
     if (userPreferences?.trim()) {
         messages.push(new HumanMessage(`<USER_PREFERENCES>\n${userPreferences}\n</USER_PREFERENCES>`));
         messages.push(new AIMessage('I understand your style preferences and will incorporate them into the post.'));
+    }
+
+    // Add social posts context if available
+    if (socialPosts && socialPosts.length > 0) {
+        const socialPostsContext = `<SOCIAL_POSTS_CONTEXT>
+Previously created social posts in this session:
+${socialPosts.map(post => `
+Platform: ${post.platform.toUpperCase()}
+Created: ${post.createdAt.toLocaleDateString()}
+${post.publishedAt ? `Published: ${post.publishedAt.toLocaleDateString()}` : 'Not published'}
+Content: "${post.content}"
+Post ID: ${post.id}
+`).join('\n---\n')}
+</SOCIAL_POSTS_CONTEXT>`;
+
+        messages.push(new HumanMessage(socialPostsContext));
+        messages.push(new AIMessage('I understand the previously created social posts and will ensure new content builds upon them appropriately while avoiding duplication. I can also detect if you reference deleted posts.'));
     }
 
     // Add recent conversation history as separate messages

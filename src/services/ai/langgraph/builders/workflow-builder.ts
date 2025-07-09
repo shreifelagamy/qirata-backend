@@ -23,6 +23,13 @@ const ChatStateAnnotation = Annotation.Root({
     previousMessages: Annotation<any[]>(),
     conversationSummary: Annotation<string>(),
     userPreferences: Annotation<any>(),
+    socialPosts: Annotation<{
+        platform: SocialPlatform;
+        content: string;
+        id: string;
+        createdAt: Date;
+        publishedAt?: Date;
+    }[]>(),
     callback: Annotation<AIStreamCallback>(),
 
     // Model Configuration

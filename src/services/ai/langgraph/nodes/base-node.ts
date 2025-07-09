@@ -14,6 +14,13 @@ export interface ChatState {
     previousMessages?: any[];
     conversationSummary?: string;
     userPreferences?: any;
+    socialPosts?: {
+        platform: SocialPlatform;
+        content: string;
+        id: string;
+        createdAt: Date;
+        publishedAt?: Date;
+    }[];
     callback?: AIStreamCallback;
 
     // Model Configuration

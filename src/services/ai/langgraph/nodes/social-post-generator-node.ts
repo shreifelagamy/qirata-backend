@@ -52,7 +52,10 @@ export class SocialPostGeneratorNode extends BaseNode {
 
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
-            this.logInfo('Generating social post', state.sessionId);
+            this.logInfo(`Generating social post ${state.sessionId}`);
+
+            // log state for debugging print it one line
+            this.logInfo(`social posts ${state.socialPosts}`);
 
             if (!state.models?.socialPostGenerator) {
                 throw new Error('Social post generator model not available in state');
@@ -81,7 +84,8 @@ export class SocialPostGeneratorNode extends BaseNode {
                 postContent: state.postContent,
                 conversationSummary: state.conversationSummary,
                 platform,
-                streamingCallbacks
+                streamingCallbacks,
+                socialPosts: state.socialPosts
             });
 
             const tokenCount = this.estimateTokenCount(state.userMessage + response);

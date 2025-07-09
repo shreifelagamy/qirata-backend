@@ -50,9 +50,6 @@ export class ChatController {
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
 
-            // log context as string
-            logger.info(`[ChatController] Context for session ${sessionId}:`, JSON.stringify(context, null, 2));
-
             // 4. Create stream callback for real-time updates
             const streamCallback = (callbackData: AICallbackData) => {
                 this.handleStreamCallback(sessionId, callbackData, emit);

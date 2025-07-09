@@ -6,6 +6,11 @@ import { WorkflowModelConfigs } from '../types/model-config.types';
 
 // Default configuration - single model for all services
 export const SINGLE_MODEL_CONFIG: WorkflowModelConfigs = {
+    conversationSummary: {
+        baseUrl: 'http://localhost:11434',
+        model: 'mistral:7b',
+        temperature: 0.5,
+    },
     intentDetection: {
         baseUrl: 'http://localhost:11434',
         model: 'mistral:7b',
@@ -35,6 +40,11 @@ export const SINGLE_MODEL_CONFIG: WorkflowModelConfigs = {
 
 // Multi-model configuration - specialized models for different tasks
 export const SPECIALIZED_MODEL_CONFIG: WorkflowModelConfigs = {
+    conversationSummary: {
+        baseUrl: 'http://localhost:11434',
+        model: 'llama3:8b',           // Fast model for summarization
+        temperature: 0.3,             // Low temperature for consistent summaries
+    },
     intentDetection: {
         baseUrl: 'http://localhost:11434',
         model: 'llama3:8b',           // Fast model for classification
@@ -64,6 +74,11 @@ export const SPECIALIZED_MODEL_CONFIG: WorkflowModelConfigs = {
 
 // Production configuration - optimized for performance and quality
 export const PRODUCTION_MODEL_CONFIG: WorkflowModelConfigs = {
+    conversationSummary: {
+        baseUrl: 'http://localhost:11434',
+        model: 'mistral:7b-instruct',
+        temperature: 0.4,
+    },
     intentDetection: {
         baseUrl: 'http://localhost:11434',
         model: 'mistral:7b-instruct',
@@ -93,6 +108,11 @@ export const PRODUCTION_MODEL_CONFIG: WorkflowModelConfigs = {
 
 // Development configuration - faster models for development
 export const DEVELOPMENT_MODEL_CONFIG: WorkflowModelConfigs = {
+    conversationSummary: {
+        baseUrl: 'http://localhost:11434',
+        model: 'llama3:8b',
+        temperature: 0.5,
+    },
     intentDetection: {
         baseUrl: 'http://localhost:11434',
         model: 'llama3:8b',
