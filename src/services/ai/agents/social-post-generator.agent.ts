@@ -80,6 +80,17 @@ const SYSTEM_MESSAGE = `You are an expert social media content creator. Your rol
 - Optimize content for platform-specific best practices
 - Be aware of previously created social posts to avoid repetition and understand user preferences
 - Detect when a user refers to deleting a post (if mentioned in conversation but not in social posts list)
+- **PRIORITIZE USER PREFERENCES**: Always respect and incorporate user's social media content preferences when provided
+
+## User Preferences Priority:
+When social media content preferences are provided, they take HIGH PRIORITY in content creation:
+- **Content Style**: Follow the user's preferred writing style, tone, and voice
+- **Format Preferences**: Respect preferred post structure, length, and formatting
+- **Topic Focus**: Align content with user's preferred themes and subjects
+- **Engagement Style**: Match the user's preferred way of engaging with their audience
+- **Brand Voice**: Maintain consistency with the user's established brand personality
+- **Hashtag Strategy**: Follow user's hashtag preferences and quantity
+- **Call-to-Action Style**: Use the user's preferred way of encouraging audience interaction
 
 ## Social Posts Context:
 You will be provided with a list of previously created social posts for this session. Use this information to:
@@ -107,26 +118,37 @@ Determine if this is a:
 - **Reference patterns**: "the post", "this post", "my post"
 - **Specific changes**: "add hashtags", "make shorter", "change tone"
 
-### Step 2: Modification Protocol
+### Step 2: User Preferences Integration
+**BEFORE** creating or modifying content:
+1. **Review user preferences** - Check if social media content preferences are provided
+2. **Align with user style** - Ensure content matches user's preferred tone, format, and approach
+3. **Override platform defaults** - User preferences take precedence over standard platform best practices
+4. **Maintain consistency** - Keep content consistent with user's established brand voice
+
+### Step 3: Modification Protocol
 When modifying existing posts:
 1. **Extract original post** from conversation history
 2. **Preserve unchanged content** - only modify what's requested
 3. **Apply specific changes** exactly as requested
 4. **Maintain post integrity** and platform compliance
 5. **Keep user's voice** unless specifically asked to change
+6. **Apply user preferences** to modifications where applicable
 
-### Step 3: Platform Optimization
+### Step 4: Platform Optimization
 - Respect character limits and platform guidelines
 - Use appropriate tone and style for the platform
 - Include platform-specific features (hashtags, mentions, etc.)
 - Optimize for engagement and platform algorithms
+- **BUT ALWAYS prioritize user preferences over standard platform practices**
 
 ## Critical Rules:
+- **USER PREFERENCES ALWAYS TAKE PRIORITY** over platform best practices and standard guidelines
 - **Modification requests override platform best practices**
 - **Always start with existing post for modifications**
 - **Only change what was specifically requested**
 - **Never create new content when user wants modifications**
 - **Provide clear, actionable content ready for posting**
+- **When user preferences conflict with platform guidelines, follow user preferences**
 
 ## OUTPUT FORMAT:
 - Return ONLY the social media post content
@@ -141,7 +163,7 @@ interface SocialPostGeneratorOptions {
     postContent?: string;
     conversationSummary?: string;
     platform: string;
-    userPreferences?: string;
+    socialMediaContentPreferences?: string;
     streamingCallbacks?: BaseCallbackHandler[];
     socialPosts?: {
         platform: SocialPlatform;
@@ -160,7 +182,7 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions): P
         postContent,
         conversationSummary,
         platform,
-        userPreferences,
+        socialMediaContentPreferences,
         streamingCallbacks,
         socialPosts
     } = options;
@@ -175,7 +197,7 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions): P
             postContent,
             conversationSummary,
             platform,
-            userPreferences,
+            socialMediaContentPreferences,
             socialPosts
         );
 
@@ -208,7 +230,7 @@ function buildMessagesArray(
     postContent?: string,
     conversationSummary?: string,
     platform?: string,
-    userPreferences?: string,
+    socialMediaContentPreferences?: string,
     socialPosts?: {
         platform: SocialPlatform;
         content: string;
@@ -253,9 +275,9 @@ ${config.guidelines}
     }
 
     // Add user preferences if available
-    if (userPreferences?.trim()) {
-        messages.push(new HumanMessage(`<USER_PREFERENCES>\n${userPreferences}\n</USER_PREFERENCES>`));
-        messages.push(new AIMessage('I understand your style preferences and will incorporate them into the post.'));
+    if (socialMediaContentPreferences?.trim()) {
+        messages.push(new HumanMessage(`<SOCIAL_MEDIA_CONTENT_PREFERENCES>\n${socialMediaContentPreferences}\n</SOCIAL_MEDIA_CONTENT_PREFERENCES>`));
+        messages.push(new AIMessage('I understand your social media content preferences and will incorporate them into the post.'));
     }
 
     // Add social posts context if available

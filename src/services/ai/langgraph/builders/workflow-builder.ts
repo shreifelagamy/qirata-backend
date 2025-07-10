@@ -22,7 +22,7 @@ const ChatStateAnnotation = Annotation.Root({
     postSummary: Annotation<string>(),
     previousMessages: Annotation<any[]>(),
     conversationSummary: Annotation<string>(),
-    userPreferences: Annotation<any>(),
+    socialMediaContentPreferences: Annotation<string>(),
     socialPosts: Annotation<{
         platform: SocialPlatform;
         content: string;

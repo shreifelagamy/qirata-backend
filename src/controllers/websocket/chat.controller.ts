@@ -2,6 +2,7 @@ import { summarizePost } from '../../services/ai/agents/post-summary.agent';
 import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
 import { ChatSessionService } from '../../services/chat-session.service';
 import { PostsService } from '../../services/posts.service';
+import { SettingsService } from '../../services/settings.service';
 import { SocialPostsService } from '../../services/social-posts.service';
 import { AICallbackData } from '../../types/ai.types';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
@@ -15,6 +16,7 @@ export class ChatController {
     private chatSessionService = new ChatSessionService();
     private postService = new PostsService();
     private socialPostsService = new SocialPostsService();
+    private settingsService = new SettingsService();
     private activeStreams = new Map<string, boolean>();
 
     /**
@@ -49,13 +51,19 @@ export class ChatController {
 
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
+            
+            // 4. Load user preferences and add to context
+            const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences();
+            if (socialMediaContentPreferences) {
+                context.socialMediaContentPreferences = socialMediaContentPreferences;
+            }
 
-            // 4. Create stream callback for real-time updates
+            // 5. Create stream callback for real-time updates
             const streamCallback = (callbackData: AICallbackData) => {
                 this.handleStreamCallback(sessionId, callbackData, emit);
             };
 
-            // 5. Stream AI response (AI determines intent and response type)
+            // 6. Stream AI response (AI determines intent and response type)
             const streamingResponse = await langGraphChatService.processMessage(
                 content,
                 sessionId,
@@ -63,7 +71,7 @@ export class ChatController {
                 streamCallback
             );
 
-            // 6. Save message and send final event
+            // 7. Save message and send final event
             if (streamingResponse.isComplete && !streamingResponse.error) {
                 // Save to database
                 this.chatSessionService.saveMessage(

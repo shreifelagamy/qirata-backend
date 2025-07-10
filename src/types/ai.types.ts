@@ -29,14 +29,7 @@ export interface AIContext {
         createdAt: Date;
         publishedAt?: Date;
     }[];
-    userPreferences?: {
-        tone?: string;
-        platform?: 'twitter' | 'linkedin' | 'general';
-        length?: 'short' | 'medium' | 'long';
-        voice?: 'professional' | 'friendly' | 'direct' | 'storyteller';
-        contentStyle?: 'data-driven' | 'practical' | 'thought-provoking';
-        hookPreference?: 'questions' | 'observations' | 'bold-claims';
-    };
+    socialMediaContentPreferences?: string;
     patternInsights?: string;
     conversationSummary?: string;
 }

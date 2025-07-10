@@ -71,7 +71,7 @@ export class LangGraphChatService {
                 postSummary: context.postSummary,
                 previousMessages: context.previousMessages,
                 conversationSummary: context.conversationSummary,
-                userPreferences: context.userPreferences,
+                socialMediaContentPreferences: context.socialMediaContentPreferences,
                 socialPosts: context.socialPosts,
                 callback: streamCallback,
             };

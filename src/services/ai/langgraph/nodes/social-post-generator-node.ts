@@ -84,6 +84,7 @@ export class SocialPostGeneratorNode extends BaseNode {
                 postContent: state.postContent,
                 conversationSummary: state.conversationSummary,
                 platform,
+                socialMediaContentPreferences: state.socialMediaContentPreferences,
                 streamingCallbacks,
                 socialPosts: state.socialPosts
             });

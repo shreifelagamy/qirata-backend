@@ -13,7 +13,7 @@ export interface ChatState {
     postSummary?: string;
     previousMessages?: any[];
     conversationSummary?: string;
-    userPreferences?: any;
+    socialMediaContentPreferences?: string;
     socialPosts?: {
         platform: SocialPlatform;
         content: string;

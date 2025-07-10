@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import { UpdateSettingsDto } from '../dtos/settings.dto';
 import { SettingsService } from '../services/settings.service';
 import { logger } from '../utils/logger';
 
@@ -8,6 +7,44 @@ export class SettingsController {
 
     constructor() {
         this.settingsService = new SettingsService();
+    }
+
+    /**
+     * @swagger
+     * /settings:
+     *   get:
+     *     summary: Get all settings
+     *     description: Retrieves all settings
+     *     tags: [Settings]
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: Settings retrieved successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 $ref: '#/components/schemas/Settings'
+     *       401:
+     *         description: Unauthorized
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async index(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const settings = await this.settingsService.list();
+            res.json({ data: settings, status: 200 });
+        } catch (error) {
+            next(error);
+        }
     }
 
     /**
@@ -54,9 +91,9 @@ export class SettingsController {
     ) {
         try {
             const key = req.params.key;
-            const setting = await this.settingsService.getSetting(key);
+            const setting = await this.settingsService.show(key);
 
-            res.json(setting);
+            res.json({ data: setting, status: 200 });
         } catch (error) {
             next(error);
         }
@@ -113,18 +150,19 @@ export class SettingsController {
      *             schema:
      *               $ref: '#/components/schemas/Error'
      */
-    async update(
+    async upsert(
         req: Request,
         res: Response,
         next: NextFunction
     ) {
         try {
             const key = req.params.key;
-            const data: UpdateSettingsDto = req.body;
-            const setting = await this.settingsService.updateSetting(key, data);
+            const { value, description } = req.body;
 
-            logger.info('Setting updated:', { key, value: data.value });
-            res.json(setting);
+            const setting = await this.settingsService.upsert(key, value, description);
+
+            logger.info('Setting upserted:', { key, value });
+            res.json({ data: setting, status: 200 });
         } catch (error) {
             next(error);
         }

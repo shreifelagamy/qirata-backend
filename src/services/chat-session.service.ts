@@ -129,7 +129,7 @@ export class ChatSessionService {
      * @param userPreferences - Optional user preferences
      * @returns Promise<AIContext> - Context for AI processing
      */
-    async buildAIContext(sessionId: string, userPreferences?: any): Promise<AIContext> {
+    async buildAIContext(sessionId: string): Promise<AIContext> {
         const session = await this.getCachedSession(sessionId);
         const messages = await this.getRecentMessages(sessionId, 10);
         const socialPosts = await this.socialPostsService.findByChatSession(sessionId);
@@ -146,7 +146,6 @@ export class ChatSessionService {
                 publishedAt: post.published_at
             })),
             conversationSummary: session?.summary,
-            userPreferences: userPreferences
         };
     }
 
@@ -273,5 +272,5 @@ export class ChatSessionService {
         }
     }
 
-    
+
 }
