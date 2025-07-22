@@ -70,6 +70,7 @@ export class LangGraphChatService {
                 postContent: context.postContent,
                 postSummary: context.postSummary,
                 previousMessages: context.previousMessages,
+                totalMessageCount: context.totalMessageCount,
                 conversationSummary: context.conversationSummary,
                 socialMediaContentPreferences: context.socialMediaContentPreferences,
                 socialPosts: context.socialPosts,
@@ -77,7 +78,6 @@ export class LangGraphChatService {
             };
 
             logger.info(`[LangGraph] Starting workflow for session: ${sessionId}`);
-            logger.info(`[LangGraph] social posts: ${initialState.socialPosts}`);
 
             if (streamCallback) {
                 streamCallback({
@@ -99,7 +99,8 @@ export class LangGraphChatService {
                 error: result.error,
                 summary: result.conversationSummary || '', // Summary will be handled within the workflow
                 isSocialPost: result.isSocialPost || false,
-                socialPlatform: result.socialPlatform
+                socialPlatform: result.socialPlatform,
+                structuredSocialPost: result.structuredSocialPost
             };
 
             logger.info(`[LangGraph] Workflow completed for session: ${sessionId} in ${Date.now() - startTime}ms`);

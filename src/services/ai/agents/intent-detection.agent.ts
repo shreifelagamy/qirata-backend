@@ -2,11 +2,11 @@ import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOllama } from '@langchain/ollama';
+import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { Message } from '../../../entities';
-import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
-import { logger } from '../../../utils/logger';
 import { createDebugCallback } from '../../../utils/debug-callback';
+import { logger } from '../../../utils/logger';
 
 const KEEP_RECENT = 3; // Keep last 3 messages for context
 
@@ -40,14 +40,14 @@ RULES:
 Be concise and accurate.`;
 
 interface IntentDetectionOptions {
-    model?: ChatOllama;
+    model?: ChatOllama | ChatOpenAI; // Allow both Ollama and OpenAI models
     message: string;
     conversationHistory?: Message[];
 }
 
 export async function detectIntent(options: IntentDetectionOptions): Promise<IntentDetectionResponse> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'llama3.2:3b', temperature: 0.1 }),
+        model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.1, openAIApiKey: process.env.OPENAI_API_KEY }),
         message,
         conversationHistory
     } = options;

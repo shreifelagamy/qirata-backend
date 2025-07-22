@@ -1,6 +1,7 @@
-import { summarizePost } from '../../services/ai/agents/post-summary.agent';
+import { MessageType } from '../../entities/message.entity';
 import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
 import { ChatSessionService } from '../../services/chat-session.service';
+import { MessagesService } from '../../services/messages.service';
 import { PostsService } from '../../services/posts.service';
 import { SettingsService } from '../../services/settings.service';
 import { SocialPostsService } from '../../services/social-posts.service';
@@ -14,6 +15,7 @@ import { logger } from '../../utils/logger';
  */
 export class ChatController {
     private chatSessionService = new ChatSessionService();
+    private messagesService = new MessagesService();
     private postService = new PostsService();
     private socialPostsService = new SocialPostsService();
     private settingsService = new SettingsService();
@@ -51,8 +53,8 @@ export class ChatController {
 
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
-            
-            // 4. Load user preferences and add to context
+
+            // 4. Load user preferences and add to contextx
             const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences();
             if (socialMediaContentPreferences) {
                 context.socialMediaContentPreferences = socialMediaContentPreferences;
@@ -73,11 +75,15 @@ export class ChatController {
 
             // 7. Save message and send final event
             if (streamingResponse.isComplete && !streamingResponse.error) {
-                // Save to database
-                this.chatSessionService.saveMessage(
+                // Determine message type based on AI intent
+                const messageType = streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE;
+
+                // Save to database with appropriate type
+                this.messagesService.saveMessage(
                     sessionId,
                     content,
-                    streamingResponse.content || ''
+                    streamingResponse.content || '',
+                    messageType
                 );
 
                 // Update session summary if available
@@ -89,29 +95,26 @@ export class ChatController {
                 }
 
                 // Determine if it's a social post or Q&A based on AI intent
-                if (streamingResponse.isSocialPost) {
+                if (streamingResponse.isSocialPost && streamingResponse.structuredSocialPost) {
                     console.log(`Detected social post intent for session ${sessionId}`);
-                    // Save social post to database
+                    const structuredPost = streamingResponse.structuredSocialPost;
+
+                    // Save social post to database with structured data
                     const post = await this.socialPostsService.upsert(sessionId, {
                         platform: streamingResponse.socialPlatform!,
-                        content: streamingResponse.content,
+                        content: structuredPost.postContent,
+                        code_examples: structuredPost.codeExamples || [],
+                        visual_elements: structuredPost.visualElements || []
                     });
 
                     console.log(`Social post saved for session ${post.id}`);
-
-                    // Emit social post response
-                    emit('chat:social:post', {
-                        sessionId,
-                        socialContent: streamingResponse.content || '',
-                        platform: streamingResponse.socialPlatform,
-                        userMessage: content
-                    });
                 }
 
                 // Send appropriate final event based on AI intent
                 emit('chat:stream:end', {
                     sessionId,
                     fullContent: streamingResponse.content || '',
+                    messageType: streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE,
                     userMessage: content
                 });
             }
@@ -256,6 +259,11 @@ export class ChatController {
                         error: data.error || 'Unknown streaming error'
                     });
                     break;
+
+                default:
+                    emit(`chat:stream:${data.event}`, {
+                        ...data
+                    })
             }
         } catch (error) {
             logger.error(`Error in handleStreamCallback for session ${sessionId}:`, error);

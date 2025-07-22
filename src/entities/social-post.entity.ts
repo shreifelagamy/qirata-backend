@@ -1,5 +1,5 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
-import { IsNotEmpty, MaxLength, IsArray, IsUrl, IsOptional } from "class-validator";
+import { IsNotEmpty, MaxLength, IsArray, IsUrl, IsOptional, IsString } from "class-validator";
 import { BaseEntity } from "./base.entity";
 import { ChatSession } from "./chat-session.entity";
 import { Post } from "./post.entity";
@@ -9,6 +9,18 @@ export enum SocialPlatform {
     LINKEDIN = "linkedin",
     FACEBOOK = "facebook",
     INSTAGRAM = "instagram"
+}
+
+export interface CodeExample {
+    language: string;
+    code: string;
+    description?: string;
+}
+
+export interface VisualElement {
+    type: string;
+    description: string;
+    suggestion?: string;
 }
 
 @Entity("social_posts")
@@ -60,9 +72,35 @@ export class SocialPost extends BaseEntity {
     @Column({ type: "timestamp with time zone", nullable: true })
     published_at?: Date;
 
+    @Column({
+        type: "jsonb",
+        nullable: true,
+        transformer: {
+            to: (value: CodeExample[]) => value ? JSON.stringify(value) : null,
+            from: (value: string) => value ? JSON.parse(value) : null
+        }
+    })
+    @IsArray()
+    @IsOptional()
+    code_examples?: CodeExample[];
+
+    @Column({
+        type: "jsonb",
+        nullable: true,
+        transformer: {
+            to: (value: VisualElement[]) => value ? JSON.stringify(value) : null,
+            from: (value: string) => value ? JSON.parse(value) : null
+        }
+    })
+    @IsArray()
+    @IsOptional()
+    visual_elements?: VisualElement[];
+
     constructor(partial: Partial<SocialPost> = {}) {
         super();
         Object.assign(this, partial);
         this.image_urls = partial.image_urls || [];
+        this.code_examples = partial.code_examples || [];
+        this.visual_elements = partial.visual_elements || [];
     }
 }

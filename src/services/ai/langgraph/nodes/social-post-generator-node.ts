@@ -1,65 +1,14 @@
-import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
-import { AIStreamCallback } from '../../../../types/ai.types';
-import { generateSocialPost } from '../../agents/social-post-generator.agent';
+import { generateSocialPost, StructuredSocialPostOutput } from '../../agents/social-post-generator.agent';
 import { BaseNode, ChatState } from './base-node';
-
-class WebSocketStreamCallback extends BaseCallbackHandler {
-    name = 'websocket_stream_callback';
-
-    constructor(
-        private sessionId: string,
-        private streamCallback: AIStreamCallback
-    ) {
-        super();
-    }
-
-    async handleLLMStart(): Promise<void> {
-        this.streamCallback({
-            event: 'start',
-            sessionId: this.sessionId
-        });
-    }
-
-    async handleLLMNewToken(token: string): Promise<void> {
-        this.streamCallback({
-            event: 'token',
-            token,
-            sessionId: this.sessionId
-        });
-    }
-
-    async handleLLMEnd(): Promise<void> {
-        this.streamCallback({
-            event: 'end',
-            sessionId: this.sessionId
-        });
-    }
-
-    async handleLLMError(error: Error): Promise<void> {
-        this.streamCallback({
-            event: 'error',
-            error: error.message,
-            sessionId: this.sessionId
-        });
-    }
-}
 
 export class SocialPostGeneratorNode extends BaseNode {
     constructor() {
         super('SocialPostGenerator');
     }
 
-
     async execute(state: ChatState): Promise<Partial<ChatState>> {
         try {
             this.logInfo(`Generating social post ${state.sessionId}`);
-
-            // log state for debugging print it one line
-            this.logInfo(`social posts ${state.socialPosts}`);
-
-            if (!state.models?.socialPostGenerator) {
-                throw new Error('Social post generator model not available in state');
-            }
 
             if (!state.platformDetection?.platform) {
                 throw new Error('Platform not detected for social post generation');
@@ -70,32 +19,54 @@ export class SocialPostGeneratorNode extends BaseNode {
             // Get conversation history from previous messages
             const conversationHistory = state.previousMessages || [];
 
-            // Prepare streaming callbacks if available
-            const streamingCallbacks = state.callback ? [
-                new WebSocketStreamCallback(state.sessionId, state.callback)
-            ] : [];
+            if (state.callback) {
+                state.callback({
+                    event: 'social:start',
+                    sessionId: state.sessionId,
+                    message: `Starting social post generation for platform: ${platform}`
+                });
+            }
 
-            // Build user preferences context
-
-            const response = await generateSocialPost({
-                model: state.models.socialPostGenerator,
+            const stream = await generateSocialPost({
                 userMessage: state.userMessage,
                 conversationHistory,
                 postContent: state.postContent,
                 conversationSummary: state.conversationSummary,
                 platform,
                 socialMediaContentPreferences: state.socialMediaContentPreferences,
-                streamingCallbacks,
                 socialPosts: state.socialPosts
             });
 
-            const tokenCount = this.estimateTokenCount(state.userMessage + response);
+            let finalResult: StructuredSocialPostOutput | undefined = undefined;
+
+            for await (const chunk of stream) {
+                if (state.callback) {
+                    state.callback({
+                        event: 'social:content',
+                        data: chunk,
+                        sessionId: state.sessionId
+                    });
+                }
+
+                finalResult = chunk;
+            }
+
+            if (state.callback) {
+                state.callback({
+                    event: 'social:complete',
+                    data: finalResult,
+                    sessionId: state.sessionId
+                });
+            }
+
+            const tokenCount = this.estimateTokenCount(state.userMessage + finalResult?.postContent);
 
             return {
-                aiResponse: response,
+                aiResponse: JSON.stringify(finalResult), // JSON stringified structured response
                 responseType: 'social',
                 socialPlatform: platform,
                 isSocialPost: true,
+                structuredSocialPost: finalResult,
                 tokenCount
             };
         } catch (error) {

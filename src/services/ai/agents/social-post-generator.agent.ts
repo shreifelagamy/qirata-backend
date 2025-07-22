@@ -1,15 +1,35 @@
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { StringOutputParser } from '@langchain/core/output_parsers';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOllama } from '@langchain/ollama';
+import { ChatOpenAI } from '@langchain/openai';
 import { Message } from '../../../entities';
 import { SocialPlatform } from '../../../entities/social-post.entity';
-import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from '../../../utils/logger';
 
 const KEEP_RECENT = 5; // Keep last 5 messages for context
+
+// TypeScript interfaces for structured output
+export interface CodeExample {
+    language: string; // Programming language (e.g., javascript, python, sql)
+    code: string; // The actual code content
+    description?: string; // Optional explanation of the code
+}
+
+export interface VisualElement {
+    type: string; // Type of visual (diagram, chart, infographic, screenshot)
+    description: string; // Detailed description of the visual to create
+    content: string; // Text content or data for the visual
+    style: string; // Visual style preferences
+}
+
+export interface StructuredSocialPostOutput {
+    postContent: string; // Main text content for the social media post
+    codeExamples?: CodeExample[]; // Optional array of code snippets
+    visualElements?: VisualElement[]; // Optional array of visual elements to create
+}
 
 export interface PlatformConfig {
     maxLength: number;
@@ -151,13 +171,46 @@ When modifying existing posts:
 - **When user preferences conflict with platform guidelines, follow user preferences**
 
 ## OUTPUT FORMAT:
-- Return ONLY the social media post content
-- Do NOT include any explanations, introductions, or additional context
-- Do NOT use phrases like "Here's your post:", "Post:", or any other prefixes
-- The output should be ready to copy and paste directly to the social platform`;
+You MUST return ONLY valid JSON with NO additional text, explanations, or formatting.
+
+**CRITICAL JSON RULES:**
+1. Return ONLY valid JSON - no explanations, no markdown, no code blocks
+2. Do NOT wrap JSON in \`\`\`json or any other formatting
+3. Do NOT add any text before or after the JSON
+4. Start your response directly with an opening brace { and end with a closing brace }
+5. Ensure all strings are properly quoted
+6. Ensure all arrays and objects are properly formatted
+
+**REQUIRED JSON STRUCTURE:**
+{
+  "postContent": "Main text content for the social media post (required string)",
+  "codeExamples": [
+    {
+      "language": "Programming language (e.g., javascript, python, sql)",
+      "code": "The actual code content",
+      "description": "Optional explanation of the code"
+    }
+  ],
+  "visualElements": [
+    {
+      "type": "Type of visual (diagram, chart, infographic, screenshot)",
+      "description": "Detailed description of the visual to create",
+      "content": "Text content or data for the visual",
+      "style": "Visual style preferences"
+    }
+  ]
+}
+
+**DEFAULT BEHAVIOR (unless user preferences specify otherwise):**
+- Separate code snippets into codeExamples array instead of embedding in post text
+- Suggest relevant visual elements to enhance the content
+- User preferences ALWAYS override these defaults
+- codeExamples and visualElements can be empty arrays [] if not applicable
+
+**CRITICAL**: Return ONLY the JSON object, nothing else. If you include anything other than pure JSON, the system will fail.`;
 
 interface SocialPostGeneratorOptions {
-    model?: ChatOllama;
+    model?: ChatOllama | ChatOpenAI;
     userMessage: string;
     conversationHistory?: Message[];
     postContent?: string;
@@ -174,9 +227,18 @@ interface SocialPostGeneratorOptions {
     }[];
 }
 
-export async function generateSocialPost(options: SocialPostGeneratorOptions): Promise<string> {
+// Helper function to create OpenAI model for social post generation
+function createOpenAIModel(): ChatOpenAI {
+    return new ChatOpenAI({
+        model: process.env.SOCIAL_POST_OPENAI_MODEL || 'gpt-4.1-mini',
+        temperature: parseFloat(process.env.SOCIAL_POST_TEMPERATURE || '0.8'),
+        openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+}
+
+export async function generateSocialPost(options: SocialPostGeneratorOptions) {
     const {
-        model = createModelFromConfig(DEFAULT_MODEL_CONFIGS.socialPostGenerator),
+        model = createOpenAIModel(),
         userMessage,
         conversationHistory,
         postContent,
@@ -187,40 +249,32 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions): P
         socialPosts
     } = options;
 
-    try {
-        logger.info(`Generating social post for ${platform}`);
+    logger.info(`Generating social post for ${platform}`);
 
-        // Build messages array with conversation history and platform context
-        const messages = buildMessagesArray(
-            conversationHistory || [],
-            userMessage,
-            postContent,
-            conversationSummary,
-            platform,
-            socialMediaContentPreferences,
-            socialPosts
-        );
+    // Create JSON output parser
+    const parser = new JsonOutputParser<StructuredSocialPostOutput>();
 
-        const prompt = ChatPromptTemplate.fromMessages(messages);
-        const chain = prompt.pipe(model).pipe(new StringOutputParser());
+    // Build messages array with conversation history and platform context
+    const messages = buildMessagesArray(
+        conversationHistory || [],
+        userMessage,
+        postContent,
+        conversationSummary,
+        platform,
+        socialMediaContentPreferences,
+        socialPosts
+    );
 
-        // Prepare callbacks - include debug callback and streaming callbacks
-        const callbacks: BaseCallbackHandler[] = [createDebugCallback('social-post-generator')];
-        if (streamingCallbacks) {
-            callbacks.push(...streamingCallbacks);
-        }
+    const prompt = ChatPromptTemplate.fromMessages(messages);
+    const chain = prompt.pipe(model).pipe(parser);
 
-        const response = await chain.invoke({}, {
-            callbacks
-        });
-
-        logger.info(`Social post generated successfully for ${platform}`);
-        return response;
-
-    } catch (error) {
-        logger.error('[SocialPostGenerator] Social post generation failed:', error);
-        return 'I apologize, but I encountered an error while generating your social media post. Please try again.';
+    // Prepare callbacks - include debug callback and streaming callbacks
+    const callbacks: BaseCallbackHandler[] = [createDebugCallback('social-post-generator')];
+    if (streamingCallbacks) {
+        callbacks.push(...streamingCallbacks);
     }
+
+    return await chain.stream({}, { callbacks });
 }
 
 // Helper function to build messages array for prompt
@@ -237,7 +291,7 @@ function buildMessagesArray(
         id: string;
         createdAt: Date;
         publishedAt?: Date;
-    }[]
+    }[],
 ): BaseMessage[] {
     const messages: BaseMessage[] = [];
 

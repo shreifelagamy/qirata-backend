@@ -1,7 +1,12 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
-import { IsNotEmpty } from "class-validator";
+import { IsNotEmpty, IsEnum } from "class-validator";
 import { BaseEntity } from "./base.entity";
 import { ChatSession } from "./chat-session.entity";
+
+export enum MessageType {
+    MESSAGE = "message",
+    SOCIAL_POST = "social_post"
+}
 
 @Entity("messages")
 export class Message extends BaseEntity {
@@ -19,6 +24,18 @@ export class Message extends BaseEntity {
     @Column({ type: "text" })
     @IsNotEmpty()
     ai_response: string = "";
+
+    @Column({
+        type: "varchar",
+        length: 20,
+        default: MessageType.MESSAGE,
+        transformer: {
+            to: (value: MessageType) => value,
+            from: (value: string) => value as MessageType
+        }
+    })
+    @IsEnum(MessageType)
+    type: MessageType = MessageType.MESSAGE;
 
     constructor(partial: Partial<Message> = {}) {
         super();

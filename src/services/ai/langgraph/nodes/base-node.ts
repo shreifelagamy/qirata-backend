@@ -1,4 +1,5 @@
-import { SocialPlatform } from '../../../../entities/social-post.entity';
+import { SocialPlatform, CodeExample, VisualElement } from '../../../../entities/social-post.entity';
+import { StructuredSocialPostOutput } from '../../agents/social-post-generator.agent';
 import { AIContext, AIStreamCallback } from '../../../../types/ai.types';
 import { WorkflowModels } from '../../../../types/model-config.types';
 import { logger } from '../../../../utils/logger';
@@ -12,11 +13,14 @@ export interface ChatState {
     postContent?: string;
     postSummary?: string;
     previousMessages?: any[];
+    totalMessageCount?: number;
     conversationSummary?: string;
     socialMediaContentPreferences?: string;
     socialPosts?: {
         platform: SocialPlatform;
         content: string;
+        code_examples?: CodeExample[];
+        visual_elements?: VisualElement[];
         id: string;
         createdAt: Date;
         publishedAt?: Date;
@@ -37,6 +41,7 @@ export interface ChatState {
     responseType?: 'question_answer' | 'social' | 'platform_clarification';
     socialPlatform?: string;
     isSocialPost?: boolean;
+    structuredSocialPost?: StructuredSocialPostOutput;
     error?: string;
     tokenCount?: number;
     processingTime?: number;

@@ -1,5 +1,6 @@
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import { SocialPlatform } from '../../../../entities/social-post.entity';
+import { SocialPlatform, CodeExample, VisualElement } from '../../../../entities/social-post.entity';
+import { StructuredSocialPostOutput } from '../../agents/social-post-generator.agent';
 import { AIContext, AIStreamCallback } from '../../../../types/ai.types';
 import { DEFAULT_MODEL_CONFIGS, WorkflowModelConfigs, WorkflowModels, createWorkflowModels } from '../../../../types/model-config.types';
 import { IntentDetectionResponse } from '../../agents/intent-detection.agent';
@@ -21,11 +22,14 @@ const ChatStateAnnotation = Annotation.Root({
     postContent: Annotation<string>(),
     postSummary: Annotation<string>(),
     previousMessages: Annotation<any[]>(),
+    totalMessageCount: Annotation<number>(),
     conversationSummary: Annotation<string>(),
     socialMediaContentPreferences: Annotation<string>(),
     socialPosts: Annotation<{
         platform: SocialPlatform;
         content: string;
+        code_examples?: CodeExample[];
+        visual_elements?: VisualElement[];
         id: string;
         createdAt: Date;
         publishedAt?: Date;
@@ -48,6 +52,7 @@ const ChatStateAnnotation = Annotation.Root({
     responseType: Annotation<'question_answer' | 'social' | 'platform_clarification'>(),
     socialPlatform: Annotation<SocialPlatform>(),
     isSocialPost: Annotation<boolean>(),
+    structuredSocialPost: Annotation<StructuredSocialPostOutput>(),
     error: Annotation<string>(),
     tokenCount: Annotation<number>(),
     processingTime: Annotation<number>(),

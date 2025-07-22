@@ -2,16 +2,17 @@ import { Repository } from 'typeorm';
 import { AppDataSource } from '../app';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { ChatSession } from '../entities/chat-session.entity';
-import { Message } from '../entities/message.entity';
+import { MessageType } from '../entities/message.entity';
 import { Post } from '../entities/post.entity';
 import { AIContext } from '../types/ai.types';
 import { logger } from '../utils/logger';
+import { MessagesService } from './messages.service';
 import { SocialPostsService } from './social-posts.service';
 
 export class ChatSessionService {
     private readonly chatSessionRepository: Repository<ChatSession>;
     private readonly postRepository: Repository<Post>;
-    private readonly messageRepository: Repository<Message>;
+    private readonly messagesService: MessagesService;
     private readonly socialPostsService: SocialPostsService;
     private sessionCache = new Map<string, {
         chatSession: ChatSession,
@@ -20,9 +21,9 @@ export class ChatSessionService {
 
     constructor() {
         this.chatSessionRepository = AppDataSource.getRepository(ChatSession);
-        this.socialPostsService = new SocialPostsService();
         this.postRepository = AppDataSource.getRepository(Post);
-        this.messageRepository = AppDataSource.getRepository(Message);
+        this.messagesService = new MessagesService();
+        this.socialPostsService = new SocialPostsService();
     }
 
     async findAll(page = 1, pageSize = 10) {
@@ -131,13 +132,15 @@ export class ChatSessionService {
      */
     async buildAIContext(sessionId: string): Promise<AIContext> {
         const session = await this.getCachedSession(sessionId);
-        const messages = await this.getRecentMessages(sessionId, 10);
+        const messages = await this.messagesService.getRecentMessages(sessionId, 10);
+        const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId);
         const socialPosts = await this.socialPostsService.findByChatSession(sessionId);
 
         return {
             postContent: session?.post?.expanded?.content,
             postSummary: session?.post?.expanded?.summary,
             previousMessages: messages,
+            totalMessageCount: totalMessageCount,
             socialPosts: socialPosts.map(post => ({
                 platform: post.platform,
                 content: post.content,
@@ -149,66 +152,6 @@ export class ChatSessionService {
         };
     }
 
-    /**
-     * Save a chat message to the database
-     * @param sessionId - The session ID
-     * @param userMessage - User's message
-     * @param aiResponse - AI's response
-     */
-    async saveMessage(sessionId: string, userMessage: string, aiResponse: string): Promise<void> {
-        try {
-            const message = this.messageRepository.create({
-                chat_session_id: sessionId,
-                user_message: userMessage,
-                ai_response: aiResponse
-            });
-            await this.messageRepository.save(message);
-
-            logger.debug(`Saved message for session ${sessionId}`);
-        } catch (error) {
-            logger.error(`Error saving message for session ${sessionId}:`, error);
-            throw error;
-        }
-    }
-
-    async getMessages(sessionId: string, page = 1, pageSize = 20) {
-        const offset = (page - 1) * pageSize;
-        const [messages, total] = await this.messageRepository.findAndCount({
-            where: { chat_session_id: sessionId },
-            order: { created_at: 'ASC' },
-            skip: offset,
-            take: pageSize,
-        });
-
-        const totalPages = Math.ceil(total / pageSize);
-
-        return {
-            data: {
-                items: messages,
-                total,
-                page,
-                pageSize,
-                totalPages
-            },
-            status: 200
-        };
-    }
-
-    private async getRecentMessages(sessionId: string, limit = 5): Promise<Message[]> {
-        try {
-            const messages = await this.messageRepository.find({
-                where: { chat_session_id: sessionId },
-                order: { created_at: 'DESC' },
-                take: limit
-            });
-
-            // Format as conversation pairs for context
-            return messages;
-        } catch (error) {
-            logger.error(`Error getting recent messages for session ${sessionId}:`, error);
-            return [];
-        }
-    }
 
     /**
      * Update the chat session summary and last summary timestamp

@@ -5,14 +5,17 @@ import { ChatSessionService } from '../services/chat-session.service';
 import { SocialPostsService } from '../services/social-posts.service';
 import { AIStreamCallback } from '../types/ai.types';
 import { logger } from '../utils/logger';
+import { MessagesService } from '../services/messages.service';
 
 export class ChatSessionController {
     // The service is initialized in the constructor, so we don't need to assign it here.
     private service: ChatSessionService;
     private socialPostsService: SocialPostsService;
+    private messageService: MessagesService;
 
     constructor() {
         this.service = new ChatSessionService();
+        this.messageService = new MessagesService();
         this.socialPostsService = new SocialPostsService();
     }
 
@@ -265,7 +268,7 @@ export class ChatSessionController {
             const page = req.query.page ? parseInt(req.query.page as string) : 1;
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 20;
 
-            const result = await this.service.getMessages(sessionId, page, pageSize);
+            const result = await this.messageService.getMessages(sessionId, page, pageSize);
             res.json(result);
         } catch (err) {
             next(err);
@@ -452,7 +455,7 @@ export class ChatSessionController {
     async deleteSocialPost(req: Request, res: Response, next: NextFunction) {
         try {
             const postId = req.params.postId;
-            
+
             await this.socialPostsService.delete(postId);
             res.status(204).send();
         } catch (err) {

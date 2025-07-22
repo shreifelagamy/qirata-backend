@@ -1,11 +1,19 @@
 import { Message } from "../entities";
 import { SocialPlatform } from "../entities/social-post.entity";
+import { StructuredSocialPostOutput } from "../services/ai/agents/social-post-generator.agent";
 
 export interface AICallbackData {
-    event: 'start' | 'token' | 'end' | 'error';
+    event: 'start' | 'token' | 'end' | 'error' | 'social:start' | 'social:content' | 'social:complete';
     token?: string;
     error?: string;
     sessionId: string;
+    // Additional fields for enhanced social post streaming
+    stage?: 'starting' | 'content' | 'code' | 'visual' | 'completing';
+    message?: string;
+    content?: string;
+    type?: 'code' | 'visual';
+    index?: number;
+    data?: any;
 }
 
 export interface AIStreamCallback {
@@ -22,6 +30,7 @@ export interface AIContext {
     postContent?: string;
     postSummary?: string;
     previousMessages?: Message[];
+    totalMessageCount?: number;
     socialPosts?: {
         platform: SocialPlatform;
         content: string;
@@ -80,4 +89,5 @@ export interface StreamingAIResponse {
     summary?: string;
     isSocialPost?: boolean;
     socialPlatform?: SocialPlatform;
+    structuredSocialPost?: StructuredSocialPostOutput;
 }

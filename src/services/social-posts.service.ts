@@ -1,18 +1,22 @@
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../app';
-import { SocialPost, SocialPlatform } from '../entities/social-post.entity';
+import { SocialPost, SocialPlatform, CodeExample, VisualElement } from '../entities/social-post.entity';
 import { ChatSession } from '../entities/chat-session.entity';
 import { logger } from '../utils/logger';
 
 export interface UpdateSocialPostData {
     content: string;
     image_urls?: string[];
+    code_examples?: CodeExample[];
+    visual_elements?: VisualElement[];
 }
 
 export interface CreateSocialPostData {
     content: string;
     platform: SocialPlatform;
     image_urls?: string[];
+    code_examples?: CodeExample[];
+    visual_elements?: VisualElement[];
 }
 
 export class SocialPostsService {
@@ -75,10 +79,12 @@ export class SocialPostsService {
                 throw new Error('Social post not found');
             }
 
-            // Update only content and image_urls
+            // Update content, image_urls, and structured fields
             await this.socialPostRepository.update(postId, {
                 content: data.content,
-                image_urls: data.image_urls || post.image_urls
+                image_urls: data.image_urls || post.image_urls,
+                code_examples: data.code_examples || post.code_examples,
+                visual_elements: data.visual_elements || post.visual_elements
             });
 
             // Return the updated post
@@ -132,6 +138,8 @@ export class SocialPostsService {
                 content: data.content,
                 platform: data.platform,
                 image_urls: data.image_urls || [],
+                code_examples: data.code_examples || [],
+                visual_elements: data.visual_elements || [],
                 post_id: postId
             });
 
@@ -159,6 +167,8 @@ export class SocialPostsService {
                 content: data.content,
                 platform: data.platform,
                 image_urls: data.image_urls || [],
+                code_examples: data.code_examples || [],
+                visual_elements: data.visual_elements || [],
                 post_id: postId
             }, ['chat_session_id', 'platform']);
 

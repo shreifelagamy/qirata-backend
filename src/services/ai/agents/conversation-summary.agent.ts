@@ -6,8 +6,6 @@ import { Message } from "../../../entities";
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
 
-const MESSAGE_THRESHOLD = 5; // Trigger summary every 2 messages
-const KEEP_RECENT = 8; // Keep last 8 messages after summarization
 
 // Static system message (cacheable)
 const SYSTEM_MESSAGE = `You are an expert conversation analyst specialized in creating contextual summaries for ongoing AI interactions. Your role is to synthesize conversation history with post context to maintain continuity in future interactions.
@@ -52,15 +50,7 @@ export async function generateConversationSummary(options: ConversationSummaryOp
         postSummary
     } = options;
 
-    // Only summarize if we have enough messages
-    if (!shouldSummarize(messages.length, MESSAGE_THRESHOLD)) {
-        logger.info(`Not enough messages for summarization ${messages.length}, skipping summary generation.`);
-        return existingSummary || '';
-    }
-
     try {
-        logger.info('Generating conversation summary');
-
         // Build messages array with conversation history
         const messageArray = buildMessagesArray(messages, existingSummary, postSummary);
 
@@ -70,23 +60,16 @@ export async function generateConversationSummary(options: ConversationSummaryOp
         // Create debug callback
         const debugCallback = createDebugCallback('conversation-summary');
 
-        const summary = await chain.invoke({}, {
+        return await chain.invoke({}, {
             callbacks: [debugCallback]
         });
 
-        logger.info('Conversation summary generated successfully');
-        return summary;
-
     } catch (error) {
-        logger.error('Failed to generate conversation summary:', error);
+        logger.error(`Failed to generate conversation summary: ${error}`);
         return existingSummary || 'Summary generation failed';
     }
 }
 
-// Helper function to check if summarization is needed
-function shouldSummarize(messageCount: number, threshold: number = 6): boolean {
-    return messageCount >= threshold && messageCount % threshold === 0;
-}
 
 // Helper function to build messages array for prompt
 function buildMessagesArray(messages: Message[], existingSummary: string, postSummary?: string): BaseMessage[] {
@@ -107,10 +90,8 @@ function buildMessagesArray(messages: Message[], existingSummary: string, postSu
         messageArray.push(new AIMessage('I have the previous conversation summary and will build upon it.'));
     }
 
-    // Add recent conversation messages
-    const recentMessages = messages.slice(-KEEP_RECENT);
-
-    for (const msg of recentMessages) {
+    // Add conversation messages (already filtered by caller)
+    for (const msg of messages) {
         if (msg.user_message?.trim()) {
             messageArray.push(new HumanMessage(msg.user_message));
         }

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Message } from '../../../entities';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from '../../../utils/logger';
+import { ChatOpenAI } from '@langchain/openai';
 
 const KEEP_RECENT = 5; // Keep last 5 user messages for context
 
@@ -50,14 +51,14 @@ RULES:
 `;
 
 interface PlatformDetectionOptions {
-    model?: ChatOllama;
+    model?: ChatOllama | ChatOpenAI; // Allow both Ollama and OpenAI models
     userMessage: string;
     conversationHistory?: Message[];
 }
 
 export async function detectPlatform(options: PlatformDetectionOptions): Promise<PlatformDetectionResponse> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.3 }),
+        model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.1, openAIApiKey: process.env.OPENAI_API_KEY }),
         userMessage,
         conversationHistory
     } = options;
