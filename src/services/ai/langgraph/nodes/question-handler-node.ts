@@ -80,6 +80,7 @@ export class QuestionHandlerNode extends BaseNode {
             return {
                 aiResponse: response,
                 responseType: 'question_answer',
+                isSocialPost: false,
                 tokenCount
             };
         } catch (error) {

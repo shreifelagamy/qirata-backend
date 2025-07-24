@@ -75,6 +75,7 @@ export class ChatController {
 
             // 7. Save message and send final event
             if (streamingResponse.isComplete && !streamingResponse.error) {
+                console.log(`AI response for session ${sessionId}:`, streamingResponse);
                 // Determine message type based on AI intent
                 const messageType = streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE;
 

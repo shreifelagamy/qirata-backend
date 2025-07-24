@@ -372,6 +372,36 @@ export class ChatSessionController {
      *                   type: string
      *                   format: url
      *                 description: Array of image URLs
+     *               code_examples:
+     *                 type: array
+     *                 items:
+     *                   type: object
+     *                   properties:
+     *                     language:
+     *                       type: string
+     *                       description: Programming language
+     *                     code:
+     *                       type: string
+     *                       description: Code snippet
+     *                     description:
+     *                       type: string
+     *                       description: Optional description of the code
+     *                 description: Array of code examples
+     *               visual_elements:
+     *                 type: array
+     *                 items:
+     *                   type: object
+     *                   properties:
+     *                     type:
+     *                       type: string
+     *                       description: Type of visual element
+     *                     description:
+     *                       type: string
+     *                       description: Description of the visual element
+     *                     suggestion:
+     *                       type: string
+     *                       description: Optional suggestion for the visual element
+     *                 description: Array of visual elements
      *     responses:
      *       200:
      *         description: Social post updated successfully
@@ -402,11 +432,13 @@ export class ChatSessionController {
         try {
             const sessionId = req.params.id;
             const postId = req.params.postId;
-            const { content, image_urls } = req.body;
+            const { content, image_urls, code_examples, visual_elements } = req.body;
 
             const updatedPost = await this.socialPostsService.update(sessionId, postId, {
                 content,
-                image_urls
+                image_urls,
+                code_examples,
+                visual_elements
             });
 
             res.json({ data: updatedPost, status: 200 });

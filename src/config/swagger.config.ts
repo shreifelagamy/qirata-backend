@@ -668,6 +668,58 @@ Authorization header as \`Bearer <token>\`.
                             nullable: true,
                             description: 'URLs of images attached to the post',
                         },
+                        code_examples: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    language: {
+                                        type: 'string',
+                                        description: 'Programming language',
+                                        example: 'javascript',
+                                    },
+                                    code: {
+                                        type: 'string',
+                                        description: 'Code snippet',
+                                        example: 'console.log("Hello World");',
+                                    },
+                                    description: {
+                                        type: 'string',
+                                        description: 'Optional description of the code',
+                                        example: 'Simple greeting function',
+                                    },
+                                },
+                                required: ['language', 'code'],
+                            },
+                            nullable: true,
+                            description: 'Array of code examples included in the post',
+                        },
+                        visual_elements: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    type: {
+                                        type: 'string',
+                                        description: 'Type of visual element',
+                                        example: 'diagram',
+                                    },
+                                    description: {
+                                        type: 'string',
+                                        description: 'Description of the visual element',
+                                        example: 'Flow chart showing the process',
+                                    },
+                                    suggestion: {
+                                        type: 'string',
+                                        description: 'Optional suggestion for the visual element',
+                                        example: 'Use a simple flowchart with clear arrows',
+                                    },
+                                },
+                                required: ['type', 'description'],
+                            },
+                            nullable: true,
+                            description: 'Array of visual elements suggestions for the post',
+                        },
                         chat_session_id: {
                             type: 'string',
                             format: 'uuid',
