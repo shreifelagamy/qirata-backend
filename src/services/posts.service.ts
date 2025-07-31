@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { summarizePost } from './ai/agents/post-summary.agent';
 import { ChatSessionService } from './chat-session.service';
 import scraper from './content/scraper.service';
+import { AgentQLService } from './content/agentql.service';
 
 interface PostFilters {
     read?: boolean;
@@ -26,11 +27,13 @@ export class PostsService {
     private chatSessionService: ChatSessionService;
     private postExpandedRepository: Repository<PostExpanded>;
     private turndownService: TurndownService;
+    private agentqlService: AgentQLService;
 
     constructor() {
         this.postModel = new PostModel();
         this.chatSessionService = new ChatSessionService();
         this.postExpandedRepository = AppDataSource.getRepository(PostExpanded);
+        this.agentqlService = new AgentQLService();
 
         this.turndownService = new TurndownService({
             headingStyle: 'atx',
@@ -182,6 +185,140 @@ export class PostsService {
         } catch (error) {
             logger.error(`Error expanding post ${id}:`, error);
             throw error instanceof HttpError ? error : new HttpError(500, 'Failed to expand post');
+        }
+    }
+
+    async expandPostWithStreaming(
+        id: string, 
+        progressCallback: (step: string, progress: number) => void
+    ): Promise<Post & { chat_session_id: string }> {
+        try {
+            progressCallback('Initializing post expansion...', 5);
+
+            // Get the post
+            const post = await this.getPost(id);
+            if (!post) {
+                throw new HttpError(404, 'Post not found');
+            }
+
+            progressCallback('Setting up chat session...', 10);
+
+            // Check if chat session exists, create one if it doesn't
+            let chatSession = await this.chatSessionService.findByPostId(id);
+            if (!chatSession) {
+                chatSession = await this.chatSessionService.create({
+                    title: `Discussing: ${post.title}`,
+                    postId: post.id
+                });
+            }
+
+            // Check if expanded content exists, create it if it doesn't
+            const existingExpanded = await this.postModel.findExpandedById(id).catch(() => null);
+            if (!existingExpanded) {
+                progressCallback('Extracting main content...', 20);
+
+                // Create new PostExpanded record
+                const expanded = new PostExpanded({ post_id: id });
+
+                // Extract content using AgentQL
+                const extractedData = await this.agentqlService.extract(post.external_link);
+                let aggregatedContent = extractedData.postContent;
+
+                progressCallback('Processing read more links...', 40);
+
+                // Process read more links in parallel (max 3)
+                if (extractedData.readMoreUrl && extractedData.readMoreUrl.length > 0) {
+                    const readMoreLinks = extractedData.readMoreUrl.slice(0, 3); // Limit to 3 links
+                    logger.info(`Following ${readMoreLinks.length} read more links for post ${id}`);
+
+                    const readMorePromises = readMoreLinks.map(async (link, index) => {
+                        try {
+                            progressCallback(`Following read more links (${index + 1}/${readMoreLinks.length})...`, 50 + (index * 10));
+                            const linkData = await this.agentqlService.extract(link);
+                            return linkData.postContent;
+                        } catch (error) {
+                            logger.warn(`Failed to extract content from read more link: ${link}`, error);
+                            return '';
+                        }
+                    });
+
+                    const readMoreContents = await Promise.all(readMorePromises);
+                    
+                    // Aggregate all content
+                    const validContents = readMoreContents.filter(content => content.trim().length > 0);
+                    if (validContents.length > 0) {
+                        aggregatedContent += '\n\n' + validContents.join('\n\n');
+                    }
+                }
+
+                progressCallback('Optimizing content for AI...', 80);
+
+                // Optimize content for AI consumption
+                const optimizedContent = this.optimizeContentForAI(aggregatedContent);
+                expanded.content = optimizedContent;
+
+                progressCallback('Generating content summary...', 90);
+
+                // Generate summary
+                const summary = await summarizePost({
+                    postContent: optimizedContent,
+                });
+                expanded.summary = summary;
+
+                progressCallback('Saving expanded content...', 95);
+
+                // Save expanded content
+                await AppDataSource.manager.save(PostExpanded, expanded);
+            }
+
+            progressCallback('Finalizing...', 100);
+
+            // Return post with chat session id
+            return {
+                ...post,
+                chat_session_id: chatSession!.id
+            } as Post & { chat_session_id: string };
+        } catch (error) {
+            logger.error(`Error expanding post ${id}:`, error);
+            throw error instanceof HttpError ? error : new HttpError(500, 'Failed to expand post');
+        }
+    }
+
+    private optimizeContentForAI(content: string): string {
+        if (!content || content.trim().length === 0) {
+            return content;
+        }
+
+        try {
+            // Remove excessive whitespace and normalize line breaks
+            let optimized = content.replace(/\s+/g, ' ').trim();
+            
+            // Remove duplicate sections (common in scraped content)
+            const sentences = optimized.split(/[.!?]+/).filter(s => s.trim().length > 10);
+            const uniqueSentences = [...new Set(sentences)];
+            optimized = uniqueSentences.join('. ').trim();
+            
+            // Ensure proper sentence ending
+            if (optimized && !optimized.match(/[.!?]$/)) {
+                optimized += '.';
+            }
+
+            // Limit content length to prevent excessive token usage
+            const maxLength = 8000; // Reasonable limit for AI processing
+            if (optimized.length > maxLength) {
+                optimized = optimized.substring(0, maxLength);
+                // Try to end at a sentence boundary
+                const lastSentenceEnd = optimized.lastIndexOf('.');
+                if (lastSentenceEnd > maxLength * 0.8) {
+                    optimized = optimized.substring(0, lastSentenceEnd + 1);
+                }
+            }
+
+            logger.info(`Content optimized: ${content.length} -> ${optimized.length} characters`);
+            return optimized;
+        } catch (error) {
+            logger.warn('Content optimization failed, returning original content:', error);
+            return content;
         }
     }
 

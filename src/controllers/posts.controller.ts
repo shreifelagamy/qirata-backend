@@ -177,9 +177,9 @@ export class PostsController {
     /**
      * @swagger
      * /posts/{id}/expand:
-     *   post:
-     *     summary: Expand a post and get chat session
-     *     description: Creates or retrieves chat session for the post, expands content if not already expanded, and returns post with chat session ID
+     *   get:
+     *     summary: Expand a post and get chat session with streaming progress
+     *     description: Creates or retrieves chat session for the post, expands content using AgentQL with parallel read-more link processing, and streams progress updates via Server-Sent Events
      *     tags: [Posts]
      *     security:
      *       - bearerAuth: []
@@ -193,18 +193,21 @@ export class PostsController {
      *         description: Post ID
      *     responses:
      *       200:
-     *         description: Post expanded successfully with chat session created
+     *         description: Streaming response with progress updates
      *         content:
-     *           application/json:
+     *           text/event-stream:
      *             schema:
-     *               allOf:
-     *                 - $ref: '#/components/schemas/Post'
-     *                 - type: object
-     *                   properties:
-     *                     chat_session_id:
-     *                       type: string
-     *                       format: uuid
-     *                       description: ID of the associated chat session
+     *               type: string
+     *               description: Server-Sent Events stream with progress updates and final result
+     *               example: |
+     *                 event: progress
+     *                 data: {"step": "Extracting main content...", "progress": 10}
+     *                 
+     *                 event: progress
+     *                 data: {"step": "Following read more links (1/3)...", "progress": 40}
+     *                 
+     *                 event: complete
+     *                 data: {"id": "123", "title": "Post Title", "chat_session_id": "456"}
      *       401:
      *         description: Unauthorized
      *         content:
@@ -231,11 +234,38 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            const expanded = await this.postsService.expandPost(id);
 
-            res.json(expanded);
+            // Set up SSE headers
+            res.writeHead(200, {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': 'http://localhost:5173',
+                'Access-Control-Allow-Headers': 'Cache-Control, Accept, Accept-Language, DNT, Origin, Referer, Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site, User-Agent, sec-ch-ua, sec-ch-ua-mobile, sec-ch-ua-platform',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Credentials': 'true'
+            });
+
+            // Progress callback for streaming updates
+            const progressCallback = (step: string, progress: number) => {
+                res.write(`event: progress\n`);
+                res.write(`data: ${JSON.stringify({ step, progress })}\n\n`);
+            };
+
+            // Start expansion with streaming
+            const expanded = await this.postsService.expandPostWithStreaming(id, progressCallback);
+
+            // Send final result
+            res.write(`event: complete\n`);
+            res.write(`data: ${JSON.stringify(expanded)}\n\n`);
+            res.end();
         } catch (error) {
-            next(error);
+            // Send error via SSE
+            res.write(`event: error\n`);
+            res.write(`data: ${JSON.stringify({ 
+                error: error instanceof Error ? error.message : 'Failed to expand post'
+            })}\n\n`);
+            res.end();
         }
     }
 

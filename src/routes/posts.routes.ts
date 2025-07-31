@@ -73,8 +73,8 @@ export function createPostsRouter(): Router {
     postsController.expanded.bind(postsController)
   );
 
-  // REST API: POST /posts/:id/expand - Trigger expansion (action on resource)
-  router.post(
+  // REST API: GET /posts/:id/expand - Trigger expansion (action on resource)
+  router.get(
     '/:id/expand',
     validate(commonValidation.id()),
     postsController.expand.bind(postsController)
