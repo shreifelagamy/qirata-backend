@@ -53,6 +53,8 @@ export class ChatController {
 
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
+            // print context for debugging
+            logger.info(`AI context for session ${sessionId}: ${JSON.stringify(context.previousMessages)}`);
 
             // 4. Load user preferences and add to contextx
             const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences();
@@ -291,6 +293,8 @@ export class ChatController {
         try {
             if (socket.data.activeStreams) {
                 for (const sessionId of socket.data.activeStreams) {
+                    // Cancel ongoing AI processes for this session
+                    langGraphChatService.cancelExistingRequest(sessionId);
                     this.activeStreams.delete(sessionId);
                 }
                 socket.data.activeStreams.clear();

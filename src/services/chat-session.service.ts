@@ -139,7 +139,7 @@ export class ChatSessionService {
         return {
             postContent: session?.post?.expanded?.content,
             postSummary: session?.post?.expanded?.summary,
-            previousMessages: messages,
+            previousMessages: messages.reverse(),
             totalMessageCount: totalMessageCount,
             socialPosts: socialPosts.map(post => ({
                 platform: post.platform,

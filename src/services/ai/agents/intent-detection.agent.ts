@@ -92,10 +92,10 @@ function buildMessagesArray(conversationHistory: Message[], currentUserMessage: 
     // Static system message (cacheable)
     messages.push(new SystemMessage(SYSTEM_MESSAGE));
 
-    // Add recent conversation history as separate messages
-    const recentMessages = conversationHistory.slice(-KEEP_RECENT);
+    messages.push(new HumanMessage(`<FORMAT_INSTRUCTIONS>\n${formatInstructions}</FORMAT_INSTRUCTIONS>`));
+    messages.push(new AIMessage('Yes sure, i will follow the format instructions provided.'));
 
-    for (const msg of recentMessages) {
+    for (const msg of conversationHistory) {
         if (msg.user_message?.trim()) {
             messages.push(new HumanMessage(msg.user_message));
         }
@@ -103,9 +103,6 @@ function buildMessagesArray(conversationHistory: Message[], currentUserMessage: 
             messages.push(new AIMessage(msg.ai_response));
         }
     }
-
-    // Add format instructions as a separate message
-    messages.push(new HumanMessage(`<FORMAT_INSTRUCTIONS>\n${formatInstructions}</FORMAT_INSTRUCTIONS>`));
 
     // Current user message
     messages.push(new HumanMessage(currentUserMessage));

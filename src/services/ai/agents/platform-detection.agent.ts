@@ -111,10 +111,7 @@ function buildMessagesArray(conversationHistory: Message[], currentUserMessage: 
     // Static system message (cacheable)
     messages.push(new SystemMessage(SYSTEM_MESSAGE));
 
-    // Add recent conversation history as separate messages
-    const recentMessages = conversationHistory.slice(-KEEP_RECENT);
-
-    for (const msg of recentMessages) {
+    for (const msg of conversationHistory) {
         if (msg.user_message?.trim()) {
             messages.push(new HumanMessage(msg.user_message));
         }
