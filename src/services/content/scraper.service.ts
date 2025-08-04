@@ -5,6 +5,25 @@ import { fetchWithTimeout, validateUrl } from '../../utils/http.util';
 import { logger } from '../../utils/logger';
 
 export class ScraperService {
+    private static readonly BOT_USER_AGENT = 'Mozilla/5.0 (compatible; QirataBot/1.0; +https://qirata.com/bot)';
+
+    async scrapeHtml(url: string, options?: { timeout?: number }): Promise<string> {
+        if (!validateUrl(url)) {
+            throw new Error('Invalid URL format');
+        }
+
+        const startTime = Date.now();
+        const html = await fetchWithTimeout(url, {
+            headers: {
+                'User-Agent': ScraperService.BOT_USER_AGENT
+            },
+            timeout: options?.timeout || 30000
+        });
+
+        logger.info(`HTML scraped in ${Date.now() - startTime}ms: ${url}`);
+        return html;
+    }
+
     // function to extract name from url
     extractNameFromUrl(url: string): string {
         try {
@@ -55,24 +74,12 @@ export class ScraperService {
     }
 
     async scrapeUrl(url: string): Promise<ScrapedContent> {
-        if (!validateUrl(url)) {
-            throw new Error('Invalid URL format');
-        }
-
-        const startTime = Date.now();
-        const html = await fetchWithTimeout(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; QirataBot/1.0; +https://qirata.com/bot)'
-            }
-        });
-
+        const html = await this.scrapeHtml(url);
         const $ = cheerio.load(html);
 
         const content = this.extractMainContent($);
         const metadata = this.extractMetadata($);
         const sanitizedContent = this.sanitizeContent(content);
-
-        logger.info(`Content scraped in ${Date.now() - startTime}ms: ${url}`);
 
         return {
             url,

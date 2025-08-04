@@ -253,7 +253,7 @@ export class PostsController {
             };
 
             // Start expansion with streaming
-            const expanded = await this.postsService.expandPostWithStreaming(id, progressCallback);
+            const expanded = await this.postsService.expandPost(id, progressCallback);
 
             // Send final result
             res.write(`event: complete\n`);
