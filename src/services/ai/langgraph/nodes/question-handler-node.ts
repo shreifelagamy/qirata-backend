@@ -67,7 +67,6 @@ export class QuestionHandlerNode extends BaseNode {
             ] : [];
 
             const response = await handleQuestion({
-                model: state.models.questionHandler,
                 userMessage: state.userMessage,
                 conversationHistory,
                 postContent: state.postContent,

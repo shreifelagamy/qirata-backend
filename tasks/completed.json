@@ -1,0 +1,75 @@
+[
+  {
+    "id": "task-002",
+    "title": "Enhance scraping process with timeout and fallback mechanism",
+    "description": "Improve the content scraping process to increase timeout settings and implement fallback strategy when AgentQL fails",
+    "context": "Current scraping process is located in src/services/content/agentql.service.ts. When AgentQL fails directly on a URL, it should fallback to first get the HTML content, then call AgentQL with the HTML instead of the direct URL. This will improve reliability and handle edge cases better. Need to increase timeout values and add proper error handling.",
+    "priority": "high",
+    "status": "completed",
+    "assignedTo": null,
+    "tags": ["reliability", "error-handling", "scraping", "fallback"],
+    "dependencies": [],
+    "subtasks": [],
+    "estimatedHours": 0,
+    "actualHours": 0,
+    "createdAt": "2025-08-06T00:00:00.000Z",
+    "updatedAt": "2025-08-07T14:30:00.000Z",
+    "completedAt": "2025-08-07T14:30:00.000Z",
+    "dueDate": null,
+    "notes": [
+      "Started implementation in content-aggregation.service.ts. Found existing fallback mechanism that needs enhancement.",
+      "Enhanced timeout values: AgentQL timeout increased from 30s to 60s, wait time from 2s to 3s",
+      "Improved fallback mechanism with proper empty content detection",
+      "Added retry capability (2 retries) with enhanced logging and performance metrics",
+      "Implementation completed in both agentql.service.ts and content-aggregation.service.ts"
+    ]
+  },
+  {
+    "id": "task-003",
+    "title": "Reject links without RSS feeds and update frontend messaging",
+    "description": "Implement validation to reject user-submitted links that don't have RSS feeds, and add frontend messaging to inform users about RSS requirement",
+    "context": "Users should not be able to add links without RSS feeds for now (future support planned). Modified LinksService.processLink() to validate RSS feed existence using RSSService.findFeedUrls(). When no RSS feed is found, returns HTTP 400 error with clear message. Updated Swagger documentation in LinksController to document the new validation error responses.",
+    "priority": "medium",
+    "status": "completed",
+    "assignedTo": null,
+    "tags": ["validation", "rss", "backend", "user-experience", "error-handling"],
+    "dependencies": [],
+    "subtasks": [],
+    "estimatedHours": 0,
+    "actualHours": 0,
+    "createdAt": "2025-08-06T00:00:00.000Z",
+    "updatedAt": "2025-08-07T15:00:00.000Z",
+    "completedAt": "2025-08-07T15:00:00.000Z",
+    "dueDate": null,
+    "notes": [
+      "Implemented RSS validation in LinksService.processLink()",
+      "Added error handling with message: 'No RSS feed found for this URL. We currently only accept blogs with public RSS feeds.'",
+      "Updated Swagger documentation for POST /links with detailed 400 error examples",
+      "Removed frontend requirement as this is backend-only application"
+    ]
+  },
+  {
+    "id": "task-004",
+    "title": "Mark post as read when expanded successfully",
+    "description": "Implement functionality to automatically mark posts as read when users expand them and the expansion completes successfully",
+    "context": "Modified PostsService.expandPost() method to automatically call markAsRead() after successful content expansion. Implementation uses non-blocking approach to avoid delaying expansion response. The markAsRead() call is placed after createExpandedContent() succeeds but before the final response.",
+    "priority": "medium",
+    "status": "completed",
+    "assignedTo": null,
+    "tags": ["user-experience", "post-management", "read-status", "expansion", "database"],
+    "dependencies": [],
+    "subtasks": [],
+    "estimatedHours": 0,
+    "actualHours": 0,
+    "createdAt": "2025-08-07T00:00:00.000Z",
+    "updatedAt": "2025-08-07T15:00:00.000Z",
+    "completedAt": "2025-08-07T15:00:00.000Z",
+    "dueDate": null,
+    "notes": [
+      "Implemented non-blocking markAsRead() call in PostsService.expandPost()",
+      "Positioned after successful content creation, before finalizing response",
+      "No await used to prevent delays in expansion process",
+      "Posts are now automatically marked as read when expansion succeeds"
+    ]
+  }
+]

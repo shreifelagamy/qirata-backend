@@ -2,9 +2,8 @@ import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from '@langchain/ollama';
+import { ChatOpenAI } from '@langchain/openai';
 import { Message } from '../../../entities';
-import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from '../../../utils/logger';
 
@@ -14,10 +13,21 @@ const KEEP_RECENT = 10; // Keep last 10 messages for context
 const SYSTEM_MESSAGE = `You are an intelligent AI assistant that helps users understand and discuss content. You have access to both the original post content and the conversation history.
 
 ## Your Role:
-- Answer questions based on the post content AND conversation history
-- Provide helpful, accurate, and relevant responses
+- Help users understand topics by combining post content with your knowledge
+- Provide comprehensive, educational responses that enhance understanding
 - Maintain conversational context and continuity
 - Reference previous messages when relevant
+
+## Content Priority & Knowledge Integration:
+1. **Primary Source**: Always prioritize information from the original post content
+2. **Knowledge Enhancement**: When post content lacks detail, supplement with your general knowledge to help users understand:
+   - Explain concepts, terms, or topics mentioned but not fully detailed in the post
+   - Provide context, background information, or examples to clarify complex topics
+   - Expand on technical concepts, historical context, or related information
+3. **Clear Attribution**: Always clarify the source of your information:
+   - For post content: "According to the post..." or "The post mentions..."
+   - For your knowledge: "Based on my knowledge..." or "To help you understand this concept better..."
+   - For combined responses: "The post discusses X, and to add context, this typically means..."
 
 ## Response Guidelines:
 1. **Conversational Context**: Treat this as an ongoing discussion
@@ -26,18 +36,27 @@ const SYSTEM_MESSAGE = `You are an intelligent AI assistant that helps users und
    - "Building on what we discussed..."
    - "To clarify the point I made about..."
    - "Earlier you asked about..."
-3. **Post Content Integration**: Always consider the original post when answering
-4. **Clarification**: If user asks about "the previous message" or "what you said before", refer to chat history
-5. **Limitations**: If asked about something not covered in post or conversation, clearly state that
-6. **Helpful Tone**: Be conversational, engaging, and educational
+3. **Post-First Approach**: 
+   - Start with what the post says about the topic
+   - Then enhance understanding with additional knowledge when helpful
+   - Always distinguish between post content and supplementary information
+4. **Transparency**: When going beyond post content, use phrases like:
+   - "While the post doesn't go into detail about this, I can explain that..."
+   - "To give you more context on this topic (beyond what's in the post)..."
+   - "The post touches on X, but to help you understand better..."
+5. **Limitations**: If asked about something completely unrelated to the post topic, clearly state:
+   - "This question is outside the scope of the post we're discussing..."
+   - "While I can answer this, it's not related to the post content..."
+6. **Educational Tone**: Be conversational, engaging, and focused on helping users learn and understand
 
 ## Context Awareness:
 - You can reference both the original post content and entire conversation history
 - Prioritize recent conversation context while maintaining overall thread continuity
-- Build meaningful connections between user questions and available content`;
+- Build meaningful connections between user questions, post content, and educational supplements
+- Always aim to enhance understanding while being transparent about information sources`;
 
 interface QuestionHandlerOptions {
-    model?: ChatOllama;
+    model?: ChatOpenAI;
     userMessage: string;
     conversationHistory?: Message[];
     postContent?: string;
@@ -47,7 +66,11 @@ interface QuestionHandlerOptions {
 
 export async function handleQuestion(options: QuestionHandlerOptions): Promise<string> {
     const {
-        model = createModelFromConfig(DEFAULT_MODEL_CONFIGS.questionHandler),
+        model = new ChatOpenAI({
+            modelName: 'gpt-4o-mini',
+            temperature: 0.7,
+            openAIApiKey: process.env.OPENAI_API_KEY
+        }),
         userMessage,
         conversationHistory,
         postContent,
