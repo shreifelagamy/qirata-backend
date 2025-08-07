@@ -44,6 +44,11 @@ export class LinksService {
             // Get RSS and feed links
             const feedLinks = await this.rssService.findFeedUrls(data.url);
 
+            // If no RSS feed found, reject the link
+            if (!feedLinks) {
+                throw new HttpError(400, 'No RSS feed found for this URL. We currently only accept blogs with public RSS feeds.');
+            }
+
             // If multiple feed links found, return them for user selection
             if (Array.isArray(feedLinks) && feedLinks.length > 1) {
                 return {

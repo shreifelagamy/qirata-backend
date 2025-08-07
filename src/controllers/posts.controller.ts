@@ -51,6 +51,7 @@ export class PostsController {
      * /posts:
      *   get:
      *     summary: Get all posts with pagination and filters
+     *     description: Returns posts ordered by sequence (newest first) using incremental ID for consistent ordering
      *     tags: [Posts]
      *     parameters:
      *       - in: query
@@ -109,7 +110,7 @@ export class PostsController {
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 9;
 
             const filters = {
-                read: req.query.read === 'true',
+                read: req.query.read !== undefined ? req.query.read === 'true' : undefined,
                 link_id: req.query.link_id as string,
                 search: req.query.search as string,
                 limit: pageSize,
@@ -202,10 +203,10 @@ export class PostsController {
      *               example: |
      *                 event: progress
      *                 data: {"step": "Extracting main content...", "progress": 10}
-     *                 
+     *
      *                 event: progress
      *                 data: {"step": "Following read more links (1/3)...", "progress": 40}
-     *                 
+     *
      *                 event: complete
      *                 data: {"id": "123", "title": "Post Title", "chat_session_id": "456"}
      *       401:
@@ -262,7 +263,7 @@ export class PostsController {
         } catch (error) {
             // Send error via SSE
             res.write(`event: error\n`);
-            res.write(`data: ${JSON.stringify({ 
+            res.write(`data: ${JSON.stringify({
                 error: error instanceof Error ? error.message : 'Failed to expand post'
             })}\n\n`);
             res.end();

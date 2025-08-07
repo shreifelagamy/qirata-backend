@@ -24,7 +24,7 @@ export class RSSService {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             });
-            const feedUrls = this.findFeedLinksInHtml(html);
+            const feedUrls = this.findFeedLinksInHtml(html, url);
 
             // If we found feed links, return them
             if (feedUrls.length > 0) {
@@ -56,9 +56,10 @@ export class RSSService {
      * Extracts feed URLs from HTML content by checking link tags and RSS/Atom patterns.
      *
      * @param html The HTML content to search for feed links
+     * @param baseUrl The base URL to resolve relative URLs against
      * @returns Array of unique feed URLs found in the HTML
      */
-    private findFeedLinksInHtml(html: string): string[] {
+    private findFeedLinksInHtml(html: string, baseUrl: string): string[] {
         const feedTypes = [
             'application/rss+xml',
             'application/atom+xml',
@@ -84,20 +85,58 @@ export class RSSService {
         patterns.forEach(pattern => {
             let match;
             while ((match = pattern.exec(html)) !== null) {
+                let url: string;
+                
                 if (pattern.source.includes('type=')) {
                     // For links with type attribute
-                    const [_, type, url] = match;
+                    const [_, type, foundUrl] = match;
                     if (feedTypes.some(feedType => type.toLowerCase().includes(feedType))) {
-                        feedUrls.add(url);
+                        url = foundUrl;
+                    } else {
+                        continue;
                     }
                 } else {
                     // For links without type attribute but matching feed patterns
-                    feedUrls.add(match[1]);
+                    url = match[1];
                 }
+
+                // Convert relative URLs to absolute URLs
+                const absoluteUrl = this.resolveUrl(url, baseUrl);
+                feedUrls.add(absoluteUrl);
             }
         });
 
         return Array.from(feedUrls);
+    }
+
+    /**
+     * Resolves a relative URL against a base URL to create an absolute URL.
+     *
+     * @param url The URL to resolve (may be relative or absolute)
+     * @param baseUrl The base URL to resolve against
+     * @returns The resolved absolute URL
+     */
+    private resolveUrl(url: string, baseUrl: string): string {
+        // If URL is already absolute, return as-is
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+        }
+
+        try {
+            const base = new URL(baseUrl);
+            
+            // Handle relative URLs that start with /
+            if (url.startsWith('/')) {
+                return `${base.protocol}//${base.host}${url}`;
+            }
+            
+            // Handle relative URLs without leading /
+            const basePath = base.pathname.endsWith('/') ? base.pathname : base.pathname + '/';
+            return `${base.protocol}//${base.host}${basePath}${url}`;
+        } catch (error) {
+            logger.warn(`Failed to resolve URL: ${url} against base: ${baseUrl}`, error);
+            return url; // Return original URL if resolution fails
+        }
     }
 
     async parseFeed(url: string): Promise<RSSFeed> {

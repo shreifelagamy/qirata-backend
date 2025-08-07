@@ -56,11 +56,24 @@ export class LinksController {
      *                 name:
      *                   type: string
      *       400:
-     *         description: Bad request
+     *         description: Bad request - Invalid URL, missing RSS feed, or validation error
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               no_rss_feed:
+     *                 summary: No RSS feed found
+     *                 value:
+     *                   message: "No RSS feed found for this URL. We currently only accept blogs with public RSS feeds."
+     *               invalid_url:
+     *                 summary: Invalid URL
+     *                 value:
+     *                   message: "URL is required"
+     *               duplicate_url:
+     *                 summary: Duplicate URL
+     *                 value:
+     *                   message: "URL already exists"
      *       401:
      *         description: Unauthorized
      *         content:

@@ -65,19 +65,47 @@ export class ContentAggregationService {
             logger.info(`Attempting direct AgentQL extraction for: ${url}`);
             const extractedData = await agentqlService.extract(url);
 
-            // If human verification is required, fallback to HTML scraping
-            if (extractedData.isHumanVerificationRequired) {
-                logger.warn(`Human verification detected for ${url}, falling back to HTML scraping`);
-                const html = await scraper.scrapeHtml(url);
-                return await agentqlService.extractFromHtml(html);
+            // Check if extraction was successful (has meaningful content)
+            if (extractedData.postContent && extractedData.postContent.trim().length > 0) {
+                // If human verification is required, fallback to HTML scraping
+                if (extractedData.isHumanVerificationRequired) {
+                    logger.warn(`Human verification detected for ${url}, falling back to HTML scraping`);
+                    return await this.fallbackToHtmlExtraction(url);
+                }
+                
+                logger.info(`Direct AgentQL extraction successful for: ${url}`);
+                return extractedData;
+            } else {
+                // Empty content - treat as failure and fallback
+                logger.warn(`Direct AgentQL extraction returned empty content for ${url}, falling back to HTML scraping`);
+                return await this.fallbackToHtmlExtraction(url);
             }
-
-            return extractedData;
         } catch (error) {
             logger.warn(`Direct AgentQL extraction failed for ${url}, falling back to HTML scraping:`, error);
-            // Fallback to HTML scraping if direct extraction fails
+            return await this.fallbackToHtmlExtraction(url);
+        }
+    }
+
+    private async fallbackToHtmlExtraction(url: string) {
+        try {
+            logger.info(`Starting HTML fallback extraction for: ${url}`);
             const html = await scraper.scrapeHtml(url);
-            return await agentqlService.extractFromHtml(html);
+            
+            if (!html || html.trim().length === 0) {
+                throw new Error('Failed to scrape HTML content');
+            }
+            
+            const result = await agentqlService.extractFromHtml(html);
+            logger.info(`HTML fallback extraction completed for: ${url}`);
+            return result;
+        } catch (fallbackError) {
+            logger.error(`Both direct AgentQL and HTML fallback failed for ${url}:`, fallbackError);
+            // Return empty result to allow graceful degradation
+            return {
+                postContent: '',
+                readMoreUrl: [],
+                isHumanVerificationRequired: false
+            };
         }
     }
 

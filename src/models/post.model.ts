@@ -30,8 +30,9 @@ export class PostModel {
     }
 
     async findAll(filters: PostFilters): Promise<[Post[], number]> {
+        console.log(filters.read !== undefined)
         const query = this.repository.createQueryBuilder('post')
-            .orderBy('post.created_at', 'DESC');
+            .orderBy('post.sequence_id', 'DESC');
 
         if (filters.external_links?.length) {
             query.andWhere('post.external_link IN (:...links)', { links: filters.external_links });

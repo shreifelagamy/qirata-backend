@@ -89,6 +89,7 @@ export class PostsService {
     }
 
     async markAsRead(id: string): Promise<Post> {
+        console.log(`Marking post ${id} as read...`);
         try {
             return await this.postModel.markAsRead(id);
         } catch (error) {
@@ -107,7 +108,7 @@ export class PostsService {
     }
 
     async expandPost(
-        id: string, 
+        id: string,
         progressCallback?: (step: string, progress: number) => void
     ): Promise<Post & { chat_session_id: string }> {
         try {
@@ -125,6 +126,9 @@ export class PostsService {
             if (!existingExpanded) {
                 await this.createExpandedContent(post, progressCallback);
             }
+
+            // Mark post as read after successful expansion (non-blocking)
+            this.markAsRead(id);
 
             progressCallback?.('Finalizing...', 100);
 
@@ -150,7 +154,7 @@ export class PostsService {
     }
 
     private async createExpandedContent(
-        post: Post, 
+        post: Post,
         progressCallback?: (step: string, progress: number) => void
     ): Promise<void> {
         const { content, summary } = await contentAggregationService.aggregateContent(
@@ -160,7 +164,7 @@ export class PostsService {
 
         progressCallback?.('Saving expanded content...', 95);
 
-        const expanded = new PostExpanded({ 
+        const expanded = new PostExpanded({
             post_id: post.id,
             content,
             summary
