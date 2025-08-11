@@ -121,11 +121,23 @@ export class LangGraphChatService {
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
+                logger.info(`[LangGraph] Request cancelled for session: ${sessionId}`);
+
+                // Notify via callback that the request was cancelled
+                if (streamCallback) {
+                    streamCallback({
+                        event: 'interrupted',
+                        sessionId,
+                        message: 'Request was cancelled by user'
+                    });
+                }
+
                 return {
                     sessionId,
                     isComplete: true,
-                    content: '',
-                    error: 'Request was cancelled'
+                    content: '', // Clear any partial response
+                    error: 'Request was cancelled',
+                    isSocialPost: false // Reset any partial intent detection
                 };
             }
 
@@ -160,21 +172,58 @@ export class LangGraphChatService {
     /**
      * Cancel existing request for a session
      */
-    public cancelExistingRequest(sessionId: string): void {
+    public cancelExistingRequest(sessionId: string): boolean {
         const existingController = this.activeRequests.get(sessionId);
         if (existingController && !existingController.signal.aborted) {
             logger.info(`[LangGraph] Cancelling existing request for session: ${sessionId}`);
-            existingController.abort();
+            existingController.abort('User requested cancellation');
             this.activeRequests.delete(sessionId);
+            return true; // Successfully cancelled
         }
+        return false; // No active request to cancel
     }
 
     /**
      * Get workflow status for a session
      */
-    public async getWorkflowStatus(sessionId: string): Promise<{ isActive: boolean }> {
-        const isActive = this.activeRequests.has(sessionId);
-        return { isActive };
+    public async getWorkflowStatus(sessionId: string): Promise<{
+        isActive: boolean;
+        canBeInterrupted: boolean;
+        startTime?: number;
+    }> {
+        const controller = this.activeRequests.get(sessionId);
+        const isActive = controller && !controller.signal.aborted;
+
+        return {
+            isActive: !!isActive,
+            canBeInterrupted: !!isActive,
+            startTime: isActive ? Date.now() : undefined
+        };
+    }
+
+    /**
+     * Get all active sessions that can be interrupted
+     */
+    public getInterruptableSessions(): string[] {
+        const sessions: string[] = [];
+        for (const [sessionId, controller] of this.activeRequests) {
+            if (!controller.signal.aborted) {
+                sessions.push(sessionId);
+            }
+        }
+        return sessions;
+    }
+
+    /**
+     * Cleanup completed or aborted requests
+     */
+    private cleanupInactiveRequests(): void {
+        for (const [sessionId, controller] of this.activeRequests) {
+            if (controller.signal.aborted) {
+                this.activeRequests.delete(sessionId);
+                logger.debug(`[LangGraph] Cleaned up inactive request for session: ${sessionId}`);
+            }
+        }
     }
 
     /**

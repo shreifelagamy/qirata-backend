@@ -64,7 +64,7 @@ interface QuestionHandlerOptions {
     streamingCallbacks?: BaseCallbackHandler[];
 }
 
-export async function handleQuestion(options: QuestionHandlerOptions): Promise<string> {
+export async function handleQuestion(options: QuestionHandlerOptions) {
     const {
         model = new ChatOpenAI({
             modelName: 'gpt-4o-mini',
@@ -98,16 +98,13 @@ export async function handleQuestion(options: QuestionHandlerOptions): Promise<s
             callbacks.push(...streamingCallbacks);
         }
 
-        const response = await chain.invoke({}, {
+        return await chain.stream({}, {
             callbacks
         });
 
-        logger.info('Question handled successfully');
-        return response;
-
     } catch (error) {
         logger.error('[QuestionHandler] Question handling failed:', error);
-        return 'I apologize, but I encountered an error while processing your question. Please try asking again.';
+        throw error;
     }
 }
 

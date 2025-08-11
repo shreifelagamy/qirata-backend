@@ -58,7 +58,8 @@ export async function detectIntent(options: IntentDetectionOptions): Promise<Int
         logger.info('Detecting user intent with AI');
 
         // Create structured output parser with Zod schema
-        const parser = StructuredOutputParser.fromZodSchema(IntentDetectionSchema);
+        // Using type assertion to avoid TS2589 error with complex Zod schemas
+        const parser = StructuredOutputParser.fromZodSchema(IntentDetectionSchema as any);
 
         // Build messages array with conversation history
         const messages = buildMessagesArray(conversationHistory || [], message, parser.getFormatInstructions());
@@ -73,7 +74,7 @@ export async function detectIntent(options: IntentDetectionOptions): Promise<Int
             callbacks: [debugCallback]
         });
 
-        return response;
+        return response as IntentDetectionResponse;
 
     } catch (error) {
         logger.error('AI intent detection failed:', error);

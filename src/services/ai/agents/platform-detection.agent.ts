@@ -67,7 +67,8 @@ export async function detectPlatform(options: PlatformDetectionOptions): Promise
         logger.info('Detecting social media platform with AI');
 
         // Create structured output parser with Zod schema
-        const parser = StructuredOutputParser.fromZodSchema(PlatformDetectionSchema);
+        // Using type assertion to avoid TS2589 error with complex Zod schemas
+        const parser = StructuredOutputParser.fromZodSchema(PlatformDetectionSchema as any);
 
         // Build messages array with conversation history
         const messages = buildMessagesArray(conversationHistory || [], userMessage, parser.getFormatInstructions());
@@ -80,7 +81,7 @@ export async function detectPlatform(options: PlatformDetectionOptions): Promise
 
         const response = await chain.invoke({}, {
             callbacks: [debugCallback]
-        });
+        }) as PlatformDetectionResponse;
 
         logger.info('[PlatformDetection] AI detection result:', {
             platform: response.platform,

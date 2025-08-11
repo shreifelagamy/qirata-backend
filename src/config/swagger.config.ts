@@ -749,6 +749,167 @@ Authorization header as \`Bearer <token>\`.
                         },
                     },
                 },
+
+                // WebSocket Event Schemas
+                WebSocketEvents: {
+                    type: 'object',
+                    title: 'WebSocket Events',
+                    description: 'Real-time communication events for chat functionality',
+                    properties: {
+                        'chat:message': {
+                            type: 'object',
+                            description: 'Send a message to start AI chat interaction',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    pattern: '^[a-zA-Z0-9\\-_]+$',
+                                    description: 'Unique chat session identifier',
+                                    example: 'session_12345'
+                                },
+                                content: {
+                                    type: 'string',
+                                    minLength: 1,
+                                    maxLength: 10000,
+                                    description: 'Message content from user',
+                                    example: 'Create a LinkedIn post about TypeScript best practices'
+                                }
+                            },
+                            required: ['sessionId', 'content']
+                        },
+                        'chat:interrupt': {
+                            type: 'object',
+                            description: 'Interrupt ongoing AI chat operation',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    description: 'Session ID to interrupt',
+                                    example: 'session_12345'
+                                },
+                                reason: {
+                                    type: 'string',
+                                    maxLength: 500,
+                                    description: 'Optional reason for interruption',
+                                    example: 'User cancelled request'
+                                }
+                            },
+                            required: ['sessionId']
+                        },
+                        'chat:join': {
+                            type: 'string',
+                            pattern: '^[a-zA-Z0-9\\-_]+$',
+                            description: 'Join a chat session',
+                            example: 'session_12345'
+                        },
+                        'chat:leave': {
+                            type: 'string',
+                            pattern: '^[a-zA-Z0-9\\-_]+$',
+                            description: 'Leave a chat session',
+                            example: 'session_12345'
+                        }
+                    }
+                },
+
+                WebSocketResponses: {
+                    type: 'object',
+                    title: 'WebSocket Server Events',
+                    description: 'Events sent from server to clients',
+                    properties: {
+                        'chat:stream:start': {
+                            type: 'object',
+                            description: 'AI processing started',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    example: 'session_12345'
+                                },
+                                intentType: {
+                                    type: 'string',
+                                    example: 'Processing...'
+                                }
+                            }
+                        },
+                        'chat:stream:token': {
+                            type: 'object',
+                            description: 'Real-time token streaming from AI',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    example: 'session_12345'
+                                },
+                                token: {
+                                    type: 'string',
+                                    description: 'Individual token from AI response',
+                                    example: 'Hello'
+                                }
+                            }
+                        },
+                        'chat:stream:end': {
+                            type: 'object',
+                            description: 'AI response completed',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    example: 'session_12345'
+                                },
+                                fullContent: {
+                                    type: 'string',
+                                    description: 'Complete AI response',
+                                    example: 'Here is your LinkedIn post...'
+                                },
+                                messageType: {
+                                    type: 'string',
+                                    enum: ['MESSAGE', 'SOCIAL_POST'],
+                                    description: 'Type of response generated'
+                                },
+                                userMessage: {
+                                    type: 'string',
+                                    description: 'Original user message',
+                                    example: 'Create a LinkedIn post about TypeScript'
+                                }
+                            }
+                        },
+                        'chat:stream:interrupted': {
+                            type: 'object',
+                            description: 'Chat operation was interrupted',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    example: 'session_12345'
+                                },
+                                message: {
+                                    type: 'string',
+                                    description: 'Interruption status message',
+                                    example: 'Stream interrupted successfully'
+                                },
+                                reason: {
+                                    type: 'string',
+                                    description: 'Reason for interruption',
+                                    example: 'user request'
+                                }
+                            }
+                        },
+                        'chat:stream:error': {
+                            type: 'object',
+                            description: 'Error occurred during chat operation',
+                            properties: {
+                                sessionId: {
+                                    type: 'string',
+                                    example: 'session_12345'
+                                },
+                                error: {
+                                    type: 'string',
+                                    description: 'Error message',
+                                    example: 'AI service unavailable'
+                                },
+                                details: {
+                                    type: 'string',
+                                    description: 'Additional error details',
+                                    example: 'Connection timeout'
+                                }
+                            }
+                        }
+                    }
+                }
             },
         },
     },

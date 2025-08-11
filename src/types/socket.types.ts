@@ -77,7 +77,7 @@ export interface ServerToClientEvents {
     'chat:stream:token': (data: { sessionId: string; token: string }) => void;
     'chat:stream:end': (data: { sessionId: string; fullContent: string }) => void;
     'chat:stream:error': (data: { sessionId: string; error: string }) => void;
-    'chat:stream:interrupted': (data: { sessionId: string }) => void;
+    'chat:stream:interrupted': (data: { sessionId: string; message?: string; reason?: string }) => void;
     'chat:intent:detected': (data: { sessionId: string; intent: string; confidence: number }) => void;
     'chat:social:response': (data: { sessionId: string; socialContent: string; platform?: string; userMessage: string }) => void;
 

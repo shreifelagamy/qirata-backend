@@ -53,8 +53,6 @@ export class ChatController {
 
             // 3. Get AI context from service
             const context = await this.chatSessionService.buildAIContext(sessionId);
-            // print context for debugging
-            logger.info(`AI context for session ${sessionId}: ${JSON.stringify(context.previousMessages)}`);
 
             // 4. Load user preferences and add to contextx
             const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences();
@@ -75,7 +73,15 @@ export class ChatController {
                 streamCallback
             );
 
-            // 7. Save message and send final event
+            console.log(`Streaming response for session ${sessionId}:`, streamingResponse);
+            console.log(this.activeStreams.get(sessionId));
+            // 7. Check if stream was interrupted before processing final response
+            if (!this.activeStreams.get(sessionId)) {
+                logger.info(`Stream for session ${sessionId} was interrupted, skipping final processing`);
+                return;
+            }
+
+            // 8. Save message and send final event
             if (streamingResponse.isComplete && !streamingResponse.error) {
                 console.log(`AI response for session ${sessionId}:`, streamingResponse);
                 // Determine message type based on AI intent
@@ -144,12 +150,35 @@ export class ChatController {
         const { sessionId, reason } = data;
 
         try {
-            this.cleanupStream(sessionId, socket);
-            emit('chat:stream:interrupted', { sessionId });
+            // Cancel the AI workflow first and get feedback
+            const wasCancelled = langGraphChatService.cancelExistingRequest(sessionId);
 
-            logger.info(`Stream interrupted for session ${sessionId}, reason: ${reason || 'user request'}`);
+            // Clean up local stream state
+            this.cleanupStream(sessionId, socket);
+
+            // Notify client with detailed feedback
+            if (wasCancelled) {
+                emit('chat:stream:interrupted', {
+                    sessionId,
+                    message: 'Stream interrupted successfully',
+                    reason: reason || 'user request'
+                });
+                logger.info(`Stream successfully interrupted for session ${sessionId}, reason: ${reason || 'user request'}`);
+            } else {
+                emit('chat:stream:interrupted', {
+                    sessionId,
+                    message: 'No active stream to interrupt',
+                    reason: reason || 'user request'
+                });
+                logger.warn(`No active stream to interrupt for session ${sessionId}`);
+            }
         } catch (error) {
             logger.error(`Error in handleInterrupt for session ${sessionId}:`, error);
+            emit('chat:stream:error', {
+                sessionId,
+                error: 'Failed to interrupt stream',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
     }
 
@@ -229,8 +258,11 @@ export class ChatController {
         emit: (event: string, data: any) => void
     ): void {
         try {
-            // Check if stream is still active
+            console.log(`Handling stream callback for session ${sessionId}:`, data);
+
+            // Check if stream is still active - if not, ignore all callbacks
             if (!this.activeStreams.get(sessionId)) {
+                logger.debug(`Ignoring callback for interrupted stream ${sessionId}: ${data.event}`);
                 return; // Stream was interrupted
             }
 
@@ -257,16 +289,20 @@ export class ChatController {
                     break;
 
                 case 'error':
-                    emit('chat:stream:error', {
-                        sessionId,
-                        error: data.error || 'Unknown streaming error'
-                    });
+                    // Only emit error if stream is still active (not manually interrupted)
+                    if (this.activeStreams.get(sessionId)) {
+                        emit('chat:stream:error', {
+                            sessionId,
+                            error: data.error || 'Unknown streaming error'
+                        });
+                    }
                     break;
 
                 default:
                     emit(`chat:stream:${data.event}`, {
-                        ...data
-                    })
+                        ...data,
+                        sessionId
+                    });
             }
         } catch (error) {
             logger.error(`Error in handleStreamCallback for session ${sessionId}:`, error);

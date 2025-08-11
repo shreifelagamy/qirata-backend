@@ -3,7 +3,7 @@ import { SocialPlatform } from "../entities/social-post.entity";
 import { StructuredSocialPostOutput } from "../services/ai/agents/social-post-generator.agent";
 
 export interface AICallbackData {
-    event: 'start' | 'token' | 'end' | 'error' | 'social:start' | 'social:content' | 'social:complete';
+    event: 'start' | 'token' | 'end' | 'error' | 'interrupted' | 'social:start' | 'social:content' | 'social:complete';
     token?: string;
     error?: string;
     sessionId: string;
