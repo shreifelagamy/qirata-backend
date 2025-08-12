@@ -34,7 +34,7 @@ export function createChatSessionRouter(): Router {
         '/:id/messages',
         validate([
             ...commonValidation.id(),
-            ...commonValidation.pagination
+            ...commonValidation.cursorPagination
         ]),
         controller.getMessages.bind(controller)
     );

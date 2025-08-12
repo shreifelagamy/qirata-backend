@@ -199,7 +199,7 @@ export class ChatSessionController {
      * /chat-sessions/{id}/messages:
      *   get:
      *     summary: Get messages for a chat session
-     *     description: Retrieves all messages in a chat session with pagination
+     *     description: Retrieves messages in reverse chronological order (newest first) with cursor-based pagination for infinite scroll
      *     tags: [Chat Sessions]
      *     security:
      *       - bearerAuth: []
@@ -212,20 +212,23 @@ export class ChatSessionController {
      *           format: uuid
      *         description: Chat session ID
      *       - in: query
-     *         name: page
+     *         name: cursor
      *         schema:
-     *           type: integer
-     *           default: 1
-     *         description: Page number for pagination
+     *           type: string
+     *           format: date-time
+     *         description: Cursor timestamp to load messages before this time (for pagination)
+     *         example: "2024-01-15T10:30:00.000Z"
      *       - in: query
-     *         name: pageSize
+     *         name: limit
      *         schema:
      *           type: integer
+     *           minimum: 1
+     *           maximum: 50
      *           default: 20
-     *         description: Number of messages per page
+     *         description: Maximum number of messages to return
      *     responses:
      *       200:
-     *         description: List of messages
+     *         description: List of messages in reverse chronological order
      *         content:
      *           application/json:
      *             schema:
@@ -238,17 +241,28 @@ export class ChatSessionController {
      *                       type: array
      *                       items:
      *                         $ref: '#/components/schemas/Message'
+     *                       description: Messages ordered by creation date (newest first)
      *                     total:
      *                       type: integer
-     *                     page:
-     *                       type: integer
-     *                     pageSize:
-     *                       type: integer
-     *                     totalPages:
-     *                       type: integer
+     *                       description: Total number of messages in the session
+     *                     hasMore:
+     *                       type: boolean
+     *                       description: Whether more messages are available for pagination
+     *                     nextCursor:
+     *                       type: string
+     *                       format: date-time
+     *                       nullable: true
+     *                       description: Cursor for the next page of results (null if no more messages)
+     *                       example: "2024-01-15T09:45:00.000Z"
      *                 status:
      *                   type: integer
      *                   example: 200
+     *       400:
+     *         description: Bad request (invalid cursor format)
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
      *       401:
      *         description: Unauthorized
      *         content:
@@ -265,12 +279,20 @@ export class ChatSessionController {
     async getMessages(req: Request, res: Response, next: NextFunction) {
         try {
             const sessionId = req.params.id;
-            const page = req.query.page ? parseInt(req.query.page as string) : 1;
-            const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 20;
+            const cursor = req.query.cursor as string | undefined;
+            const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
 
-            const result = await this.messageService.getMessages(sessionId, page, pageSize);
+            const result = await this.messageService.getMessages(sessionId, cursor, limit);
             res.json(result);
         } catch (err) {
+            if (err instanceof Error && err.message === 'Invalid cursor format') {
+                return res.status(400).json({ 
+                    error: { 
+                        code: '400', 
+                        message: 'Invalid cursor format. Expected ISO timestamp.' 
+                    } 
+                });
+            }
             next(err);
         }
     }
