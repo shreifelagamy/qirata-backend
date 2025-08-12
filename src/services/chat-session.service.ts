@@ -26,15 +26,25 @@ export class ChatSessionService {
         this.socialPostsService = new SocialPostsService();
     }
 
-    async findAll(page = 1, pageSize = 10) {
+    async find(page = 1, pageSize = 10, query?: string) {
         const offset = (page - 1) * pageSize;
-        const [sessions, total] = await this.chatSessionRepository.findAndCount({
-            relations: ['post'],
-            order: { created_at: 'DESC' },
-            skip: offset,
-            take: pageSize,
-        });
+        
+        let queryBuilder = this.chatSessionRepository
+            .createQueryBuilder('session')
+            .leftJoinAndSelect('session.post', 'post')
+            .orderBy('session.created_at', 'DESC')
+            .skip(offset)
+            .take(pageSize);
 
+        if (query && query.trim()) {
+            const searchTerm = `%${query.trim()}%`;
+            queryBuilder = queryBuilder.where(
+                '(session.title ILIKE :searchTerm OR post.title ILIKE :searchTerm)',
+                { searchTerm }
+            );
+        }
+
+        const [sessions, total] = await queryBuilder.getManyAndCount();
         const totalPages = Math.ceil(total / pageSize);
 
         return {

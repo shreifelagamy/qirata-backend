@@ -41,6 +41,11 @@ export class ChatSessionController {
      *           type: integer
      *           default: 10
      *         description: Number of items per page
+     *       - in: query
+     *         name: query
+     *         schema:
+     *           type: string
+     *         description: Search query to filter chat sessions by title or related post title
      *     responses:
      *       200:
      *         description: List of chat sessions
@@ -78,8 +83,9 @@ export class ChatSessionController {
         try {
             const page = req.query.page ? parseInt(req.query.page as string) : 1;
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 10;
+            const query = req.query.query as string | undefined;
 
-            const result = await this.service.findAll(page, pageSize);
+            const result = await this.service.find(page, pageSize, query);
             res.json(result);
         } catch (err) {
             next(err);
