@@ -14,6 +14,10 @@ export class CreateLinkDto {
     @IsBoolean()
     @IsOptional()
     is_rss?: boolean;
+
+    @IsUrl()
+    @IsOptional()
+    favicon_url?: string;
 }
 
 export class UpdateLinkDto {
@@ -40,4 +44,8 @@ export class UpdateLinkDto {
     @IsDate()
     @IsOptional()
     last_fetch_at?: Date;
+
+    @IsUrl()
+    @IsOptional()
+    favicon_url?: string;
 }

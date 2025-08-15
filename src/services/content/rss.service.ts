@@ -13,42 +13,69 @@ export class RSSService {
      * @returns An array of feed URLs if multiple found, a single URL if only one found, or null if none found
      */
     async findFeedUrls(url: string): Promise<string[] | string | null> {
+        const result = await this.findFeedUrlsAndFavicon(url);
+        return result.feedUrls;
+    }
+
+    /**
+     * Finds RSS, Atom, or other feed URLs and favicon from a given web page URL.
+     * Makes a single HTTP request to get both feed links and favicon.
+     *
+     * @param url The URL to check for feed links and favicon
+     * @returns Object containing feed URLs and favicon URL
+     */
+    async findFeedUrlsAndFavicon(url: string): Promise<{
+        feedUrls: string[] | string | null;
+        faviconUrl: string | undefined;
+    }> {
         try {
             if (!validateUrl(url)) {
                 throw new Error('Invalid URL format');
             }
 
-            // First, try to get HTML content and look for feed links
+            // Single HTTP request to get HTML content
             const html = await fetchWithTimeout<string>(url, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             });
+
+            // Extract both feed URLs and favicon from the same HTML
             const feedUrls = this.findFeedLinksInHtml(html, url);
+            const faviconUrl = this.extractFaviconFromHtml(html, url);
+
+            let result: string[] | string | null = null;
 
             // If we found feed links, return them
             if (feedUrls.length > 0) {
-                return feedUrls.length === 1 ? feedUrls[0] : feedUrls;
+                result = feedUrls.length === 1 ? feedUrls[0] : feedUrls;
+            } else {
+                // If no feed links found, check if the URL itself might be a feed
+                const feedPatterns = [
+                    /\.(rss|xml|atom)$/i,
+                    /\/(rss|feed|atom)$/i,
+                    /\/(feeds?|rss|atom)\//i,
+                    /\/syndication\//i,
+                    /feed\.xml/i,
+                    /rss\.xml/i,
+                    /atom\.xml/i
+                ];
+
+                const isRssLike = feedPatterns.some(pattern => pattern.test(url));
+                result = isRssLike ? url : null;
             }
 
-            // If no feed links found, check if the URL itself might be a feed
-            const feedPatterns = [
-                /\.(rss|xml|atom)$/i,
-                /\/(rss|feed|atom)$/i,
-                /\/(feeds?|rss|atom)\//i,
-                /\/syndication\//i,
-                /feed\.xml/i,
-                /rss\.xml/i,
-                /atom\.xml/i
-            ];
-
-            const isRssLike = feedPatterns.some(pattern => pattern.test(url));
-
-            return isRssLike ? url : null;
+            return {
+                feedUrls: result,
+                faviconUrl
+            };
 
         } catch (error) {
-            logger.error('Error detecting RSS feed:', error);
-            return null;
+            logger.error('Error detecting RSS feed and favicon:', error);
+            return {
+                feedUrls: null,
+                faviconUrl: undefined
+            };
         }
     }
 
@@ -250,6 +277,78 @@ export class RSSService {
                 image_url
             };
         });
+    }
+
+    /**
+     * Extracts favicon URL from HTML content using multiple detection methods.
+     *
+     * @param html The HTML content to search for favicon links
+     * @param baseUrl The base URL to resolve relative URLs against
+     * @returns The favicon URL if found, null otherwise
+     */
+    extractFaviconFromHtml(html: string, baseUrl: string): string | undefined {
+        try {
+            // Order of preference for favicon detection
+            const faviconPatterns = [
+                // Apple touch icons (high resolution)
+                /<link[^>]+rel=[\"']apple-touch-icon[^\"']*[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
+                /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']apple-touch-icon[^\"']*[\"'][^>]*>/i,
+                
+                // Standard favicon with icon rel
+                /<link[^>]+rel=[\"']icon[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
+                /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']icon[\"'][^>]*>/i,
+                
+                // Shortcut icon
+                /<link[^>]+rel=[\"']shortcut icon[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
+                /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']shortcut icon[\"'][^>]*>/i,
+                
+                // Any link with favicon in href
+                /<link[^>]+href=[\"']([^\"']*favicon[^\"']*)[\"'][^>]*>/i
+            ];
+
+            // Try each pattern in order of preference
+            for (const pattern of faviconPatterns) {
+                const match = html.match(pattern);
+                if (match && match[1]) {
+                    const faviconUrl = this.resolveUrl(match[1], baseUrl);
+                    if (this.isValidFaviconUrl(faviconUrl)) {
+                        return faviconUrl;
+                    }
+                }
+            }
+
+            // Fallback: try common favicon paths
+            const commonPaths = ['/favicon.ico', '/favicon.png', '/apple-touch-icon.png'];
+            for (const path of commonPaths) {
+                const faviconUrl = this.resolveUrl(path, baseUrl);
+                return faviconUrl; // Return the first common path (favicon.ico is most common)
+            }
+
+            return undefined;
+        } catch (error) {
+            logger.warn('Error extracting favicon from HTML:', error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Validates if a URL looks like a valid favicon URL.
+     *
+     * @param url The URL to validate
+     * @returns True if the URL appears to be a valid favicon URL
+     */
+    private isValidFaviconUrl(url: string): boolean {
+        if (!url || typeof url !== 'string') {
+            return false;
+        }
+
+        // Check for common favicon file extensions
+        const faviconExtensions = /\.(ico|png|jpg|jpeg|gif|svg)(\?.*)?$/i;
+        
+        // Check for favicon-related keywords in the URL
+        const faviconKeywords = /(favicon|icon|logo|apple-touch)/i;
+
+        return faviconExtensions.test(url) || faviconKeywords.test(url);
     }
 }
 

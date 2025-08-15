@@ -110,37 +110,62 @@ Authorization header as \`Bearer <token>\`.
                             type: 'string',
                             description: 'URL of the link',
                         },
-                        title: {
+                        name: {
                             type: 'string',
-                            description: 'Title of the linked content',
+                            description: 'Name of the link',
                         },
-                        createdAt: {
+                        rss_url: {
                             type: 'string',
-                            format: 'date-time',
+                            description: 'RSS feed URL',
                         },
-                        updatedAt: {
+                        is_rss: {
+                            type: 'boolean',
+                            description: 'Whether this link is an RSS feed',
+                        },
+                        favicon_url: {
                             type: 'string',
-                            format: 'date-time',
+                            nullable: true,
+                            description: 'URL of the site favicon',
                         },
-                        lastFetchAt: {
+                        last_fetch_at: {
                             type: 'string',
                             format: 'date-time',
                             nullable: true,
                             description: 'Timestamp of the last successful post fetch',
                         },
+                        created_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updated_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
                     },
                 },
                 CreateLinkDto: {
                     type: 'object',
-                    required: ['url'],
+                    required: ['url', 'rss_url'],
                     properties: {
                         url: {
                             type: 'string',
                             description: 'URL of the link to add',
                         },
-                        title: {
+                        rss_url: {
                             type: 'string',
-                            description: 'Optional title for the link',
+                            description: 'RSS feed URL',
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'Optional name for the link',
+                        },
+                        is_rss: {
+                            type: 'boolean',
+                            description: 'Whether this link is an RSS feed',
+                        },
+                        favicon_url: {
+                            type: 'string',
+                            description: 'Optional favicon URL (auto-detected if not provided)',
                         },
                     },
                 },

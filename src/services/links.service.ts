@@ -30,19 +30,21 @@ export class LinksService {
 
     async processLink(data: CreateLinkDto): Promise<ProcessRssResult> {
         try {
-            // If RSS URL is provided in the request
+            // If RSS URL is provided in the request, still try to get favicon from main URL
             if (data.rss_url) {
+                const { faviconUrl } = await this.rssService.findFeedUrlsAndFavicon(data.url);
                 return {
                     linkData: {
                         ...data,
                         is_rss: false,
-                        name: !data.name ? this.scraperService.extractNameFromUrl(data.rss_url) : data.name
+                        name: !data.name ? this.scraperService.extractNameFromUrl(data.rss_url) : data.name,
+                        favicon_url: faviconUrl
                     }
                 };
             }
 
-            // Get RSS and feed links
-            const feedLinks = await this.rssService.findFeedUrls(data.url);
+            // Get RSS feed links and favicon in a single request
+            const { feedUrls: feedLinks, faviconUrl } = await this.rssService.findFeedUrlsAndFavicon(data.url);
 
             // If no RSS feed found, reject the link
             if (!feedLinks) {
@@ -52,7 +54,7 @@ export class LinksService {
             // If multiple feed links found, return them for user selection
             if (Array.isArray(feedLinks) && feedLinks.length > 1) {
                 return {
-                    linkData: data,
+                    linkData: { ...data, favicon_url: faviconUrl },
                     multipleFeeds: feedLinks
                 };
             }
@@ -61,7 +63,8 @@ export class LinksService {
             const linkData = {
                 ...data,
                 is_rss: false,
-                rss_url: ""
+                rss_url: "",
+                favicon_url: faviconUrl
             };
 
             // If a single feed URL was found and it's different from the submitted URL

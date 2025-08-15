@@ -26,6 +26,12 @@ export class Link extends BaseEntity {
     @MaxLength(100)
     rss_url: string = "";
 
+    @Column({ type: "varchar", length: 2000, nullable: true })
+    @IsOptional()
+    @IsUrl()
+    @MaxLength(2000)
+    favicon_url?: string;
+
     constructor(partial: Partial<Link> = {}) {
         super();
         Object.assign(this, partial);
