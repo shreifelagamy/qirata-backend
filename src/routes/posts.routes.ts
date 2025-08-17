@@ -19,6 +19,12 @@ export function createPostsRouter(): Router {
     postsController.store.bind(postsController)
   );
 
+  // REST API: GET /posts/sources - Get unique sources list (must be before /:id route)
+  router.get(
+    '/sources',
+    postsController.sources.bind(postsController)
+  );
+
   // REST API: GET /posts - Get all posts (with filters and pagination)
   router.get(
     '/',
@@ -26,7 +32,8 @@ export function createPostsRouter(): Router {
       ...commonValidation.pagination,
       ...commonValidation.search,
       body('read').optional().isBoolean(),
-      body('link_id').optional().isUUID()
+      body('link_id').optional().isUUID(),
+      body('source').optional().isString().trim()
     ]),
     postsController.index.bind(postsController)
   );

@@ -76,6 +76,10 @@ export class PostsController {
      *         name: search
      *         schema:
      *           type: string
+     *       - in: query
+     *         name: source
+     *         schema:
+     *           type: string
      *     responses:
      *       200:
      *         description: Success
@@ -113,6 +117,7 @@ export class PostsController {
                 read: req.query.read !== undefined ? req.query.read === 'true' : undefined,
                 link_id: req.query.link_id as string,
                 search: req.query.search as string,
+                source: req.query.source as string,
                 limit: pageSize,
                 offset: (page - 1) * pageSize,
                 sortBy: req.query.sortBy as string,
@@ -437,6 +442,62 @@ export class PostsController {
             const expanded = await this.postsService.getExpanded(id);
 
             res.json(expanded);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
+     * @swagger
+     * /posts/sources:
+     *   get:
+     *     summary: Get unique sources list
+     *     description: Returns all unique RSS sources that have posts in the database with optional post counts
+     *     tags: [Posts]
+     *     parameters:
+     *       - in: query
+     *         name: includeCount
+     *         schema:
+     *           type: boolean
+     *           default: false
+     *         description: Include post count for each source
+     *     responses:
+     *       200:
+     *         description: Success
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: array
+     *                   items:
+     *                     oneOf:
+     *                       - type: string
+     *                         description: Source name (when includeCount=false)
+     *                       - type: object
+     *                         properties:
+     *                           source:
+     *                             type: string
+     *                           count:
+     *                             type: integer
+     *                         description: Source with post count (when includeCount=true)
+     *                 status:
+     *                   type: integer
+     */
+    async sources(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const includeCount = req.query.includeCount === 'true';
+            const sources = await this.postsService.getSources(includeCount);
+
+            res.json({
+                data: sources,
+                status: 200
+            });
         } catch (error) {
             next(error);
         }

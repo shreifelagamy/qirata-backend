@@ -9,6 +9,7 @@ interface PostFilters {
     read?: boolean;
     link_id?: string;
     search?: string;
+    source?: string;
     limit?: number;
     offset?: number;
     external_links?: string[];
@@ -49,6 +50,10 @@ export class PostModel {
         if (filters.search) {
             query.andWhere('(post.title ILIKE :search OR post.content ILIKE :search)',
                 { search: `%${filters.search}%` });
+        }
+
+        if (filters.source) {
+            query.andWhere('post.source ILIKE :source', { source: `%${filters.source}%` });
         }
 
         if (filters.limit) {
@@ -109,5 +114,32 @@ export class PostModel {
             ...data
         });
         return await this.expandedRepository.save(expanded);
+    }
+
+    async getSources(includeCount: boolean = false): Promise<string[] | { source: string; count: number }[]> {
+        if (includeCount) {
+            const result = await this.repository
+                .createQueryBuilder('post')
+                .select('post.source', 'source')
+                .addSelect('COUNT(*)', 'count')
+                .where('post.source IS NOT NULL AND post.source != \'\'')
+                .groupBy('post.source')
+                .orderBy('COUNT(*)', 'DESC')
+                .getRawMany();
+
+            return result.map(row => ({
+                source: row.source,
+                count: parseInt(row.count)
+            }));
+        } else {
+            const result = await this.repository
+                .createQueryBuilder('post')
+                .select('DISTINCT post.source', 'source')
+                .where('post.source IS NOT NULL AND post.source != \'\'')
+                .orderBy('post.source', 'ASC')
+                .getRawMany();
+
+            return result.map(row => row.source);
+        }
     }
 }

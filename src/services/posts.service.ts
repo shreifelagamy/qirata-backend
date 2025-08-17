@@ -13,6 +13,7 @@ interface PostFilters {
     read?: boolean;
     link_id?: string;
     search?: string;
+    source?: string;
     limit?: number;
     offset?: number;
     external_links?: string[];
@@ -183,6 +184,15 @@ export class PostsService {
         } catch (error) {
             logger.error(`Error updating summary for post ${postId}:`, error);
             throw new HttpError(500, 'Failed to update post summary');
+        }
+    }
+
+    async getSources(includeCount: boolean = false): Promise<string[] | { source: string; count: number }[]> {
+        try {
+            return await this.postModel.getSources(includeCount);
+        } catch (error) {
+            logger.error('Error getting sources:', error);
+            throw new HttpError(500, 'Failed to get sources');
         }
     }
 }
