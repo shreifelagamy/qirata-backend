@@ -23,7 +23,7 @@
 
 ### 2. Database Layer (TypeORM + PostgreSQL)
 
-**Database Setup**: 
+**Database Setup**:
 - Connection configured in `app.ts` with environment variables
 - Custom database file logger (`/src/utils/database-logger.ts`)
 - Auto-synchronization in development mode
@@ -44,7 +44,7 @@
 - ChatSession → Post (optional many-to-one)
 - Post → PostExpanded (one-to-one)
 
-**Migration System**: 
+**Migration System**:
 - Located in `/src/database/migrations/`
 - Schema evolution tracking from basic tables to structured social content
 - Recent migrations add summary fields and structured content support
@@ -54,7 +54,7 @@
 **Routing Structure** (`/src/routes/`):
 - `index.ts` - Main router factory with global middleware
 - `chat-session.routes.ts` - Chat session management
-- `links.routes.ts` - RSS feed and link management  
+- `links.routes.ts` - RSS feed and link management
 - `posts.routes.ts` - Content post operations
 - `settings.routes.ts` - Configuration management
 - `websocket.routes.ts` - WebSocket event definitions
@@ -217,6 +217,15 @@
 - AI health checking and testing utilities
 - Database migration management
 - Ollama integration scripts
+
+**Database Migration Guidelines**:
+- **ALWAYS use TypeORM commands for database schema changes**
+- **NEVER manually modify database schema** - use migrations for all changes
+- **Migration Creation**: Use `npx typeorm migration:create src/database/migrations/MigrationName`
+- **Migration Execution**: Use `npm run migration:run` to apply pending migrations
+- **Migration Rollback**: Use `npm run migration:revert` to undo last migration
+- All migrations located in `/src/database/migrations/` with timestamp prefixes
+- Follow existing migration patterns for consistency
 
 **Logging & Monitoring**:
 - Winston-based logging system
