@@ -26,7 +26,7 @@ export class ChatSessionService {
         this.socialPostsService = new SocialPostsService();
     }
 
-    async find(page = 1, pageSize = 10, query?: string) {
+    async find(page = 1, pageSize = 10, query?: string, favoriteFilter?: 'all' | 'favorites' | 'regular') {
         const offset = (page - 1) * pageSize;
         
         let queryBuilder = this.chatSessionRepository
@@ -36,12 +36,31 @@ export class ChatSessionService {
             .skip(offset)
             .take(pageSize);
 
+        // Build where conditions
+        const conditions = [];
+        const parameters: any = {};
+
+        // Add search query condition
         if (query && query.trim()) {
             const searchTerm = `%${query.trim()}%`;
-            queryBuilder = queryBuilder.where(
-                '(session.title ILIKE :searchTerm OR post.title ILIKE :searchTerm)',
-                { searchTerm }
-            );
+            conditions.push('(session.title ILIKE :searchTerm OR post.title ILIKE :searchTerm)');
+            parameters.searchTerm = searchTerm;
+        }
+
+        // Add favorite filter condition
+        if (favoriteFilter && favoriteFilter !== 'all') {
+            if (favoriteFilter === 'favorites') {
+                conditions.push('session.is_favorite = :isFavorite');
+                parameters.isFavorite = true;
+            } else if (favoriteFilter === 'regular') {
+                conditions.push('session.is_favorite = :isFavorite');
+                parameters.isFavorite = false;
+            }
+        }
+
+        // Apply conditions if any exist
+        if (conditions.length > 0) {
+            queryBuilder = queryBuilder.where(conditions.join(' AND '), parameters);
         }
 
         const [sessions, total] = await queryBuilder.getManyAndCount();
@@ -222,6 +241,48 @@ export class ChatSessionService {
         } catch (error) {
             // Log but don't throw - this is a background task
             logger.error(`Error extracting patterns for user ${userId}:`, error);
+        }
+    }
+
+    /**
+     * Toggle the favorite status of a chat session
+     * @param id - The session ID to toggle
+     * @returns Promise<ChatSession | null> - The updated session or null if not found
+     */
+    async toggleFavorite(id: string): Promise<ChatSession | null> {
+        try {
+            // Get the current session
+            const session = await this.chatSessionRepository.findOne({
+                where: { id },
+                relations: ['post']
+            });
+
+            if (!session) {
+                return null;
+            }
+
+            // Toggle the favorite status
+            const updatedIsFavorite = !session.is_favorite;
+
+            // Update in database
+            await this.chatSessionRepository.update(
+                { id },
+                { is_favorite: updatedIsFavorite }
+            );
+
+            // Update cache if it exists
+            const cached = this.sessionCache.get(id);
+            if (cached) {
+                cached.chatSession.is_favorite = updatedIsFavorite;
+                cached.cacheAt = new Date(); // Refresh cache timestamp
+            }
+
+            // Return the updated session
+            session.is_favorite = updatedIsFavorite;
+            return session;
+        } catch (error) {
+            logger.error(`Error toggling favorite status for session ${id}:`, error);
+            throw error;
         }
     }
 

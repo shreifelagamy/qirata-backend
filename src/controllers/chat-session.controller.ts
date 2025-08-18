@@ -46,6 +46,13 @@ export class ChatSessionController {
      *         schema:
      *           type: string
      *         description: Search query to filter chat sessions by title or related post title
+     *       - in: query
+     *         name: favorite_filter
+     *         schema:
+     *           type: string
+     *           enum: [all, favorites, regular]
+     *           default: all
+     *         description: Filter chat sessions by favorite status
      *     responses:
      *       200:
      *         description: List of chat sessions
@@ -84,8 +91,9 @@ export class ChatSessionController {
             const page = req.query.page ? parseInt(req.query.page as string) : 1;
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 10;
             const query = req.query.query as string | undefined;
+            const favoriteFilter = req.query.favorite_filter as 'all' | 'favorites' | 'regular' | undefined;
 
-            const result = await this.service.find(page, pageSize, query);
+            const result = await this.service.find(page, pageSize, query, favoriteFilter);
             res.json(result);
         } catch (err) {
             next(err);
@@ -522,6 +530,67 @@ export class ChatSessionController {
             if (err instanceof Error && err.message === 'Social post not found') {
                 return res.status(404).json({ error: { code: '404', message: err.message } });
             }
+            next(err);
+        }
+    }
+
+    /**
+     * @swagger
+     * /chat-sessions/{id}/favorite:
+     *   patch:
+     *     summary: Toggle favorite status of a chat session
+     *     description: Toggles the favorite status of a chat session between true and false
+     *     tags: [Chat Sessions]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Chat session ID
+     *     responses:
+     *       200:
+     *         description: Favorite status toggled successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   $ref: '#/components/schemas/ChatSession'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
+     *       401:
+     *         description: Unauthorized
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *       404:
+     *         description: Chat session not found
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async toggleFavorite(req: Request, res: Response, next: NextFunction) {
+        try {
+            const sessionId = req.params.id;
+            const session = await this.service.toggleFavorite(sessionId);
+            if (!session) {
+                return res.status(404).json({ 
+                    error: { 
+                        code: '404', 
+                        message: 'Chat session not found' 
+                    } 
+                });
+            }
+            res.json({ data: session, status: 200 });
+        } catch (err) {
             next(err);
         }
     }

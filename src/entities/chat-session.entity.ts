@@ -31,6 +31,9 @@ export class ChatSession extends BaseEntity {
     @Column({ type: "timestamp", nullable: true })
     last_summary_at?: Date;
 
+    @Column({ type: "boolean", default: false })
+    is_favorite: boolean = false;
+
     @CreateDateColumn({ name: "created_at" })
     created_at: Date = new Date();
 

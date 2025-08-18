@@ -312,6 +312,11 @@ Authorization header as \`Bearer <token>\`.
                             nullable: true,
                             description: 'Timestamp when the summary was last updated',
                         },
+                        is_favorite: {
+                            type: 'boolean',
+                            description: 'Whether the chat session is marked as favorite',
+                            default: false,
+                        },
                         created_at: {
                             type: 'string',
                             format: 'date-time',

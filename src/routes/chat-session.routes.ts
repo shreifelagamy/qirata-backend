@@ -77,5 +77,12 @@ export function createChatSessionRouter(): Router {
         controller.deleteSocialPost.bind(controller)
     );
 
+    // Favorite toggle endpoint
+    router.patch(
+        '/:id/favorite',
+        validate(commonValidation.id()),
+        controller.toggleFavorite.bind(controller)
+    );
+
     return router;
 }
