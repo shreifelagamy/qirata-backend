@@ -1,5 +1,9 @@
 import { Socket } from 'socket.io';
 import { AICallbackData } from './ai.types';
+import { auth } from '../config/auth.config';
+
+// Extract User type from better-auth
+type User = typeof auth.api.getSession extends (...args: any[]) => Promise<{ user: infer U } | null> ? U : never;
 
 export interface SocketEvent {
     name: string;
@@ -89,6 +93,7 @@ export interface ServerToClientEvents {
 
 export interface SocketData {
     userId: string;
+    user?: User; // Full user data from better-auth
     isAuthenticated: boolean;
     lastActivity: Date;
     connectionTime: Date;

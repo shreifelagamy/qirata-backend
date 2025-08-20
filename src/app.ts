@@ -1,15 +1,16 @@
-import cors from 'cors';
+import { toNodeHandler } from 'better-auth/node';
 import dotenv from 'dotenv';
 import express, { Express, NextFunction, Request, Response } from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
 import morgan from 'morgan';
 import { DataSource } from 'typeorm';
+import { auth } from './config/auth.config';
 import { setupSwagger } from './config/swagger.config';
 import * as entities from './entities';
 import { errorMiddleware, HttpError } from './middleware/error.middleware';
 import { createRouter } from './routes';
-import { socketService } from './websocket/socket.service';
 import { DatabaseFileLogger } from './utils/database-logger';
 
 // Load environment variables
@@ -36,10 +37,92 @@ export const AppDataSource = new DataSource({
 });
 
 // Middleware
-app.use(cors());
-app.use(helmet());
+app.use(cors({
+    origin: [
+        'http://localhost:5173', // Vite dev server
+        'http://localhost:3000', // Alternative frontend port
+        'http://127.0.0.1:5173', // Alternative localhost
+        ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:*']) // Allow any localhost in dev
+    ],
+    credentials: true, // Allow cookies and authentication headers
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+}));
+
+// Security middleware with environment-specific configuration
+if (process.env.NODE_ENV === 'production') {
+    // Production: Strict security headers
+    app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: [
+                    "'self'",
+                    "https://cdn.jsdelivr.net" // Allow Better Auth Scalar API reference
+                ],
+                styleSrc: [
+                    "'self'",
+                    "'unsafe-inline'", // Allow inline styles for Better Auth
+                    "https://cdn.jsdelivr.net", // Allow Better Auth Scalar styles
+                    "https://fonts.googleapis.com" // Allow Google Fonts
+                ],
+                imgSrc: ["'self'", "data:", "https:"],
+                connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
+                fontSrc: [
+                    "'self'",
+                    "https:",
+                    "https://fonts.gstatic.com" // Allow Google Fonts
+                ],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'none'"],
+            },
+        },
+        crossOriginEmbedderPolicy: false, // Allow Better Auth iframe operations
+        hsts: {
+            maxAge: 31536000, // 1 year
+            includeSubDomains: true,
+            preload: true
+        }
+    }));
+} else {
+    // Development: Relaxed settings for debugging and Swagger UI
+    app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: [
+                    "'self'",
+                    "'unsafe-inline'",
+                    "'unsafe-eval'", // Swagger UI needs unsafe-eval
+                    "https://cdn.jsdelivr.net", // Allow Better Auth Scalar API reference
+                    "https://unpkg.com" // Allow other CDN resources if needed
+                ],
+                styleSrc: [
+                    "'self'",
+                    "'unsafe-inline'",
+                    "https://cdn.jsdelivr.net", // Allow Better Auth Scalar styles
+                    "https://fonts.googleapis.com" // Allow Google Fonts
+                ],
+                imgSrc: ["'self'", "data:", "https:"],
+                connectSrc: ["'self'", "ws:", "wss:", "http://localhost:*"], // Allow dev server connections
+                fontSrc: [
+                    "'self'",
+                    "https:",
+                    "data:",
+                    "https://fonts.gstatic.com" // Allow Google Fonts
+                ],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'self'"], // Allow iframes in development
+            },
+        },
+        crossOriginEmbedderPolicy: false, // Disable for Better Auth compatibility
+        hsts: false // Disable HSTS in development (HTTP allowed)
+    }));
+}
+
 app.use(morgan('dev'));
-app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Setup Swagger documentation (only in development)
@@ -55,9 +138,11 @@ app.get('/health', (req: Request, res: Response) => {
 // Create and mount API router after database initialization
 AppDataSource.initialize()
     .then(() => {
-        console.log('Database connection established');
         const apiRouter = createRouter();
+
+        app.all("/api/auth/*", toNodeHandler(auth));
         app.use('/api/v1', apiRouter);
+        app.use(express.json());
 
         // Add 404 handler AFTER all routes
         app.use((req: Request, res: Response, next: NextFunction) => {
@@ -74,7 +159,7 @@ AppDataSource.initialize()
     });
 
 // Initialize WebSocket service
-socketService.initializeSocket(httpServer);
+// socketService.initializeSocket(httpServer);
 
 // Start server
 const PORT = process.env.PORT || 3000;

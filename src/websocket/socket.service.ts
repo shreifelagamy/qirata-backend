@@ -37,7 +37,7 @@ class SocketService {
 
                 // For now, extract userId from token (in production, use JWT validation)
                 // This is a placeholder - implement proper JWT validation here
-                const userId = this.extractUserIdFromToken(token) || 'anonymous';
+                const userId = 'anonymous';
 
                 // Setup socket data
                 socket.data = {
@@ -60,27 +60,6 @@ class SocketService {
         });
     }
 
-    private extractUserIdFromToken(token: string): string | null {
-        try {
-            // TODO: Implement proper JWT validation and extraction
-            // For now, using a simple placeholder
-            if (token.startsWith('user_')) {
-                return token;
-            }
-
-            // Basic base64 decode for development (NOT for production)
-            try {
-                const decoded = Buffer.from(token, 'base64').toString('utf-8');
-                const parsed = JSON.parse(decoded);
-                return parsed.userId || null;
-            } catch {
-                return 'demo_user'; // Fallback for development
-            }
-        } catch (error) {
-            logger.error('Error extracting user ID from token:', error);
-            return null;
-        }
-    }
 
     private setupEventHandlers(): void {
         this.io.on('connection', (socket: AuthenticatedSocket) => {

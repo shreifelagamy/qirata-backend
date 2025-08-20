@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { errorMiddleware } from '../middleware/error.middleware';
+import { authMiddleware } from '../middleware/auth.middleware';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 import { createChatSessionRouter } from './chat-session.routes';
 import { createLinksRouter } from './links.routes';
@@ -11,7 +12,7 @@ export function createRouter(): Router {
 
     // Apply global middleware
     router.use('/', apiLimiter);
-    router.use(errorMiddleware);
+    router.use('/', authMiddleware);
 
     // Mount feature routers
     router.use('/links', createLinksRouter());

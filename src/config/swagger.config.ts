@@ -939,6 +939,132 @@ Authorization header as \`Bearer <token>\`.
                             }
                         }
                     }
+                },
+                // Authentication schemas
+                User: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Unique user identifier'
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'User full name'
+                        },
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'User email address'
+                        },
+                        emailVerified: {
+                            type: 'boolean',
+                            description: 'Whether the user email is verified'
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When the user account was created'
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When the user account was last updated'
+                        }
+                    }
+                },
+                RegisterRequest: {
+                    type: 'object',
+                    required: ['name', 'email', 'password'],
+                    properties: {
+                        name: {
+                            type: 'string',
+                            minLength: 2,
+                            maxLength: 100,
+                            description: 'User full name',
+                            example: 'John Doe'
+                        },
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'User email address',
+                            example: 'john.doe@example.com'
+                        },
+                        password: {
+                            type: 'string',
+                            minLength: 8,
+                            maxLength: 128,
+                            description: 'User password (minimum 8 characters)',
+                            example: 'securePassword123'
+                        }
+                    }
+                },
+                LoginRequest: {
+                    type: 'object',
+                    required: ['email', 'password'],
+                    properties: {
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'User email address',
+                            example: 'john.doe@example.com'
+                        },
+                        password: {
+                            type: 'string',
+                            description: 'User password',
+                            example: 'securePassword123'
+                        }
+                    }
+                },
+                AuthResponse: {
+                    type: 'object',
+                    properties: {
+                        token: {
+                            type: 'string',
+                            description: 'JWT authentication token',
+                            example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                        },
+                        user: {
+                            $ref: '#/components/schemas/User',
+                            description: 'Authenticated user information'
+                        },
+                        expiresAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When the token expires'
+                        }
+                    }
+                },
+                ForgotPasswordRequest: {
+                    type: 'object',
+                    required: ['email'],
+                    properties: {
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'User email address to send password reset link',
+                            example: 'john.doe@example.com'
+                        }
+                    }
+                },
+                ResetPasswordRequest: {
+                    type: 'object',
+                    required: ['token', 'password'],
+                    properties: {
+                        token: {
+                            type: 'string',
+                            description: 'Password reset token from email',
+                            example: 'abc123def456...'
+                        },
+                        password: {
+                            type: 'string',
+                            minLength: 8,
+                            maxLength: 128,
+                            description: 'New password (minimum 8 characters)',
+                            example: 'newSecurePassword123'
+                        }
+                    }
                 }
             },
         },

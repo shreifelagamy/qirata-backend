@@ -26,6 +26,9 @@ export const errorMiddleware = (
     res: Response,
     next: NextFunction
 ) => {
+
+    console.log("there is an error")
+
     // Prevent sending response if already sent
     if (res.headersSent) {
         return next(error);
