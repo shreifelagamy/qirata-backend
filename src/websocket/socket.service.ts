@@ -2,6 +2,7 @@ import { Server as HTTPServer } from 'http';
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, ClientToServerEvents, ServerToClientEvents } from '../types/socket.types';
 import { logger } from '../utils/logger';
+import { validateToken } from '../config/auth.config';
 
 class SocketService {
     private io!: Server<ClientToServerEvents, ServerToClientEvents>;
@@ -31,27 +32,38 @@ class SocketService {
         this.io.use(async (socket: AuthenticatedSocket, next) => {
             try {
                 const token = socket.handshake.auth.token;
+                const sessionId = socket.handshake.auth.sessionId;
+                
                 if (!token) {
                     throw new Error('Authentication token missing');
                 }
 
-                // For now, extract userId from token (in production, use JWT validation)
-                // This is a placeholder - implement proper JWT validation here
-                const userId = 'anonymous';
+                // Validate JWT token using better-auth
+                const payload = await validateToken(token);
+                if (!payload || !payload.sub) {
+                    throw new Error('Invalid or expired token');
+                }
+
+                const userId = payload.sub as string;
+                const userEmail = payload.email as string;
+                const userName = payload.name as string;
 
                 // Setup socket data
                 socket.data = {
                     userId,
-                    isAuthenticated: !!userId && userId !== 'anonymous',
+                    isAuthenticated: true,
                     lastActivity: new Date(),
                     connectionTime: new Date(),
-                    activeStreams: new Set()
+                    activeStreams: new Set(),
+                    email: userEmail,
+                    name: userName,
+                    sessionId: sessionId
                 };
 
                 // Set userId on socket for convenience
                 socket.userId = userId;
 
-                logger.debug(`Socket authenticated for user: ${userId}`);
+                logger.info(`Socket authenticated for user: ${userId} (${userEmail}) with session: ${sessionId}`);
                 next();
             } catch (error) {
                 logger.error('Socket authentication failed:', error);

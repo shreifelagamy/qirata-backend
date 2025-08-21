@@ -12,6 +12,7 @@ import * as entities from './entities';
 import { errorMiddleware, HttpError } from './middleware/error.middleware';
 import { createRouter } from './routes';
 import { DatabaseFileLogger } from './utils/database-logger';
+import { socketService } from './websocket/socket.service';
 
 // Load environment variables
 dotenv.config();
@@ -159,7 +160,7 @@ AppDataSource.initialize()
     });
 
 // Initialize WebSocket service
-// socketService.initializeSocket(httpServer);
+socketService.initializeSocket(httpServer);
 
 // Start server
 const PORT = process.env.PORT || 3000;

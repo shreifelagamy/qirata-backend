@@ -94,6 +94,9 @@ export interface ServerToClientEvents {
 export interface SocketData {
     userId: string;
     user?: User; // Full user data from better-auth
+    email?: string; // User email from JWT payload
+    name?: string; // User name from JWT payload
+    sessionId?: string; // Chat session ID from frontend
     isAuthenticated: boolean;
     lastActivity: Date;
     connectionTime: Date;
