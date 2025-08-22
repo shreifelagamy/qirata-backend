@@ -35,7 +35,7 @@ export class ChatController {
 
         try {
             // 1. Validate session exists
-            const sessionExists = await this.chatSessionService.exists(sessionId);
+            const sessionExists = await this.chatSessionService.exists(sessionId, userId);
             if (!sessionExists) {
                 emit('chat:stream:error', {
                     sessionId,
@@ -52,10 +52,10 @@ export class ChatController {
             socket.data.activeStreams.add(sessionId);
 
             // 3. Get AI context from service
-            const context = await this.chatSessionService.buildAIContext(sessionId);
+            const context = await this.chatSessionService.buildAIContext(sessionId, userId);
 
             // 4. Load user preferences and add to contextx
-            const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences();
+            const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences(userId);
             if (socialMediaContentPreferences) {
                 context.socialMediaContentPreferences = socialMediaContentPreferences;
             }
@@ -90,6 +90,7 @@ export class ChatController {
                 // Save to database with appropriate type
                 this.messagesService.saveMessage(
                     sessionId,
+                    userId,
                     content,
                     streamingResponse.content || '',
                     messageType
@@ -109,7 +110,7 @@ export class ChatController {
                     const structuredPost = streamingResponse.structuredSocialPost;
 
                     // Save social post to database with structured data
-                    const post = await this.socialPostsService.upsert(sessionId, {
+                    const post = await this.socialPostsService.upsert(sessionId, userId, {
                         platform: streamingResponse.socialPlatform!,
                         content: structuredPost.postContent,
                         code_examples: structuredPost.codeExamples || [],

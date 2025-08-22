@@ -103,7 +103,7 @@ export class LinksController {
             }
 
             // Create the link with processed data
-            const link = await this.linksService.addLink(result.linkData);
+            const link = await this.linksService.addLink(result.linkData, req.user!.id);
             logger.info('Link created:', {
                 id: link.id,
                 url: link.url,
@@ -185,7 +185,7 @@ export class LinksController {
         next: NextFunction
     ) {
         try {
-            const links = await this.linksService.getLinks();
+            const links = await this.linksService.getLinks(req.user!.id);
             res.json(links);
         } catch (error) {
             next(error);
@@ -262,7 +262,7 @@ export class LinksController {
         try {
             const id = req.params.id;
             const data: UpdateLinkDto = req.body;
-            const link = await this.linksService.updateLink(id, data);
+            const link = await this.linksService.updateLink(id, data, req.user!.id);
 
             logger.info('Link updated:', { id: link.id, url: link.url });
             res.json(link);
@@ -311,7 +311,7 @@ export class LinksController {
     ) {
         try {
             const id = req.params.id;
-            await this.linksService.deleteLink(id);
+            await this.linksService.deleteLink(id, req.user!.id);
 
             logger.info('Link deleted:', { id });
             res.status(204).send();
@@ -379,7 +379,7 @@ export class LinksController {
     ) {
         try {
             const id = req.params.id;
-            const {link, insertedCount} = await this.linksService.fetchPosts(id);
+            const {link, insertedCount} = await this.linksService.fetchPosts(id, req.user!.id);
 
             logger.info('Posts fetched for link:', { id: link.id, url: link.url });
             res.json({

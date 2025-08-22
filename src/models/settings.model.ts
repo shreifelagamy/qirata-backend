@@ -55,6 +55,41 @@ export class SettingsModel {
         }
     }
 
+    async findByKeyAndUser(key: string, userId: string): Promise<Settings> {
+        const setting = await this.repository.findOne({ 
+            where: { key, user_id: userId } 
+        });
+
+        if (!setting) {
+            throw new HttpError(404, `Setting with key "${key}" not found`);
+        }
+
+        return setting;
+    }
+
+    async updateByUser(key: string, data: UpdateSettingsDto, userId: string): Promise<Settings> {
+        let setting = await this.repository.findOne({ 
+            where: { key, user_id: userId } 
+        });
+
+        if (!setting) {
+            // Create new setting if it doesn't exist
+            setting = this.repository.create({ key, user_id: userId, ...data });
+        } else {
+            // Update existing setting
+            Object.assign(setting, data);
+        }
+
+        return await this.repository.save(setting);
+    }
+
+    async findByUserId(userId: string): Promise<Settings[]> {
+        return await this.repository.find({
+            where: { user_id: userId },
+            order: { key: 'ASC' }
+        });
+    }
+
     async findAll(): Promise<Settings[]> {
         return await this.repository.find({
             order: { key: 'ASC' }

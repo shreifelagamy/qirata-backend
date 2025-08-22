@@ -37,10 +37,10 @@ export class MessagesService {
      * @param limit - Number of messages to retrieve (default: 5)
      * @returns Promise<Message[]> - Array of recent messages
      */
-    async getRecentMessages(sessionId: string, limit = 5): Promise<Message[]> {
+    async getRecentMessages(sessionId: string, userId: string, limit = 5): Promise<Message[]> {
         try {
             const messages = await this.messageRepository.find({
-                where: { chat_session_id: sessionId },
+                where: { chat_session_id: sessionId, user_id: userId },
                 order: { created_at: 'DESC' },
                 take: limit
             });
@@ -59,13 +59,13 @@ export class MessagesService {
      * @param limit - Number of messages to retrieve (default: 20, max: 50)
      * @returns Promise<CursorPaginatedMessagesResponse> - Cursor-paginated message results
      */
-    async getMessages(sessionId: string, cursor?: string, limit = 20): Promise<CursorPaginatedMessagesResponse> {
+    async getMessages(sessionId: string, userId: string, cursor?: string, limit = 20): Promise<CursorPaginatedMessagesResponse> {
         try {
             // Ensure limit is within bounds
             limit = Math.min(Math.max(limit, 1), 50);
             
             const query = this.messageRepository.createQueryBuilder('message')
-                .where('message.chat_session_id = :sessionId', { sessionId })
+                .where('message.chat_session_id = :sessionId AND message.user_id = :userId', { sessionId, userId })
                 .orderBy('message.created_at', 'DESC');
 
             // Add cursor condition if provided
@@ -93,7 +93,7 @@ export class MessagesService {
 
             // Get total count for UI display (optional)
             const total = await this.messageRepository.count({
-                where: { chat_session_id: sessionId }
+                where: { chat_session_id: sessionId, user_id: userId }
             });
 
             return {
@@ -121,10 +121,11 @@ export class MessagesService {
      * @param aiResponse - AI's response
      * @param type - Message type (default: MESSAGE)
      */
-    async saveMessage(sessionId: string, userMessage: string, aiResponse: string, type: MessageType = MessageType.MESSAGE): Promise<void> {
+    async saveMessage(sessionId: string, userId: string, userMessage: string, aiResponse: string, type: MessageType = MessageType.MESSAGE): Promise<void> {
         try {
             const message = this.messageRepository.create({
                 chat_session_id: sessionId,
+                user_id: userId,
                 user_message: userMessage,
                 ai_response: aiResponse,
                 type: type
@@ -143,10 +144,10 @@ export class MessagesService {
      * @param sessionId - The session ID
      * @returns Promise<number> - Total message count
      */
-    async getTotalMessageCount(sessionId: string): Promise<number> {
+    async getTotalMessageCount(sessionId: string, userId: string): Promise<number> {
         try {
             const count = await this.messageRepository.count({
-                where: { chat_session_id: sessionId }
+                where: { chat_session_id: sessionId, user_id: userId }
             });
             return count;
         } catch (error) {

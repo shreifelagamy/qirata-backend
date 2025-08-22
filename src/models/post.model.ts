@@ -116,6 +116,113 @@ export class PostModel {
         return await this.expandedRepository.save(expanded);
     }
 
+    async findAllByUser(filters: PostFilters, userId: string): Promise<[Post[], number]> {
+        const query = this.repository.createQueryBuilder('post')
+            .where('post.user_id = :userId', { userId })
+            .orderBy('post.sequence_id', 'DESC');
+
+        if (filters.external_links?.length) {
+            query.andWhere('post.external_link IN (:...links)', { links: filters.external_links });
+        }
+
+        if (filters.read !== undefined) {
+            query.andWhere('post.read_at IS ' + (filters.read ? 'NOT NULL' : 'NULL'));
+        }
+
+        if (filters.link_id) {
+            query.andWhere('post.link_id = :linkId', { linkId: filters.link_id });
+        }
+
+        if (filters.search) {
+            query.andWhere('(post.title ILIKE :search OR post.content ILIKE :search)',
+                { search: `%${filters.search}%` });
+        }
+
+        if (filters.source) {
+            query.andWhere('post.source ILIKE :source', { source: `%${filters.source}%` });
+        }
+
+        if (filters.limit) {
+            query.take(filters.limit);
+        }
+
+        if (filters.offset) {
+            query.skip(filters.offset);
+        }
+        return await query.getManyAndCount();
+    }
+
+    async findByIdAndUser(id: string, userId: string): Promise<Post> {
+        const post = await this.repository.findOne({
+            where: { id, user_id: userId }
+        });
+
+        if (!post) {
+            throw new HttpError(404, 'Post not found');
+        }
+
+        return post;
+    }
+
+    async updateByUser(id: string, data: UpdatePostDto, userId: string): Promise<Post> {
+        const post = await this.findByIdAndUser(id, userId);
+        Object.assign(post, data);
+        return await this.repository.save(post);
+    }
+
+    async deleteByUser(id: string, userId: string): Promise<void> {
+        const post = await this.findByIdAndUser(id, userId);
+        await this.repository.remove(post);
+    }
+
+    async markAsReadByUser(id: string, userId: string): Promise<Post> {
+        const post = await this.findByIdAndUser(id, userId);
+        post.read_at = new Date();
+        return await this.repository.save(post);
+    }
+
+    async findExpandedByIdAndUser(id: string, userId: string): Promise<PostExpanded> {
+        const post = await this.findByIdAndUser(id, userId);
+        const expanded = await this.expandedRepository.findOne({
+            where: { post_id: post.id }
+        });
+
+        if (!expanded) {
+            throw new HttpError(404, 'Expanded post data not found');
+        }
+
+        return expanded;
+    }
+
+    async getSourcesByUser(includeCount: boolean = false, userId: string): Promise<string[] | { source: string; count: number }[]> {
+        if (includeCount) {
+            const result = await this.repository
+                .createQueryBuilder('post')
+                .select('post.source', 'source')
+                .addSelect('COUNT(*)', 'count')
+                .where('post.source IS NOT NULL AND post.source != \'\'')
+                .andWhere('post.user_id = :userId', { userId })
+                .groupBy('post.source')
+                .orderBy('COUNT(*)', 'DESC')
+                .getRawMany();
+
+            return result.map(row => ({
+                source: row.source,
+                count: parseInt(row.count)
+            }));
+        } else {
+            const result = await this.repository
+                .createQueryBuilder('post')
+                .select('DISTINCT post.source', 'source')
+                .where('post.source IS NOT NULL AND post.source != \'\'')
+                .andWhere('post.user_id = :userId', { userId })
+                .orderBy('post.source', 'ASC')
+                .getRawMany();
+
+            return result.map(row => row.source);
+        }
+    }
+
     async getSources(includeCount: boolean = false): Promise<string[] | { source: string; count: number }[]> {
         if (includeCount) {
             const result = await this.repository

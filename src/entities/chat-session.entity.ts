@@ -1,12 +1,21 @@
 import { IsNotEmpty, MaxLength } from "class-validator";
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { User } from "./user.entity";
 import { Message } from "./message.entity";
 import { Post } from "./post.entity";
 import { SocialPost } from "./social-post.entity";
 
 @Entity("chat_sessions")
 export class ChatSession extends BaseEntity {
+    @Column({ type: "varchar" })
+    @IsNotEmpty()
+    user_id!: string;
+
+    @ManyToOne(() => User, user => user.chat_sessions, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "user_id" })
+    user!: User;
+
     @Column({ type: "varchar", length: 255 })
     @MaxLength(255)
     @IsNotEmpty()

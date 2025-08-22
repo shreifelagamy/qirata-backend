@@ -93,7 +93,7 @@ export class ChatSessionController {
             const query = req.query.query as string | undefined;
             const favoriteFilter = req.query.favorite_filter as 'all' | 'favorites' | 'regular' | undefined;
 
-            const result = await this.service.find(page, pageSize, query, favoriteFilter);
+            const result = await this.service.find(req.user!.id, page, pageSize, query, favoriteFilter);
             res.json(result);
         } catch (err) {
             next(err);
@@ -145,7 +145,7 @@ export class ChatSessionController {
      */
     async show(req: Request, res: Response, next: NextFunction) {
         try {
-            const session = await this.service.findOne(req.params.id);
+            const session = await this.service.findOne(req.params.id, req.user!.id);
             if (!session) return res.status(404).json({ error: { code: '404', message: 'Chat session not found' } });
             res.json({ data: session, status: 200 });
         } catch (err) {
@@ -200,7 +200,7 @@ export class ChatSessionController {
     async store(req: Request, res: Response, next: NextFunction) {
         try {
             const dto = Object.assign(new CreateChatSessionDto(), req.body);
-            const session = await this.service.create(dto);
+            const session = await this.service.create(dto, req.user!.id);
             res.status(201).json(session);
         } catch (err) {
             if (err instanceof Error && err.message === 'Post not found') return res.status(404).json({ error: { code: '404', message: 'Post not found' } });
@@ -296,7 +296,7 @@ export class ChatSessionController {
             const cursor = req.query.cursor as string | undefined;
             const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
 
-            const result = await this.messageService.getMessages(sessionId, cursor, limit);
+            const result = await this.messageService.getMessages(sessionId, req.user!.id, cursor, limit);
             res.json(result);
         } catch (err) {
             if (err instanceof Error && err.message === 'Invalid cursor format') {
@@ -359,7 +359,7 @@ export class ChatSessionController {
     async getSocialPosts(req: Request, res: Response, next: NextFunction) {
         try {
             const sessionId = req.params.id;
-            const posts = await this.socialPostsService.findByChatSession(sessionId);
+            const posts = await this.socialPostsService.findByChatSession(sessionId, req.user!.id);
             res.json({ data: posts, status: 200 });
         } catch (err) {
             next(err);
@@ -470,7 +470,7 @@ export class ChatSessionController {
             const postId = req.params.postId;
             const { content, image_urls, code_examples, visual_elements } = req.body;
 
-            const updatedPost = await this.socialPostsService.update(sessionId, postId, {
+            const updatedPost = await this.socialPostsService.update(sessionId, postId, req.user!.id, {
                 content,
                 image_urls,
                 code_examples,
@@ -524,7 +524,7 @@ export class ChatSessionController {
         try {
             const postId = req.params.postId;
 
-            await this.socialPostsService.delete(postId);
+            await this.socialPostsService.delete(postId, req.user!.id);
             res.status(204).send();
         } catch (err) {
             if (err instanceof Error && err.message === 'Social post not found') {
@@ -580,7 +580,7 @@ export class ChatSessionController {
     async toggleFavorite(req: Request, res: Response, next: NextFunction) {
         try {
             const sessionId = req.params.id;
-            const session = await this.service.toggleFavorite(sessionId);
+            const session = await this.service.toggleFavorite(sessionId, req.user!.id);
             if (!session) {
                 return res.status(404).json({ 
                     error: { 

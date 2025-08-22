@@ -12,6 +12,10 @@ export class CreateSettingsDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  user_id?: string;
 }
 
 export class UpdateSettingsDto {

@@ -37,7 +37,7 @@ export class PostsController {
     ) {
         try {
             const data: CreatePostDto = req.body;
-            const post = await this.postsService.createPost(data);
+            const post = await this.postsService.createPost(data, req.user!.id);
 
             logger.info('Post created:', { id: post.id, title: post.title });
             res.status(201).json(post);
@@ -124,7 +124,7 @@ export class PostsController {
                 sortOrder: req.query.sortOrder as 'ASC' | 'DESC'
             };
 
-            const [posts, total] = await this.postsService.getPosts(filters);
+            const [posts, total] = await this.postsService.getPosts(filters, req.user!.id);
             const totalPages = Math.ceil(total / pageSize);
 
             res.json({
@@ -172,7 +172,7 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            const post = await this.postsService.getPost(id);
+            const post = await this.postsService.getPost(id, req.user!.id);
 
             res.json(post);
         } catch (error) {
@@ -259,7 +259,7 @@ export class PostsController {
             };
 
             // Start expansion with streaming
-            const expanded = await this.postsService.expandPost(id, progressCallback);
+            const expanded = await this.postsService.expandPost(id, req.user!.id, progressCallback);
 
             // Send final result
             res.write(`event: complete\n`);
@@ -312,7 +312,7 @@ export class PostsController {
         try {
             const id = req.params.id;
             const data: UpdatePostDto = req.body;
-            const post = await this.postsService.updatePost(id, data);
+            const post = await this.postsService.updatePost(id, data, req.user!.id);
 
             logger.info('Post updated:', { id: post.id, title: post.title });
             res.json(post);
@@ -361,7 +361,7 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            await this.postsService.deletePost(id);
+            await this.postsService.deletePost(id, req.user!.id);
 
             logger.info('Post deleted:', { id });
             res.status(204).send();
@@ -400,7 +400,7 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            const post = await this.postsService.markAsRead(id);
+            const post = await this.postsService.markAsRead(id, req.user!.id);
 
             logger.info('Post marked as read:', { id: post.id });
             res.json(post);
@@ -439,7 +439,7 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            const expanded = await this.postsService.getExpanded(id);
+            const expanded = await this.postsService.getExpanded(id, req.user!.id);
 
             res.json(expanded);
         } catch (error) {
@@ -492,7 +492,7 @@ export class PostsController {
     ) {
         try {
             const includeCount = req.query.includeCount === 'true';
-            const sources = await this.postsService.getSources(includeCount);
+            const sources = await this.postsService.getSources(includeCount, req.user!.id);
 
             res.json({
                 data: sources,

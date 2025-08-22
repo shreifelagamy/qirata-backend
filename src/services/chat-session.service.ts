@@ -26,19 +26,20 @@ export class ChatSessionService {
         this.socialPostsService = new SocialPostsService();
     }
 
-    async find(page = 1, pageSize = 10, query?: string, favoriteFilter?: 'all' | 'favorites' | 'regular') {
+    async find(userId: string, page = 1, pageSize = 10, query?: string, favoriteFilter?: 'all' | 'favorites' | 'regular') {
         const offset = (page - 1) * pageSize;
         
         let queryBuilder = this.chatSessionRepository
             .createQueryBuilder('session')
             .leftJoinAndSelect('session.post', 'post')
+            .where('session.user_id = :userId', { userId })
             .orderBy('session.created_at', 'DESC')
             .skip(offset)
             .take(pageSize);
 
-        // Build where conditions
-        const conditions = [];
-        const parameters: any = {};
+        // Build additional where conditions
+        const conditions = ['session.user_id = :userId'];
+        const parameters: any = { userId };
 
         // Add search query condition
         if (query && query.trim()) {
@@ -58,10 +59,8 @@ export class ChatSessionService {
             }
         }
 
-        // Apply conditions if any exist
-        if (conditions.length > 0) {
-            queryBuilder = queryBuilder.where(conditions.join(' AND '), parameters);
-        }
+        // Apply conditions
+        queryBuilder = queryBuilder.where(conditions.join(' AND '), parameters);
 
         const [sessions, total] = await queryBuilder.getManyAndCount();
         const totalPages = Math.ceil(total / pageSize);
@@ -78,9 +77,9 @@ export class ChatSessionService {
         };
     }
 
-    async findOne(id: string) {
+    async findOne(id: string, userId: string) {
         return this.chatSessionRepository.findOne({
-            where: { id },
+            where: { id, user_id: userId },
             relations: ['post', 'post.expanded'],
         });
     }
@@ -90,10 +89,10 @@ export class ChatSessionService {
      * @param id - The session ID to check
      * @returns Promise<boolean> - True if session exists, false otherwise
      */
-    async exists(id: string): Promise<boolean> {
+    async exists(id: string, userId: string): Promise<boolean> {
         try {
             const count = await this.chatSessionRepository.count({
-                where: { id }
+                where: { id, user_id: userId }
             });
             return count > 0;
         } catch (error) {
@@ -102,25 +101,26 @@ export class ChatSessionService {
         }
     }
 
-    async findByPostId(postId: string) {
+    async findByPostId(postId: string, userId: string) {
         return this.chatSessionRepository.findOne({
-            where: { post_id: postId },
+            where: { post_id: postId, user_id: userId },
             relations: ['post'],
         });
     }
 
-    async create(dto: CreateChatSessionDto) {
+    async create(dto: CreateChatSessionDto, userId: string) {
         let post = undefined;
         if (dto.postId) {
-            post = await this.postRepository.findOne({ where: { id: dto.postId } });
+            post = await this.postRepository.findOne({ where: { id: dto.postId, user_id: userId } });
             if (!post) throw new Error('Post not found');
         }
         const session = this.chatSessionRepository.create({
             title: dto.title,
+            user_id: userId,
             post,
         });
         await this.chatSessionRepository.save(session);
-        return this.findOne(session.id);
+        return this.findOne(session.id, userId);
     }
 
     private isCacheValid(cacheAt: Date): boolean {
@@ -156,14 +156,15 @@ export class ChatSessionService {
     /**
      * Build AI context for chat session
      * @param sessionId - The session ID
+     * @param userId - The user ID
      * @param userPreferences - Optional user preferences
      * @returns Promise<AIContext> - Context for AI processing
      */
-    async buildAIContext(sessionId: string): Promise<AIContext> {
+    async buildAIContext(sessionId: string, userId: string): Promise<AIContext> {
         const session = await this.getCachedSession(sessionId);
-        const messages = await this.messagesService.getRecentMessages(sessionId, 10);
-        const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId);
-        const socialPosts = await this.socialPostsService.findByChatSession(sessionId);
+        const messages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
+        const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
+        const socialPosts = await this.socialPostsService.findByChatSession(sessionId, userId);
 
         return {
             postContent: session?.post?.expanded?.content,
@@ -249,11 +250,11 @@ export class ChatSessionService {
      * @param id - The session ID to toggle
      * @returns Promise<ChatSession | null> - The updated session or null if not found
      */
-    async toggleFavorite(id: string): Promise<ChatSession | null> {
+    async toggleFavorite(id: string, userId: string): Promise<ChatSession | null> {
         try {
             // Get the current session
             const session = await this.chatSessionRepository.findOne({
-                where: { id },
+                where: { id, user_id: userId },
                 relations: ['post']
             });
 
@@ -266,7 +267,7 @@ export class ChatSessionService {
 
             // Update in database
             await this.chatSessionRepository.update(
-                { id },
+                { id, user_id: userId },
                 { is_favorite: updatedIsFavorite }
             );
 

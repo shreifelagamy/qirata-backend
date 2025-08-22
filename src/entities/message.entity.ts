@@ -1,6 +1,7 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
 import { IsNotEmpty, IsEnum } from "class-validator";
 import { BaseEntity } from "./base.entity";
+import { User } from "./user.entity";
 import { ChatSession } from "./chat-session.entity";
 
 export enum MessageType {
@@ -10,6 +11,14 @@ export enum MessageType {
 
 @Entity("messages")
 export class Message extends BaseEntity {
+    @Column({ type: "varchar" })
+    @IsNotEmpty()
+    user_id!: string;
+
+    @ManyToOne(() => User, user => user.messages, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "user_id" })
+    user!: User;
+
     @Column({ type: "uuid" })
     chat_session_id: string = "";
 

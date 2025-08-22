@@ -1,9 +1,18 @@
-import { IsBoolean, IsOptional, IsUrl, MaxLength } from "class-validator";
-import { Column, Entity } from "typeorm";
+import { IsBoolean, IsOptional, IsUrl, MaxLength, IsNotEmpty } from "class-validator";
+import { Column, Entity, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { User } from "./user.entity";
 
 @Entity("links")
 export class Link extends BaseEntity {
+    @Column({ type: "varchar" })
+    @IsNotEmpty()
+    user_id!: string;
+
+    @ManyToOne(() => User, user => user.links, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "user_id" })
+    user!: User;
+
     @Column({ type: "timestamp", nullable: true })
     @IsOptional()
     last_fetch_at?: Date;

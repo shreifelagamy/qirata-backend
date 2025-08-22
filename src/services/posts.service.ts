@@ -30,21 +30,22 @@ export class PostsService {
         this.postExpandedRepository = AppDataSource.getRepository(PostExpanded);
     }
 
-    async createPost(data: CreatePostDto, entityManager?: EntityManager): Promise<Post> {
+    async createPost(data: CreatePostDto, userId: string, entityManager?: EntityManager): Promise<Post> {
         try {
-            return await this.postModel.create(data, entityManager);
+            const postData = { ...data, user_id: userId };
+            return await this.postModel.create(postData, entityManager);
         } catch (error) {
             logger.error('Error creating post:', error);
             throw new HttpError(500, 'Failed to create post');
         }
     }
 
-    async createMany(data: CreatePostDto[], entityManager?: EntityManager): Promise<Post[] | undefined> {
+    async createMany(data: CreatePostDto[], userId: string, entityManager?: EntityManager): Promise<Post[] | undefined> {
         try {
             if (!data.length) return;
 
             const manager = entityManager || AppDataSource.manager;
-            const postEntities = data.map((model: CreatePostDto) => manager.create(Post, model));
+            const postEntities = data.map((model: CreatePostDto) => manager.create(Post, { ...model, user_id: userId }));
 
             return await manager.save(postEntities);
         } catch (error) {
@@ -53,55 +54,55 @@ export class PostsService {
         }
     }
 
-    async getPosts(filters: PostFilters): Promise<[Post[], number]> {
+    async getPosts(filters: PostFilters, userId: string): Promise<[Post[], number]> {
         try {
-            return await this.postModel.findAll(filters);
+            return await this.postModel.findAllByUser(filters, userId);
         } catch (error) {
             logger.error('Error getting posts:', error);
             throw new HttpError(500, 'Failed to get posts');
         }
     }
 
-    async getPost(id: string): Promise<Post> {
+    async getPost(id: string, userId: string): Promise<Post> {
         try {
-            return await this.postModel.findById(id);
+            return await this.postModel.findByIdAndUser(id, userId);
         } catch (error) {
             logger.error(`Error getting post ${id}:`, error);
             throw new HttpError(500, 'Failed to get post');
         }
     }
 
-    async updatePost(id: string, data: UpdatePostDto): Promise<Post> {
+    async updatePost(id: string, data: UpdatePostDto, userId: string): Promise<Post> {
         try {
-            return await this.postModel.update(id, data);
+            return await this.postModel.updateByUser(id, data, userId);
         } catch (error) {
             logger.error(`Error updating post ${id}:`, error);
             throw new HttpError(500, 'Failed to update post');
         }
     }
 
-    async deletePost(id: string): Promise<void> {
+    async deletePost(id: string, userId: string): Promise<void> {
         try {
-            await this.postModel.delete(id);
+            await this.postModel.deleteByUser(id, userId);
         } catch (error) {
             logger.error(`Error deleting post ${id}:`, error);
             throw new HttpError(500, 'Failed to delete post');
         }
     }
 
-    async markAsRead(id: string): Promise<Post> {
+    async markAsRead(id: string, userId: string): Promise<Post> {
         console.log(`Marking post ${id} as read...`);
         try {
-            return await this.postModel.markAsRead(id);
+            return await this.postModel.markAsReadByUser(id, userId);
         } catch (error) {
             logger.error(`Error marking post ${id} as read:`, error);
             throw new HttpError(500, 'Failed to mark post as read');
         }
     }
 
-    async getExpanded(id: string): Promise<PostExpanded> {
+    async getExpanded(id: string, userId: string): Promise<PostExpanded> {
         try {
-            return await this.postModel.findExpandedById(id);
+            return await this.postModel.findExpandedByIdAndUser(id, userId);
         } catch (error) {
             logger.error(`Error getting expanded post ${id}:`, error);
             throw new HttpError(500, 'Failed to get expanded post data');
@@ -110,18 +111,19 @@ export class PostsService {
 
     async expandPost(
         id: string,
+        userId: string,
         progressCallback?: (step: string, progress: number) => void
     ): Promise<Post & { chat_session_id: string }> {
         try {
             progressCallback?.('Initializing post expansion...', 5);
 
-            const post = await this.getPost(id);
+            const post = await this.getPost(id, userId);
             if (!post) {
                 throw new HttpError(404, 'Post not found');
             }
 
             progressCallback?.('Setting up chat session...', 10);
-            const chatSession = await this.ensureChatSession(post);
+            const chatSession = await this.ensureChatSession(post, userId);
 
             const existingExpanded = await this.postModel.findExpandedById(id).catch(() => null);
             if (!existingExpanded) {
@@ -129,7 +131,7 @@ export class PostsService {
             }
 
             // Mark post as read after successful expansion (non-blocking)
-            this.markAsRead(id);
+            this.markAsRead(id, userId);
 
             progressCallback?.('Finalizing...', 100);
 
@@ -143,13 +145,13 @@ export class PostsService {
         }
     }
 
-    private async ensureChatSession(post: Post) {
-        let chatSession = await this.chatSessionService.findByPostId(post.id);
+    private async ensureChatSession(post: Post, userId: string) {
+        let chatSession = await this.chatSessionService.findByPostId(post.id, userId);
         if (!chatSession) {
             chatSession = await this.chatSessionService.create({
                 title: `Discussing: ${post.title}`,
                 postId: post.id
-            });
+            }, userId);
         }
         return chatSession!;
     }
@@ -187,9 +189,9 @@ export class PostsService {
         }
     }
 
-    async getSources(includeCount: boolean = false): Promise<string[] | { source: string; count: number }[]> {
+    async getSources(includeCount: boolean = false, userId: string): Promise<string[] | { source: string; count: number }[]> {
         try {
-            return await this.postModel.getSources(includeCount);
+            return await this.postModel.getSourcesByUser(includeCount, userId);
         } catch (error) {
             logger.error('Error getting sources:', error);
             throw new HttpError(500, 'Failed to get sources');

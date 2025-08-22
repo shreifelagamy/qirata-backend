@@ -89,14 +89,15 @@ export class LinksService {
         }
     }
 
-    async addLink(data: CreateLinkDto): Promise<Link> {
+    async addLink(data: CreateLinkDto, userId: string): Promise<Link> {
         try {
             if (!data.url || data.url.trim() === '') {
                 throw new HttpError(400, 'URL is required');
             }
 
-            await this.validateUniqueRSSUrl(data.rss_url);
-            const link = await this.linkModel.create(data);
+            await this.validateUniqueRSSUrl(data.rss_url, userId);
+            const linkData = { ...data, user_id: userId };
+            const link = await this.linkModel.create(linkData);
             return link;
         } catch (error) {
             if (error instanceof HttpError) {
@@ -107,16 +108,16 @@ export class LinksService {
         }
     }
 
-    async getLinks(): Promise<Link[]> {
+    async getLinks(userId: string): Promise<Link[]> {
         try {
-            return await this.linkModel.findAll();
+            return await this.linkModel.findByUserId(userId);
         } catch (error) {
             logger.error('Error getting links:', error);
             throw new HttpError(500, 'Failed to get links');
         }
     }
 
-    async updateLink(id: string, data: UpdateLinkDto): Promise<Link> {
+    async updateLink(id: string, data: UpdateLinkDto, userId: string): Promise<Link> {
         try {
             if (!Link.isValidUUID(id)) {
                 throw new HttpError(400, 'Invalid link ID format');
@@ -133,7 +134,7 @@ export class LinksService {
                 }
             }
 
-            return await this.linkModel.update(id, data);
+            return await this.linkModel.updateByUser(id, data, userId);
         } catch (error) {
             if (error instanceof HttpError) {
                 throw error;
@@ -143,13 +144,13 @@ export class LinksService {
         }
     }
 
-    async fetchPosts(id: string): Promise<{ link: Link; insertedCount: number }> {
+    async fetchPosts(id: string, userId: string): Promise<{ link: Link; insertedCount: number }> {
         try {
             if (!Link.isValidUUID(id)) {
                 throw new HttpError(400, 'Invalid link ID format');
             }
 
-            const link = await this.linkModel.findById(id);
+            const link = await this.linkModel.findByIdAndUser(id, userId);
             if (!link || !link.rss_url) {
                 throw new Error("Link not found or not an RSS feed");
             }
@@ -168,7 +169,7 @@ export class LinksService {
             const feedLinks = feedEntries.map(entry => entry.link);
             const [existingPosts] = await this.postsService.getPosts({
                 external_links: feedLinks
-            });
+            }, userId);
 
             const existingLinks = new Set(existingPosts.map(post => post.external_link));
 
@@ -189,7 +190,7 @@ export class LinksService {
             const transaction = await AppDataSource.transaction(async (manager: EntityManager) => {
                 // Bulk insert new posts
                 if (newPosts.length > 0) {
-                    await this.postsService.createMany(newPosts, manager);
+                    await this.postsService.createMany(newPosts, userId, manager);
                 }
 
                 // Save updated link model
@@ -209,12 +210,12 @@ export class LinksService {
         }
     }
 
-    async deleteLink(id: string): Promise<void> {
+    async deleteLink(id: string, userId: string): Promise<void> {
         try {
             if (!Link.isValidUUID(id)) {
                 throw new HttpError(400, 'Invalid link ID format');
             }
-            await this.linkModel.delete(id);
+            await this.linkModel.deleteByUser(id, userId);
         } catch (error) {
             if (error instanceof HttpError) {
                 throw error;
@@ -224,8 +225,8 @@ export class LinksService {
         }
     }
 
-    private async validateUniqueRSSUrl(rss_url: string): Promise<void> {
-        const existingLink = await this.linkModel.findByRssUrl(rss_url);
+    private async validateUniqueRSSUrl(rss_url: string, userId: string): Promise<void> {
+        const existingLink = await this.linkModel.findByRssUrlAndUser(rss_url, userId);
         if (existingLink) {
             throw new HttpError(400, 'URL already exists');
         }

@@ -1,10 +1,19 @@
 import { IsNotEmpty } from "class-validator";
-import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, UpdateDateColumn, ManyToOne } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { User } from "./user.entity";
 import { Post } from "./post.entity";
 
 @Entity("post_expanded")
 export class PostExpanded extends BaseEntity {
+    @Column({ type: "varchar" })
+    @IsNotEmpty()
+    user_id!: string;
+
+    @ManyToOne(() => User, user => user.expanded_posts, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "user_id" })
+    user!: User;
+
     @Column({ type: "uuid" })
     post_id: string = "";
 

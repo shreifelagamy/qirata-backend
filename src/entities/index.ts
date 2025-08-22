@@ -1,3 +1,4 @@
+export { User } from './user.entity';
 export { Link } from './link.entity';
 export { Post } from './post.entity';
 export { PostExpanded } from './post-expanded.entity';

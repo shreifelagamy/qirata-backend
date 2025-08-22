@@ -29,10 +29,10 @@ export class SocialPostsService {
     /**
      * Get all social posts for a chat session
      */
-    async findByChatSession(sessionId: string): Promise<SocialPost[]> {
+    async findByChatSession(sessionId: string, userId: string): Promise<SocialPost[]> {
         try {
             const posts = await this.socialPostRepository.find({
-                where: { chat_session_id: sessionId },
+                where: { chat_session_id: sessionId, user_id: userId },
                 order: { created_at: 'DESC' },
             });
 
@@ -46,12 +46,13 @@ export class SocialPostsService {
     /**
      * Get a specific social post by ID
      */
-    async findOne(sessionId: string, postId: string): Promise<SocialPost | null> {
+    async findOne(sessionId: string, postId: string, userId: string): Promise<SocialPost | null> {
         try {
             const post = await this.socialPostRepository.findOne({
                 where: { 
                     id: postId,
-                    chat_session_id: sessionId
+                    chat_session_id: sessionId,
+                    user_id: userId
                 }
             });
 
@@ -65,13 +66,14 @@ export class SocialPostsService {
     /**
      * Update a social post content only
      */
-    async update(sessionId: string, postId: string, data: UpdateSocialPostData): Promise<SocialPost> {
+    async update(sessionId: string, postId: string, userId: string, data: UpdateSocialPostData): Promise<SocialPost> {
         try {
             // Find the post first
             const post = await this.socialPostRepository.findOne({
                 where: { 
                     id: postId,
-                    chat_session_id: sessionId
+                    chat_session_id: sessionId,
+                    user_id: userId
                 }
             });
 
@@ -80,16 +82,19 @@ export class SocialPostsService {
             }
 
             // Update content, image_urls, and structured fields
-            await this.socialPostRepository.update(postId, {
-                content: data.content,
-                image_urls: data.image_urls || post.image_urls,
-                code_examples: data.code_examples || post.code_examples,
-                visual_elements: data.visual_elements || post.visual_elements
-            });
+            await this.socialPostRepository.update(
+                { id: postId, user_id: userId },
+                {
+                    content: data.content,
+                    image_urls: data.image_urls || post.image_urls,
+                    code_examples: data.code_examples || post.code_examples,
+                    visual_elements: data.visual_elements || post.visual_elements
+                }
+            );
 
             // Return the updated post
             const updatedPost = await this.socialPostRepository.findOne({
-                where: { id: postId }
+                where: { id: postId, user_id: userId }
             });
 
             logger.info(`Updated social post ${postId} content`);
@@ -103,11 +108,11 @@ export class SocialPostsService {
     /**
      * Delete a social post by ID only
      */
-    async delete(postId: string): Promise<void> {
+    async delete(postId: string, userId: string): Promise<void> {
         try {
             // Find the post first
             const post = await this.socialPostRepository.findOne({
-                where: { id: postId }
+                where: { id: postId, user_id: userId }
             });
 
             if (!post) {
@@ -115,7 +120,7 @@ export class SocialPostsService {
             }
 
             // Delete the post
-            await this.socialPostRepository.delete(postId);
+            await this.socialPostRepository.delete({ id: postId, user_id: userId });
 
             logger.info(`Deleted social post ${postId}`);
         } catch (error) {
@@ -127,7 +132,7 @@ export class SocialPostsService {
     /**
      * Create a new social post - accepts either session ID or session entity
      */
-    async create(sessionOrId: string | ChatSession, data: CreateSocialPostData): Promise<SocialPost> {
+    async create(sessionOrId: string | ChatSession, userId: string, data: CreateSocialPostData): Promise<SocialPost> {
         try {
             const sessionId = typeof sessionOrId === 'string' ? sessionOrId : sessionOrId.id;
             const postId = typeof sessionOrId === 'string' ? undefined : sessionOrId.post_id;
@@ -135,6 +140,7 @@ export class SocialPostsService {
             // Create the post
             const post = this.socialPostRepository.create({
                 chat_session_id: sessionId,
+                user_id: userId,
                 content: data.content,
                 platform: data.platform,
                 image_urls: data.image_urls || [],
@@ -156,7 +162,7 @@ export class SocialPostsService {
     /**
      * Upsert a social post - update if exists for session/platform, create if not
      */
-    async upsert(sessionOrId: string | ChatSession, data: CreateSocialPostData): Promise<SocialPost> {
+    async upsert(sessionOrId: string | ChatSession, userId: string, data: CreateSocialPostData): Promise<SocialPost> {
         try {
             const sessionId = typeof sessionOrId === 'string' ? sessionOrId : sessionOrId.id;
             const postId = typeof sessionOrId === 'string' ? undefined : sessionOrId.post_id;
@@ -164,6 +170,7 @@ export class SocialPostsService {
             // Use TypeORM's upsert method with unique constraint
             const result = await this.socialPostRepository.upsert({
                 chat_session_id: sessionId,
+                user_id: userId,
                 content: data.content,
                 platform: data.platform,
                 image_urls: data.image_urls || [],
@@ -176,6 +183,7 @@ export class SocialPostsService {
             const upsertedPost = await this.socialPostRepository.findOne({
                 where: {
                     chat_session_id: sessionId,
+                    user_id: userId,
                     platform: data.platform
                 }
             });

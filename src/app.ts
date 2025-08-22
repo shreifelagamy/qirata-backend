@@ -1,7 +1,7 @@
 import { toNodeHandler } from 'better-auth/node';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Express, NextFunction, Request, Response } from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
 import morgan from 'morgan';
@@ -29,7 +29,7 @@ export const AppDataSource = new DataSource({
     username: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
-    synchronize: process.env.NODE_ENV === 'development',
+    synchronize: false,
     logging: process.env.NODE_ENV === 'development' ? ["query", "error", "schema", "warn", "migration"] : false,
     logger: process.env.NODE_ENV === 'development' ? new DatabaseFileLogger() : undefined,
     entities: Object.values(entities),
@@ -123,8 +123,7 @@ if (process.env.NODE_ENV === 'production') {
     }));
 }
 
-app.use(morgan('dev'));
-app.use(express.urlencoded({ extended: true }));
+
 
 // Setup Swagger documentation (only in development)
 if (process.env.NODE_ENV !== 'production') {
@@ -140,10 +139,12 @@ app.get('/health', (req: Request, res: Response) => {
 AppDataSource.initialize()
     .then(() => {
         const apiRouter = createRouter();
-
+        app.use(morgan('dev'));
         app.all("/api/auth/*", toNodeHandler(auth));
-        app.use('/api/v1', apiRouter);
         app.use(express.json());
+        app.use(express.urlencoded({ extended: true }));
+
+        app.use('/api/v1', apiRouter);
 
         // Add 404 handler AFTER all routes
         app.use((req: Request, res: Response, next: NextFunction) => {
