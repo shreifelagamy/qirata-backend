@@ -127,7 +127,7 @@ export class PostsService {
 
             const existingExpanded = await this.postModel.findExpandedById(id).catch(() => null);
             if (!existingExpanded) {
-                await this.createExpandedContent(post, progressCallback);
+                await this.createExpandedContent(post, userId, progressCallback);
             }
 
             // Mark post as read after successful expansion (non-blocking)
@@ -158,6 +158,7 @@ export class PostsService {
 
     private async createExpandedContent(
         post: Post,
+        userId: string,
         progressCallback?: (step: string, progress: number) => void
     ): Promise<void> {
         const { content, summary } = await contentAggregationService.aggregateContent(
@@ -169,6 +170,7 @@ export class PostsService {
 
         const expanded = new PostExpanded({
             post_id: post.id,
+            user_id: userId,
             content,
             summary
         });
