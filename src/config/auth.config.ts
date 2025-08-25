@@ -48,6 +48,8 @@ export const auth = betterAuth({
     trustedOrigins: [
         "http://localhost:5173",   // Vite dev
         "http://localhost:3000",   // your API host (optional)
+        ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend from env
+        ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []) // Additional trusted origins from env
     ],
 
     plugins: [
@@ -55,8 +57,8 @@ export const auth = betterAuth({
         bearer({ requireSignature: true }),
         jwt({
             jwt: {
-                issuer: 'http://localhost:3000',
-                audience: 'http://localhost:3000',
+                issuer: process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000',
+                audience: process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000',
                 // Optional: add claims you care about
                 definePayload: ({ user, session }) => ({
                     sub: user.id,
@@ -77,13 +79,14 @@ export const auth = betterAuth({
  */
 export const validateToken = async (token: string) => {
     try {
+        const backendUrl = process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000';
         const JWKS = createRemoteJWKSet(
-            new URL(`${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/jwks`)
+            new URL(`${backendUrl}/api/auth/jwks`)
         );
         
         const { payload } = await jwtVerify(token, JWKS, {
-            issuer: process.env.BASE_URL || 'http://localhost:3000',
-            audience: process.env.BASE_URL || 'http://localhost:3000'
+            issuer: backendUrl,
+            audience: backendUrl
         });
         
         return payload;
