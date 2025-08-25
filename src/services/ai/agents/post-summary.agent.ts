@@ -5,6 +5,7 @@ import { ChatOllama } from "@langchain/ollama";
 import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
+import { ChatOpenAI } from '@langchain/openai';
 
 type SummarizeOptions = {
     model?: ChatOllama;
@@ -41,7 +42,7 @@ const SYSTEM_MESSAGE = `You are an expert content analyst specialized in summari
 
 export async function summarizePost(options: SummarizeOptions): Promise<string> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.7 }),
+        model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.7, openAIApiKey: process.env.OPENAI_API_KEY }),
         postContent
     } = options;
 
