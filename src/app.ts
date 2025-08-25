@@ -37,21 +37,16 @@ export const AppDataSource = new DataSource({
     migrationsTableName: "migrations"
 });
 
-// Middleware
-const allowedOrigins = [
-    'http://localhost:5173', // Vite dev server
-    'http://localhost:3000', // Alternative frontend port
-    'http://127.0.0.1:5173', // Alternative localhost
-    ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:*']), // Allow any localhost in dev
-    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend from env
-    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []) // Additional origins from env
-];
-
 app.use(cors({
-    origin: allowedOrigins,
-    credentials: true, // Allow cookies and authentication headers
+    origin: [
+        'http://localhost:5173', // Frontend dev server
+        'http://localhost:3000', // Backend API
+        ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend
+        ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []) // Additional origins
+    ],
+    credentials: true, // Essential for cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Cache-Control', 'Accept', 'Accept-Language', 'DNT', 'Origin', 'Referer', 'Sec-Fetch-Dest', 'Sec-Fetch-Mode', 'Sec-Fetch-Site', 'User-Agent', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform']
 }));
 
 // Security middleware with environment-specific configuration

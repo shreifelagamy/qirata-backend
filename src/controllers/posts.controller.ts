@@ -241,15 +241,21 @@ export class PostsController {
         try {
             const id = req.params.id;
 
-            // Set up SSE headers
+            // Auth middleware has already validated the session and populated req.user
+            // If we reach this point, the user is authenticated
+            if (!req.user?.id) {
+                res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+                res.write(`event: error\n`);
+                res.write(`data: ${JSON.stringify({ error: 'UNAUTHORIZED' })}\n\n`);
+                res.end();
+                return;
+            }
+
+            // Set up SSE headers (CORS headers handled by middleware)
             res.writeHead(200, {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': 'http://localhost:5173',
-                'Access-Control-Allow-Headers': 'Cache-Control, Accept, Accept-Language, DNT, Origin, Referer, Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site, User-Agent, sec-ch-ua, sec-ch-ua-mobile, sec-ch-ua-platform',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Credentials': 'true'
+                'Connection': 'keep-alive'
             });
 
             // Progress callback for streaming updates

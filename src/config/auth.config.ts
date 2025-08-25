@@ -47,10 +47,20 @@ export const auth = betterAuth({
 
     trustedOrigins: [
         "http://localhost:5173",   // Vite dev
-        "http://localhost:3000",   // your API host (optional)
+        "http://localhost:3000",   // your API host
         ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend from env
         ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []) // Additional trusted origins from env
     ],
+
+    // Advanced cookie configuration for cross-origin support
+    advanced: {
+        useSecureCookies: process.env.NODE_ENV === 'production', // false for localhost development
+        defaultCookieAttributes: {
+            sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax", // lax for localhost, none for production
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // false for localhost development
+        }
+    },
 
     plugins: [
         openAPI(),

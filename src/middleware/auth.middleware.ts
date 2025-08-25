@@ -20,6 +20,10 @@ declare global {
 
 /**
  * Authentication middleware to verify JWT tokens from better-auth
+ * Supports multiple authentication methods:
+ * 1. Better Auth session cookies (priority)
+ * 2. Bearer token in Authorization header
+ * 3. Token in query parameter (for SSE endpoints where headers cannot be set)
  * Extracts user information and attaches it to the request object
  */
 export const authMiddleware = async (
@@ -45,15 +49,24 @@ export const authMiddleware = async (
             return next();
         }
 
-        // If no session from cookies, try JWT Bearer token
+        // If no session from cookies, try JWT Bearer token from header or query parameter
         const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        const tokenFromQuery = req.query.token as string;
+        
+        let token: string | null = null;
+        
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        } else if (tokenFromQuery) {
+            // For SSE endpoints where headers cannot be set, allow token via query parameter
+            token = tokenFromQuery;
+        }
+        
+        if (!token) {
             res.setHeader("WWW-Authenticate", 'Bearer realm="qirata", error="invalid_token"');
             res.status(401).json({ error: "UNAUTHORIZED" });
             return;
         }
-
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
         const payload = await validateToken(token);
 
         if (!payload) {
