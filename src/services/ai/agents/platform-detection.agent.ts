@@ -5,7 +5,7 @@ import { ChatOllama } from '@langchain/ollama';
 import { z } from 'zod';
 import { Message } from '../../../entities';
 import { createDebugCallback } from '../../../utils/debug-callback';
-import { logger } from '../../../utils/logger';
+import { AILogger } from '../utils/ai-logger';
 import { ChatOpenAI } from '@langchain/openai';
 
 const KEEP_RECENT = 5; // Keep last 5 user messages for context
@@ -64,7 +64,7 @@ export async function detectPlatform(options: PlatformDetectionOptions): Promise
     } = options;
 
     try {
-        logger.info('Detecting social media platform with AI');
+        AILogger.debug('Detecting social media platform with AI');
 
         // Create structured output parser with Zod schema
         // Using type assertion to avoid TS2589 error with complex Zod schemas
@@ -83,17 +83,16 @@ export async function detectPlatform(options: PlatformDetectionOptions): Promise
             callbacks: [debugCallback]
         }) as PlatformDetectionResponse;
 
-        logger.info('[PlatformDetection] AI detection result:', {
+        AILogger.debug('Platform detection result', {
             platform: response.platform,
             confidence: response.confidence,
-            needsClarification: response.needsClarification,
-            reasoning: response.reasoning
+            needsClarification: response.needsClarification
         });
 
         return response;
 
     } catch (error) {
-        logger.error('[PlatformDetection] AI detection failed:', error);
+        AILogger.error('Platform detection failed', error);
         // Fallback response when AI fails
         return {
             platform: null,

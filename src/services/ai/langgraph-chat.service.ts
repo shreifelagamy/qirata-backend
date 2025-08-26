@@ -6,7 +6,7 @@ import {
     StreamingAIResponse
 } from '../../types/ai.types';
 import { DEFAULT_MODEL_CONFIGS, WorkflowModelConfigs } from '../../types/model-config.types';
-import { logger } from '../../utils/logger';
+import { AILogger } from './utils/ai-logger';
 import { WorkflowBuilder } from './langgraph/builders/workflow-builder';
 import { ChatState } from './langgraph/nodes/base-node';
 
@@ -77,7 +77,7 @@ export class LangGraphChatService {
                 callback: streamCallback,
             };
 
-            logger.info(`[LangGraph] Starting workflow for session: ${sessionId}`);
+            AILogger.workflow('Starting workflow', sessionId);
 
             if (streamCallback) {
                 streamCallback({
@@ -103,14 +103,14 @@ export class LangGraphChatService {
                 structuredSocialPost: result.structuredSocialPost
             };
 
-            logger.info(`[LangGraph] Workflow completed for session: ${sessionId} in ${Date.now() - startTime}ms`);
+            AILogger.performance('Workflow execution', Date.now() - startTime, sessionId);
             return response;
 
         } catch (error) {
             // Clean up on error
             this.activeRequests.delete(sessionId);
 
-            logger.error('[LangGraph] Workflow execution error:', error);
+            AILogger.error('Workflow execution failed', error);
 
             if (streamCallback) {
                 streamCallback({
@@ -121,7 +121,7 @@ export class LangGraphChatService {
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
-                logger.info(`[LangGraph] Request cancelled for session: ${sessionId}`);
+                AILogger.info('Request cancelled', { sessionId });
 
                 // Notify via callback that the request was cancelled
                 if (streamCallback) {
@@ -164,7 +164,7 @@ export class LangGraphChatService {
             content: streamingResponse.content,
             intent: { type: streamingResponse.isSocialPost ? 'social' : 'question', confidence: 0.9, keywords: [] },
             sessionId: streamingResponse.sessionId,
-            tokenCount: this.estimateTokenCount(streamingResponse.content),
+            tokenCount: AILogger.shouldLogContext() ? this.estimateTokenCount(streamingResponse.content) : 0,
             processingTime: 0
         };
     }
@@ -175,7 +175,7 @@ export class LangGraphChatService {
     public cancelExistingRequest(sessionId: string): boolean {
         const existingController = this.activeRequests.get(sessionId);
         if (existingController && !existingController.signal.aborted) {
-            logger.info(`[LangGraph] Cancelling existing request for session: ${sessionId}`);
+            AILogger.info('Cancelling existing request', { sessionId });
             existingController.abort('User requested cancellation');
             this.activeRequests.delete(sessionId);
             return true; // Successfully cancelled
@@ -221,7 +221,7 @@ export class LangGraphChatService {
         for (const [sessionId, controller] of this.activeRequests) {
             if (controller.signal.aborted) {
                 this.activeRequests.delete(sessionId);
-                logger.debug(`[LangGraph] Cleaned up inactive request for session: ${sessionId}`);
+                AILogger.debug('Cleaned up inactive request', { sessionId });
             }
         }
     }
@@ -237,7 +237,7 @@ export class LangGraphChatService {
         const memoryService = new MemoryService(memoryModel);
         memoryService.clearMemory(sessionId);
 
-        logger.info(`[LangGraph] Cleared memory for session: ${sessionId}`);
+        AILogger.info('Cleared memory for session', { sessionId });
     }
 
     /**
@@ -248,10 +248,10 @@ export class LangGraphChatService {
             const { createModelFromConfig } = await import('../../types/model-config.types');
             const testModel = createModelFromConfig(this.modelConfigs[modelType]);
             const response = await testModel.invoke("Test connection");
-            logger.info(`LangGraph Chat service connection test successful for ${modelType} model`);
+            AILogger.service(`Connection test successful for ${modelType} model`);
             return true;
         } catch (error) {
-            logger.error(`LangGraph Chat service connection test failed for ${modelType} model:`, error);
+            AILogger.error(`Connection test failed for ${modelType} model`, error);
             return false;
         }
     }
@@ -273,13 +273,18 @@ export class LangGraphChatService {
         this.workflowBuilder = new WorkflowBuilder(this.modelConfigs);
         this.app = this.workflowBuilder.buildWorkflow();
 
-        logger.info('Model configurations updated and workflow rebuilt');
+        AILogger.service('Model configurations updated and workflow rebuilt');
     }
 
     /**
      * Generate graph visualization for LangGraph Studio
      */
     private async generateGraphVisualization(): Promise<void> {
+        // Only generate graph files in development
+        if (!AILogger.shouldWriteFiles()) {
+            return;
+        }
+
         try {
             const graphBlob = await this.app.getGraph().drawMermaidPng();
             const graphBuffer = Buffer.from(await graphBlob.arrayBuffer());
@@ -289,9 +294,9 @@ export class LangGraphChatService {
             const mermaidText = this.app.getGraph().drawMermaid();
             fs.writeFileSync('graph.mermaid', mermaidText);
 
-            logger.info('Graph visualization generated for LangGraph Studio');
+            AILogger.info('Graph visualization generated for LangGraph Studio');
         } catch (error) {
-            logger.warn('Failed to generate graph visualization:', error);
+            AILogger.warn('Failed to generate graph visualization', error);
         }
     }
 }

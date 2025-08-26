@@ -2,7 +2,7 @@ import { SocialPlatform, CodeExample, VisualElement } from '../../../../entities
 import { StructuredSocialPostOutput } from '../../agents/social-post-generator.agent';
 import { AIContext, AIStreamCallback } from '../../../../types/ai.types';
 import { WorkflowModels } from '../../../../types/model-config.types';
-import { logger } from '../../../../utils/logger';
+import { AILogger } from '../../utils/ai-logger';
 import { IntentDetectionResponse } from '../../agents/intent-detection.agent';
 import { PlatformDetectionResponse } from '../../agents/platform-detection.agent';
 
@@ -58,14 +58,14 @@ export abstract class BaseNode {
         const logMessage = sessionId
             ? `[LangGraph:${this.nodeName}] ${message} for session: ${sessionId}`
             : `[LangGraph:${this.nodeName}] ${message}`;
-        logger.info(logMessage);
+        AILogger.info(logMessage);
     }
 
     protected logError(message: string, error: unknown, sessionId?: string): void {
         const logMessage = sessionId
             ? `[LangGraph:${this.nodeName}] ${message} for session: ${sessionId}`
             : `[LangGraph:${this.nodeName}] ${message}`;
-        logger.error(logMessage, error);
+        AILogger.error(logMessage, error);
     }
 
     protected handleError(operation: string, error: unknown): Partial<ChatState> {

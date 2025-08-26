@@ -73,8 +73,6 @@ export class ChatController {
                 streamCallback
             );
 
-            console.log(`Streaming response for session ${sessionId}:`, streamingResponse);
-            console.log(this.activeStreams.get(sessionId));
             // 7. Check if stream was interrupted before processing final response
             if (!this.activeStreams.get(sessionId)) {
                 logger.info(`Stream for session ${sessionId} was interrupted, skipping final processing`);
@@ -83,7 +81,6 @@ export class ChatController {
 
             // 8. Save message and send final event
             if (streamingResponse.isComplete && !streamingResponse.error) {
-                console.log(`AI response for session ${sessionId}:`, streamingResponse);
                 // Determine message type based on AI intent
                 const messageType = streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE;
 
@@ -106,7 +103,6 @@ export class ChatController {
 
                 // Determine if it's a social post or Q&A based on AI intent
                 if (streamingResponse.isSocialPost && streamingResponse.structuredSocialPost) {
-                    console.log(`Detected social post intent for session ${sessionId}`);
                     const structuredPost = streamingResponse.structuredSocialPost;
 
                     // Save social post to database with structured data
@@ -117,7 +113,6 @@ export class ChatController {
                         visual_elements: structuredPost.visualElements || []
                     });
 
-                    console.log(`Social post saved for session ${post.id}`);
                 }
 
                 // Send appropriate final event based on AI intent
@@ -259,7 +254,6 @@ export class ChatController {
         emit: (event: string, data: any) => void
     ): void {
         try {
-            console.log(`Handling stream callback for session ${sessionId}:`, data);
 
             // Check if stream is still active - if not, ignore all callbacks
             if (!this.activeStreams.get(sessionId)) {

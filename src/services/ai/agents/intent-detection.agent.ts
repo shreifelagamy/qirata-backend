@@ -6,7 +6,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { Message } from '../../../entities';
 import { createDebugCallback } from '../../../utils/debug-callback';
-import { logger } from '../../../utils/logger';
+import { AILogger } from '../utils/ai-logger';
 
 // Note: Conversation history length is controlled by the caller
 
@@ -55,7 +55,7 @@ export async function detectIntent(options: IntentDetectionOptions): Promise<Int
     } = options;
 
     try {
-        logger.info('Detecting user intent with AI');
+        AILogger.debug('Detecting user intent with AI');
 
         // Create structured output parser with Zod schema
         // Using type assertion to avoid TS2589 error with complex Zod schemas
@@ -77,7 +77,7 @@ export async function detectIntent(options: IntentDetectionOptions): Promise<Int
         return response as IntentDetectionResponse;
 
     } catch (error) {
-        logger.error('AI intent detection failed:', error);
+        AILogger.error('Intent detection failed', error);
 
         // Return fallback response
         return {

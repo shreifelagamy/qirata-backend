@@ -7,7 +7,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { Message } from '../../../entities';
 import { SocialPlatform } from '../../../entities/social-post.entity';
 import { createDebugCallback } from '../../../utils/debug-callback';
-import { logger } from '../../../utils/logger';
+import { AILogger } from '../utils/ai-logger';
 
 const KEEP_RECENT = 5; // Keep last 5 messages for context
 
@@ -212,7 +212,7 @@ export async function generateSocialPost(options: SocialPostGeneratorOptions) {
         socialPosts
     } = options;
 
-    logger.info(`Generating social post for ${platform}`);
+    AILogger.debug(`Generating social post for ${platform}`);
 
     // Create JSON output parser
     const parser = new JsonOutputParser<StructuredSocialPostOutput>();
