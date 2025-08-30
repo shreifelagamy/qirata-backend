@@ -31,7 +31,13 @@ export class LinksController {
      *         content:
      *           application/json:
      *             schema:
-     *               $ref: '#/components/schemas/Link'
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   $ref: '#/components/schemas/Link'
+     *                 status:
+     *                   type: integer
+     *                   example: 201
      *       300:
      *         description: Multiple RSS feeds found - user selection required
      *         content:
@@ -111,7 +117,7 @@ export class LinksController {
                 rss_url: link.rss_url
             });
 
-            res.status(201).json(link);
+            res.status(201).json({ data: link, status: 201 });
         } catch (error) {
             next(error);
         }
@@ -161,17 +167,15 @@ export class LinksController {
      *         content:
      *           application/json:
      *             schema:
-     *               allOf:
-     *                 - $ref: '#/components/schemas/PaginatedResponse'
-     *                 - type: object
-     *                   properties:
-     *                     data:
-     *                       type: object
-     *                       properties:
-     *                         items:
-     *                           type: array
-     *                           items:
-     *                             $ref: '#/components/schemas/Link'
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: array
+     *                   items:
+     *                     $ref: '#/components/schemas/Link'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
      *       401:
      *         description: Unauthorized
      *         content:
@@ -186,7 +190,7 @@ export class LinksController {
     ) {
         try {
             const links = await this.linksService.getLinks(req.user!.id);
-            res.json(links);
+            res.json({ data: links, status: 200 });
         } catch (error) {
             next(error);
         }
@@ -234,7 +238,13 @@ export class LinksController {
      *         content:
      *           application/json:
      *             schema:
-     *               $ref: '#/components/schemas/Link'
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   $ref: '#/components/schemas/Link'
+     *                 status:
+     *                   type: integer
+     *                   example: 200
      *       400:
      *         description: Bad request
      *         content:
@@ -265,7 +275,7 @@ export class LinksController {
             const link = await this.linksService.updateLink(id, data, req.user!.id);
 
             logger.info('Link updated:', { id: link.id, url: link.url });
-            res.json(link);
+            res.json({ data: link, status: 200 });
         } catch (error) {
             next(error);
         }
@@ -345,14 +355,20 @@ export class LinksController {
      *             schema:
      *               type: object
      *               properties:
-     *                 link:
-     *                   $ref: '#/components/schemas/Link'
-     *                 insertedCount:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     link:
+     *                       $ref: '#/components/schemas/Link'
+     *                     insertedCount:
+     *                       type: integer
+     *                       description: Number of new posts inserted during this fetch
+     *                   required:
+     *                     - link
+     *                     - insertedCount
+     *                 status:
      *                   type: integer
-     *                   description: Number of new posts inserted during this fetch
-     *               required:
-     *                 - link
-     *                 - insertedCount
+     *                   example: 200
      *       401:
      *         description: Unauthorized
      *         content:
@@ -383,8 +399,11 @@ export class LinksController {
 
             logger.info('Posts fetched for link:', { id: link.id, url: link.url });
             res.json({
-                link,
-                insertedCount,
+                data: {
+                    link,
+                    insertedCount,
+                },
+                status: 200
             });
         } catch (error) {
             next(error);
