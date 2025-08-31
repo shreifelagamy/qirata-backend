@@ -10,14 +10,10 @@ export class HttpError extends Error {
 }
 
 interface ErrorResponse {
-    error: {
-        message: string;
-        status: number;
-        timestamp: string;
-        path: string;
-        method: string;
-        stack?: string;
-    };
+    message: string;
+    status: number;
+    errors?: Record<string, string[]>;
+    data?: { [key: string]: any };
 }
 
 export const errorMiddleware = (
@@ -37,18 +33,18 @@ export const errorMiddleware = (
     const status = error instanceof HttpError ? error.status : 500;
 
     const response: ErrorResponse = {
-        error: {
-            message: error instanceof HttpError ? error.message : 'Internal Server Error',
-            status: status,
-            timestamp: new Date().toISOString(),
-            path: req.path,
-            method: req.method
-        }
+        message: error instanceof HttpError ? error.message : 'Internal Server Error',
+        status: status
     };
 
-    // Include stack trace in development
+    // Include additional data in development
     if (process.env.NODE_ENV === 'development') {
-        response.error.stack = error.stack;
+        response.data = {
+            timestamp: new Date().toISOString(),
+            path: req.path,
+            method: req.method,
+            stack: error.stack
+        };
     }
 
     // Log error

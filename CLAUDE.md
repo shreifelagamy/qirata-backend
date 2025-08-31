@@ -239,4 +239,24 @@
 - Request/response examples
 - Authentication flow documentation
 
+**API Response Standards**:
+- **CRITICAL: All successful API responses MUST follow the standardized format**:
+  ```json
+  {
+    "data": { /* actual response data */ },
+    "status": 200 /* HTTP status code */
+  }
+  ```
+- **Error responses** follow the frontend error type structure:
+  ```json
+  {
+    "message": "Error description",
+    "status": 400,
+    "errors": { "field": ["validation error"] }, // optional validation errors
+    "data": { "timestamp": "...", "path": "...", "method": "..." } // optional additional data
+  }
+  ```
+- **Implementation rule**: Every controller method returning success data MUST wrap the response in the `{ data: responseData, status: httpStatusCode }` structure
+- **NO direct `res.json(responseData)` calls** - always use `res.json({ data: responseData, status: statusCode })`
+
 This architecture provides a robust foundation for AI-powered content management with real-time capabilities, structured around TypeScript best practices and modern backend patterns.
