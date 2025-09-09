@@ -19,7 +19,8 @@
         "test:ai": "npm test src/services/ai/ && npm test src/tests/ai-*.test.js",
         "ollama:check": "curl -s http://localhost:11434/api/version || echo 'Ollama not running'",
         "setup:full": "npm install && npm run migration:run && npm run ai:health-check",
-        "setup:scripts": "chmod +x ./scripts/*.sh"
+        "setup:scripts": "chmod +x ./scripts/*.sh",
+        "typecheck:watch": "tsc --noEmit --watch"
     },
     "keywords": [
         "express",

@@ -58,7 +58,6 @@ export class WebSocketRouter {
                 await handler.call(
                     controllerInstance,
                     data,
-                    socket.data.userId,
                     socket,
                     emit
                 );

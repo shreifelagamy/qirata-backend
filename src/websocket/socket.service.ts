@@ -33,7 +33,7 @@ class SocketService {
             try {
                 const token = socket.handshake.auth.token;
                 const sessionId = socket.handshake.auth.sessionId;
-                
+
                 if (!token) {
                     throw new Error('Authentication token missing');
                 }
@@ -57,13 +57,13 @@ class SocketService {
                     activeStreams: new Set(),
                     email: userEmail,
                     name: userName,
-                    sessionId: sessionId
+                    sessionId
                 };
 
                 // Set userId on socket for convenience
                 socket.userId = userId;
 
-                logger.info(`Socket authenticated for user: ${userId} (${userEmail}) with session: ${sessionId}`);
+                logger.info(`Socket authenticated for user: ${userId} (${userEmail})`);
                 next();
             } catch (error) {
                 logger.error('Socket authentication failed:', error);
@@ -71,7 +71,6 @@ class SocketService {
             }
         });
     }
-
 
     private setupEventHandlers(): void {
         this.io.on('connection', (socket: AuthenticatedSocket) => {

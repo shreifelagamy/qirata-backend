@@ -231,11 +231,8 @@ export class LangGraphChatService {
      */
     public async clearMemory(sessionId: string): Promise<void> {
         const { createModelFromConfig } = await import('../../types/model-config.types');
-        const { MemoryService } = await import('./memory.service');
 
         const memoryModel = createModelFromConfig(this.modelConfigs.memoryService);
-        const memoryService = new MemoryService(memoryModel);
-        memoryService.clearMemory(sessionId);
 
         AILogger.info('Cleared memory for session', { sessionId });
     }

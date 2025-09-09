@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Socket Test</title>
+        <style>
+            body {
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+                margin: 24px;
+            }
+
+            .row {
+                margin: 8px 0;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            label {
+                min-width: 90px;
+            }
+
+            input[type="text"] {
+                width: 420px;
+                padding: 6px 8px;
+            }
+
+            button {
+                padding: 6px 12px;
+                cursor: pointer;
+            }
+
+            #status {
+                font-weight: bold;
+            }
+
+            #status.connected {
+                color: #0a7f27;
+            }
+
+            #status.disconnected {
+                color: #b00020;
+            }
+
+            #log {
+                margin-top: 16px;
+                border: 1px solid #ddd;
+                padding: 8px;
+                height: 180px;
+                overflow: auto;
+                white-space: pre-wrap;
+                background: #fafafa;
+            }
+
+            #chatArea {
+                margin-top: 16px;
+                border: 1px solid #ddd;
+                padding: 16px;
+                height: 300px;
+                overflow: auto;
+                background: white;
+                border-radius: 8px;
+            }
+
+            .message {
+                margin-bottom: 16px;
+                padding: 12px;
+                border-radius: 8px;
+                max-width: 80%;
+            }
+
+            .user-message {
+                background: #e3f2fd;
+                margin-left: auto;
+                text-align: right;
+            }
+
+            .ai-message {
+                background: #f5f5f5;
+                margin-right: auto;
+            }
+
+            .progress-message {
+                background: #fff3e0;
+                margin-right: auto;
+                font-style: italic;
+                opacity: 0.8;
+            }
+
+            .message-header {
+                font-weight: bold;
+                font-size: 12px;
+                margin-bottom: 4px;
+                color: #666;
+            }
+
+            .message-content {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+
+            .small {
+                color: #666;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>WebSocket (Socket.IO) Test</h1>
+
+        <div class="row">
+            <label>Server:</label>
+            <input id="serverUrl" type="text" placeholder="http://localhost:3000" />
+            <span class="small">Defaults to current origin if empty</span>
+        </div>
+
+        <div class="row">
+            <label>Token:</label>
+            <input id="token" type="text" placeholder="Paste JWT token (required)" />
+        </div>
+
+        <div class="row">
+            <label>Session ID:</label>
+            <input id="sessionId" type="text" placeholder="Enter session id (required for interrupt)" />
+        </div>
+
+        <div class="row">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <button id="interruptBtn" disabled>Interrupt</button>
+            <span>Connection: <span id="status" class="disconnected">disconnected</span></span>
+        </div>
+
+        <div class="row">
+            <button id="pingBtn" disabled>Ping</button>
+            <button id="clearChatBtn">Clear Chat</button>
+            <span class="small">Ping server or clear chat history</span>
+        </div>
+
+        <div class="row">
+            <label>Message:</label>
+            <input id="messageInput" type="text" placeholder="Type your chat message here..." disabled />
+            <button id="sendMessageBtn" disabled>Send Message</button>
+        </div>
+
+        <div id="chatArea" aria-live="polite">
+            <div class="message ai-message">
+                <div class="message-header">AI Assistant</div>
+                <div class="message-content">Welcome! I'm ready to help you with questions about posts or create social media content. Send a message to get started.</div>
+            </div>
+        </div>
+
+        <h3>Debug Log</h3>
+        <div id="log" aria-live="polite"></div>
+
+        <!-- Socket.IO Client -->
+        <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+        <script>
+            (function () {
+                /** @type {import('socket.io-client').Socket | null} */
+                let socket = null;
+
+                const $ = (id) => document.getElementById(id);
+                const statusEl = $("status");
+                const logEl = $("log");
+                const chatArea = $("chatArea");
+                const connectBtn = $("connectBtn");
+                const disconnectBtn = $("disconnectBtn");
+                const interruptBtn = $("interruptBtn");
+                const pingBtn = $("pingBtn");
+                const clearChatBtn = $("clearChatBtn");
+                const messageInput = $("messageInput");
+                const sendMessageBtn = $("sendMessageBtn");
+
+                // Prefill from query params
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('server')) $("serverUrl").value = params.get('server');
+                if (params.get('token')) $("token").value = params.get('token');
+                if (params.get('sessionId')) $("sessionId").value = params.get('sessionId');
+
+                function setStatus(connected) {
+                    statusEl.textContent = connected ? 'connected' : 'disconnected';
+                    statusEl.className = connected ? 'connected' : 'disconnected';
+                    connectBtn.disabled = connected;
+                    disconnectBtn.disabled = !connected;
+                    interruptBtn.disabled = !connected;
+                    pingBtn.disabled = !connected;
+                    messageInput.disabled = !connected;
+                    sendMessageBtn.disabled = !connected;
+                }
+
+                function log(...args) {
+                    const line = args.map(a => {
+                        try { return typeof a === 'string' ? a : JSON.stringify(a); } catch { return String(a); }
+                    }).join(' ');
+                    const ts = new Date().toLocaleTimeString();
+                    logEl.textContent += `[${ts}] ${line}\n`;
+                    logEl.scrollTop = logEl.scrollHeight;
+                }
+
+                function addChatMessage(content, isUser = false, isProgress = false) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${isProgress ? 'progress-message' : isUser ? 'user-message' : 'ai-message'}`;
+                    
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'message-header';
+                    headerDiv.textContent = isProgress ? 'Processing...' : isUser ? 'You' : 'AI Assistant';
+                    
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+                    contentDiv.textContent = content;
+                    
+                    messageDiv.appendChild(headerDiv);
+                    messageDiv.appendChild(contentDiv);
+                    chatArea.appendChild(messageDiv);
+                    chatArea.scrollTop = chatArea.scrollHeight;
+                    
+                    return messageDiv;
+                }
+
+                let currentProgressMessage = null;
+
+                function getServerUrl() {
+                    const v = $("serverUrl").value.trim();
+                    return v || window.location.origin;
+                }
+
+                function getAuth() {
+                    const token = $("token").value.trim();
+                    const sessionId = $("sessionId").value.trim();
+                    return { token, sessionId };
+                }
+
+                connectBtn.addEventListener('click', () => {
+                    if (socket && socket.connected) return;
+                    const { token, sessionId } = getAuth();
+                    if (!token) {
+                        log('Missing token: provide a JWT to authenticate');
+                    }
+                    const url = getServerUrl();
+                    log('Connecting to', url, '...');
+                    try {
+                        socket = io(url, {
+                            transports: ['websocket'],
+                            withCredentials: true,
+                            auth: { token, sessionId }
+                        });
+
+                        socket.on('connect', () => {
+                            log('Connected. Socket ID:', socket.id);
+                            setStatus(true);
+                        });
+
+                        socket.on('disconnect', (reason) => {
+                            log('Disconnected:', reason);
+                            setStatus(false);
+                        });
+
+                        socket.on('connect_error', (err) => {
+                            log('Connect error:', err && (err.message || err));
+                            setStatus(false);
+                        });
+
+                        socket.on('error', (payload) => {
+                            log('Server error:', payload);
+                        });
+
+                        socket.on('pong', () => {
+                            log('Received pong');
+                        });
+
+                        // Chat streaming events
+                        socket.on('chat:stream:start', (data) => {
+                            log('Chat stream started:', data);
+                            currentProgressMessage = addChatMessage(data.intentType || 'Processing...', false, true);
+                        });
+
+                        socket.on('chat:stream:token', (data) => {
+                            log('Chat stream token:', data.token || data);
+                            if (currentProgressMessage) {
+                                const contentDiv = currentProgressMessage.querySelector('.message-content');
+                                if (contentDiv) {
+                                    contentDiv.textContent = data.token || data;
+                                }
+                            } else {
+                                currentProgressMessage = addChatMessage(data.token || data, false, true);
+                            }
+                        });
+
+                        socket.on('chat:stream:end', (data) => {
+                            log('Chat stream ended:', data);
+                            
+                            // Remove progress message
+                            if (currentProgressMessage) {
+                                currentProgressMessage.remove();
+                                currentProgressMessage = null;
+                            }
+                            
+                            // Add final AI response
+                            if (data.response) {
+                                addChatMessage(data.response, false, false);
+                            }
+                            
+                            // Add suggested options if available
+                            if (data.suggestedOptions && data.suggestedOptions.length > 0) {
+                                const optionsText = 'Suggested actions:\n• ' + data.suggestedOptions.join('\n• ');
+                                addChatMessage(optionsText, false, false);
+                            }
+                        });
+
+                        socket.on('chat:stream:error', (data) => {
+                            log('Chat stream error:', data);
+                            
+                            // Remove progress message
+                            if (currentProgressMessage) {
+                                currentProgressMessage.remove();
+                                currentProgressMessage = null;
+                            }
+                            
+                            addChatMessage('Error: ' + (data.error || 'An error occurred'), false, false);
+                        });
+
+                        socket.on('chat:stream:interrupted', (data) => {
+                            log('Chat stream interrupted:', data);
+                            
+                            // Remove progress message
+                            if (currentProgressMessage) {
+                                currentProgressMessage.remove();
+                                currentProgressMessage = null;
+                            }
+                            
+                            addChatMessage('Stream interrupted: ' + (data.message || 'Stream was stopped'), false, false);
+                        });
+                    } catch (e) {
+                        log('Failed to initialize socket:', e);
+                    }
+                });
+
+                disconnectBtn.addEventListener('click', () => {
+                    if (socket) {
+                        log('Disconnecting...');
+                        socket.disconnect();
+                    }
+                });
+
+                interruptBtn.addEventListener('click', () => {
+                    if (!socket || !socket.connected) {
+                        log('Not connected');
+                        return;
+                    }
+                    const { sessionId } = getAuth();
+                    if (!sessionId) {
+                        log('Provide a sessionId to send interrupt');
+                        return;
+                    }
+                    const payload = { sessionId, reason: 'manual interrupt' };
+                    log("Emit 'chat:interrupt'", payload);
+                    socket.emit('chat:interrupt', payload);
+                });
+
+                pingBtn.addEventListener('click', () => {
+                    if (!socket || !socket.connected) {
+                        log('Not connected');
+                        return;
+                    }
+                    log("Emit 'ping'");
+                    socket.emit('ping');
+                });
+
+                clearChatBtn.addEventListener('click', () => {
+                    // Clear chat area but keep the welcome message
+                    chatArea.innerHTML = `
+                        <div class="message ai-message">
+                            <div class="message-header">AI Assistant</div>
+                            <div class="message-content">Welcome! I'm ready to help you with questions about posts or create social media content. Send a message to get started.</div>
+                        </div>
+                    `;
+                    
+                    // Reset progress message tracking
+                    currentProgressMessage = null;
+                    
+                    log('Chat history cleared');
+                });
+
+                sendMessageBtn.addEventListener('click', () => {
+                    sendMessage();
+                });
+
+                messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
+
+                function sendMessage() {
+                    if (!socket || !socket.connected) {
+                        log('Not connected');
+                        return;
+                    }
+
+                    const message = messageInput.value.trim();
+                    if (!message) {
+                        log('Enter a message to send');
+                        return;
+                    }
+
+                    const { sessionId } = getAuth();
+                    if (!sessionId) {
+                        log('Provide a sessionId to send chat message');
+                        return;
+                    }
+
+                    // Add user message to chat area
+                    addChatMessage(message, true, false);
+
+                    const payload = {
+                        content: message,
+                        sessionId: sessionId
+                    };
+
+                    log("Emit 'chat:message'", payload);
+                    socket.emit('chat:message', payload);
+
+                    // Clear input
+                    messageInput.value = '';
+                }
+
+                // Initialize
+                setStatus(false);
+                log('Ready. Fill token/session and click Connect.');
+            })();
+        </script>
+    </body>
+
+</html>

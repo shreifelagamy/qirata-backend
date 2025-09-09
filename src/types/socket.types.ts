@@ -12,7 +12,6 @@ export interface SocketEvent {
 
 // AI Streaming types
 export interface ChatMessageData {
-    sessionId: string;
     content: string;
 }
 
@@ -101,6 +100,7 @@ export interface SocketData {
     lastActivity: Date;
     connectionTime: Date;
     activeStreams?: Set<string>; // Track active streaming sessions
+    memoryCache?: Map<string, any>; // Generic memory storage per session
 }
 
 export interface AuthenticatedSocket extends Socket {

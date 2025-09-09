@@ -2,7 +2,6 @@ import { Repository } from 'typeorm';
 import { AppDataSource } from '../app';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { ChatSession } from '../entities/chat-session.entity';
-import { MessageType } from '../entities/message.entity';
 import { Post } from '../entities/post.entity';
 import { AIContext } from '../types/ai.types';
 import { logger } from '../utils/logger';
@@ -28,7 +27,7 @@ export class ChatSessionService {
 
     async find(userId: string, page = 1, pageSize = 10, query?: string, favoriteFilter?: 'all' | 'favorites' | 'regular') {
         const offset = (page - 1) * pageSize;
-        
+
         let queryBuilder = this.chatSessionRepository
             .createQueryBuilder('session')
             .leftJoinAndSelect('session.post', 'post')
@@ -287,5 +286,15 @@ export class ChatSessionService {
         }
     }
 
+    async isOwner(id: string, userId: string): Promise<boolean> {
+        try {
+            const isOwner = await this.chatSessionRepository.exists({
+                where: { id, user_id: userId }
+            });
 
+            return isOwner;
+        } catch (error) {
+            return false;
+        }
+    }
 }

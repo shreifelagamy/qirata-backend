@@ -1,5 +1,5 @@
-import { MessageType } from '../../entities/message.entity';
 import { langGraphChatService } from '../../services/ai/langgraph-chat.service';
+import { QirataChatWorkflow } from '../../services/ai/workflows/qirata-chat.workflow';
 import { ChatSessionService } from '../../services/chat-session.service';
 import { MessagesService } from '../../services/messages.service';
 import { PostsService } from '../../services/posts.service';
@@ -8,6 +8,7 @@ import { SocialPostsService } from '../../services/social-posts.service';
 import { AICallbackData } from '../../types/ai.types';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
 import { logger } from '../../utils/logger';
+
 
 /**
  * Unified Chat Controller - Handles both Q&A and Social Post Generation
@@ -19,6 +20,7 @@ export class ChatController {
     private postService = new PostsService();
     private socialPostsService = new SocialPostsService();
     private settingsService = new SettingsService();
+    private qirataChatWorkflow = new QirataChatWorkflow();
     private activeStreams = new Map<string, boolean>();
 
     /**
@@ -27,109 +29,29 @@ export class ChatController {
      */
     async handleMessage(
         data: ChatMessageData,
-        userId: string,
         socket: AuthenticatedSocket,
         emit: (event: string, data: any) => void
     ): Promise<void> {
-        const { sessionId, content } = data;
+        const sessionId = socket.data.sessionId!
+        const { userId } = socket.data
+
+        this.handleActiveStream(sessionId, socket)
 
         try {
-            // 1. Validate session exists
-            const sessionExists = await this.chatSessionService.exists(sessionId, userId);
-            if (!sessionExists) {
-                emit('chat:stream:error', {
-                    sessionId,
-                    error: 'Chat session not found'
-                });
-                return;
-            }
-
-            // 2. Socket-specific stream management
-            this.activeStreams.set(sessionId, true);
-            if (!socket.data.activeStreams) {
-                socket.data.activeStreams = new Set();
-            }
-            socket.data.activeStreams.add(sessionId);
-
-            // 3. Get AI context from service
-            const context = await this.chatSessionService.buildAIContext(sessionId, userId);
-
-            // 4. Load user preferences and add to contextx
-            const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences(userId);
-            if (socialMediaContentPreferences) {
-                context.socialMediaContentPreferences = socialMediaContentPreferences;
-            }
-
-            // 5. Create stream callback for real-time updates
-            const streamCallback = (callbackData: AICallbackData) => {
-                this.handleStreamCallback(sessionId, callbackData, emit);
-            };
-
-            // 6. Stream AI response (AI determines intent and response type)
-            const streamingResponse = await langGraphChatService.processMessage(
-                content,
+            // Delegate to the workflow class - much cleaner!
+            await this.qirataChatWorkflow.start({
+                message: data.content,
+                socket,
                 sessionId,
-                context,
-                streamCallback
-            );
-
-            // 7. Check if stream was interrupted before processing final response
-            if (!this.activeStreams.get(sessionId)) {
-                logger.info(`Stream for session ${sessionId} was interrupted, skipping final processing`);
-                return;
-            }
-
-            // 8. Save message and send final event
-            if (streamingResponse.isComplete && !streamingResponse.error) {
-                // Determine message type based on AI intent
-                const messageType = streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE;
-
-                // Save to database with appropriate type
-                this.messagesService.saveMessage(
-                    sessionId,
-                    userId,
-                    content,
-                    streamingResponse.content || '',
-                    messageType
-                );
-
-                // Update session summary if available
-                if (streamingResponse.summary) {
-                    this.chatSessionService.updateSessionSummary(
-                        sessionId,
-                        streamingResponse.summary
-                    );
-                }
-
-                // Determine if it's a social post or Q&A based on AI intent
-                if (streamingResponse.isSocialPost && streamingResponse.structuredSocialPost) {
-                    const structuredPost = streamingResponse.structuredSocialPost;
-
-                    // Save social post to database with structured data
-                    const post = await this.socialPostsService.upsert(sessionId, userId, {
-                        platform: streamingResponse.socialPlatform!,
-                        content: structuredPost.postContent,
-                        code_examples: structuredPost.codeExamples || [],
-                        visual_elements: structuredPost.visualElements || []
-                    });
-
-                }
-
-                // Send appropriate final event based on AI intent
-                emit('chat:stream:end', {
-                    sessionId,
-                    fullContent: streamingResponse.content || '',
-                    messageType: streamingResponse.isSocialPost ? MessageType.SOCIAL_POST : MessageType.MESSAGE,
-                    userMessage: content
-                });
-            }
-
+                userId,
+                emit
+            });
         } catch (error) {
-            logger.error(`Error in ChatController.handleMessage:`, error);
-            this.cleanupStream(sessionId, socket);
+            logger.error(`Error in chat workflow for session ${sessionId}:`, error);
             emit('chat:stream:error', {
                 sessionId,
-                error: error instanceof Error ? error.message : 'Unknown error'
+                error: 'Failed to process message',
+                details: error instanceof Error ? error.message : 'Unknown error'
             });
         }
     }
@@ -143,7 +65,8 @@ export class ChatController {
         socket: AuthenticatedSocket,
         emit: (event: string, data: any) => void
     ): Promise<void> {
-        const { sessionId, reason } = data;
+        const { reason } = data;
+        const sessionId = socket.data.sessionId!;
 
         try {
             // Cancel the AI workflow first and get feedback
@@ -400,5 +323,14 @@ export class ChatController {
                 code: 'STREAM_RESPONSE_ERROR'
             });
         }
+    }
+
+
+    private handleActiveStream(sessionId: string, socket: AuthenticatedSocket): void {
+        // Prepare the context and save it in the memory
+        if (socket.data.activeStreams?.has(sessionId)) {
+            socket.data.activeStreams.delete(sessionId);
+        }
+        socket.data.activeStreams?.add(sessionId);
     }
 }

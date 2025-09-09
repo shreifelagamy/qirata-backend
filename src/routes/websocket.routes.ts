@@ -18,15 +18,8 @@ export const socketRoutes: Record<string, SocketRoute> = {
     'chat:message': {
         controller: ChatController,
         method: 'handleMessage',
-        middleware: ['auth', 'rateLimit', 'validation'],
+        middleware: ['auth', 'rateLimit', 'validation', 'sessionOwner'],
         validation: [
-            {
-                field: 'sessionId',
-                type: 'string',
-                required: true,
-                minLength: 1,
-                pattern: /^[a-zA-Z0-9\-_]+$/
-            },
             {
                 field: 'content',
                 type: 'string',
@@ -95,114 +88,9 @@ export const socketRoutes: Record<string, SocketRoute> = {
         ]
     },
 
-    // User Preferences (affects AI responses)
-    'chat:preferences': {
-        controller: ChatController,
-        method: 'updatePreferences',
-        middleware: ['auth', 'validation'],
-        validation: [
-            {
-                field: 'preferences',
-                type: 'object',
-                required: true
-            },
-            {
-                field: 'preferences.voice',
-                type: 'string',
-                required: false,
-                custom: (value) => {
-                    if (value && !['professional', 'friendly', 'direct', 'storyteller'].includes(value)) {
-                        return 'Voice must be one of: professional, friendly, direct, storyteller';
-                    }
-                    return true;
-                }
-            },
-            {
-                field: 'preferences.platform',
-                type: 'string',
-                required: false,
-                custom: (value) => {
-                    if (value && !['twitter', 'linkedin', 'general'].includes(value)) {
-                        return 'Platform must be one of: twitter, linkedin, general';
-                    }
-                    return true;
-                }
-            }
-        ]
-    },
-
     // Socket disconnect event
     'chat:disconnect': {
         controller: ChatController,
         method: 'handleDisconnect'
     },
-
-    // Legacy Events (backward compatibility)
-    'messageReceived': {
-        controller: ChatController,
-        method: 'handleLegacyMessage',
-        validation: [
-            {
-                field: 'roomId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            },
-            {
-                field: 'content',
-                type: 'string',
-                required: true,
-                minLength: 1,
-                maxLength: 10000
-            },
-            {
-                field: 'userId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            }
-        ]
-    },
-
-    'typingStatus': {
-        controller: ChatController,
-        method: 'handleTypingStatus',
-        validation: [
-            {
-                field: 'roomId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            },
-            {
-                field: 'userId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            },
-            {
-                field: 'isTyping',
-                type: 'boolean',
-                required: true
-            }
-        ]
-    },
-
-    'streamResponse': {
-        controller: ChatController,
-        method: 'handleStreamResponse',
-        validation: [
-            {
-                field: 'roomId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            },
-            {
-                field: 'chunk',
-                type: 'string',
-                required: true
-            }
-        ]
-    }
 };

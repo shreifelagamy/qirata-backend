@@ -5,10 +5,11 @@ import express, { Express, NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { createServer } from 'http';
 import morgan from 'morgan';
+import path from 'path';
 import { DataSource } from 'typeorm';
 import { auth } from './config/auth.config';
 import { errorMiddleware, HttpError } from './middleware/error.middleware';
-import { startupProfiler, LazyLoader, getDatabaseConfig, isProduction, isDevelopment } from './utils/startup-optimizer';
+import { getDatabaseConfig, isDevelopment, isProduction, LazyLoader, startupProfiler } from './utils/startup-optimizer';
 
 // Start timing the application startup
 startupProfiler.startTimer('total-startup');
@@ -52,6 +53,9 @@ app.all("/api/auth/*", toNodeHandler(auth));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static test page(s)
+app.use(express.static(path.join(__dirname, '../public')));
+
 // Minimal logging in production
 if (isProduction) {
     app.use(morgan('combined'));
@@ -63,7 +67,7 @@ startupProfiler.log('essential-middleware');
 
 // Health check route (available immediately)
 app.get('/health', (req: Request, res: Response) => {
-    res.status(200).json({ 
+    res.status(200).json({
         status: 'OK',
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
@@ -73,7 +77,7 @@ app.get('/health', (req: Request, res: Response) => {
 // Lazy load Helmet security middleware
 const getHelmet = () => LazyLoader.getInstance('helmet', () => {
     startupProfiler.startTimer('helmet-config');
-    
+
     const helmetConfig = isProduction ? {
         // Production: Strict security headers
         contentSecurityPolicy: {
@@ -113,7 +117,7 @@ const getHelmet = () => LazyLoader.getInstance('helmet', () => {
         crossOriginEmbedderPolicy: false,
         hsts: false
     };
-    
+
     startupProfiler.log('helmet-config');
     return helmet(helmetConfig);
 });
@@ -155,35 +159,35 @@ server.on('error', (error: any) => {
 // Initialize database connection in background
 const initializeDatabase = async () => {
     startupProfiler.startTimer('db-connection');
-    
+
     try {
         await AppDataSource.initialize();
         startupProfiler.log('db-connection');
-        
+
         // Mount API routes after DB is ready
         startupProfiler.startTimer('routes-setup');
         const { createRouter } = await import('./routes');
         const apiRouter = createRouter();
         app.use('/api/v1', apiRouter);
         startupProfiler.log('routes-setup');
-        
+
         // Add error handling AFTER routes
         app.use((req: Request, res: Response, next: NextFunction) => {
             const error = new HttpError(404, `Route ${req.path} not found`);
             next(error);
         });
-        
+
         app.use(errorMiddleware);
-        
+
         console.log(`✅ Database connected and routes mounted (${startupProfiler.getTotalTime()}ms)`);
-        
+
     } catch (error) {
         console.error('❌ Database connection failed:', error);
         // Don't exit - keep server running for health checks
-        
+
         // Add fallback route for database errors
         app.use('/api/v1/*', (req: Request, res: Response) => {
-            res.status(503).json({ 
+            res.status(503).json({
                 error: 'Service temporarily unavailable',
                 message: 'Database connection failed'
             });
