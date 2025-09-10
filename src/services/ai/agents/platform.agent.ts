@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for platform detection
 const PlatformInput = z.object({
@@ -65,6 +66,10 @@ Current message: "${options.message}"
 Analyze this message to detect whether the user wants Twitter (X) or LinkedIn, and respond accordingly.`)
     ];
 
-    const result = await model.invoke(messages);
+    const result = await model.invoke(messages, {
+        callbacks: [
+            createDebugCallback('platform')
+        ]
+    });
     return result;
 }

@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for post Q&A
 const PostQAInput = z.object({
@@ -67,7 +68,11 @@ Answer the question using available post content. Be educational and helpful.`;
     const result = await model.invoke([
         { role: 'system', content: CACHED_SYSTEM_PROMPT },
         { role: 'user', content: userPrompt }
-    ]);
+    ], {
+        callbacks: [
+            createDebugCallback('post-qa')
+        ]
+    });
 
     return result;
 }

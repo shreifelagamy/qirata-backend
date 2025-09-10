@@ -99,7 +99,7 @@ export interface SocketData {
     isAuthenticated: boolean;
     lastActivity: Date;
     connectionTime: Date;
-    activeStreams?: Set<string>; // Track active streaming sessions
+    activeStreams?: Map<string, AbortController>; // Track active streaming sessions
     memoryCache?: Map<string, any>; // Generic memory storage per session
 }
 

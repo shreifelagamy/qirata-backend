@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema for general support with post context
 const GeneralSupportInput = z.object({
@@ -76,8 +77,8 @@ Current message: "${options.message}"
 Provide helpful support as Qirata's AI assistant with suggestions tailored to the post context.`)
     ];
 
-    const result = await model.invoke(messages);
-
-    console.log(result);
+    const result = await model.invoke(messages, {
+        callbacks: [createDebugCallback('general-support')]
+    });
     return result;
 }

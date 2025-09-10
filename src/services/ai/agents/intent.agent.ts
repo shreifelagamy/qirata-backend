@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema with better context
 const IntentRouterInput = z.object({
@@ -74,7 +75,11 @@ Classify this message and provide your analysis.`;
     const result = await model.invoke([
         { role: 'system', content: CACHED_SYSTEM_PROMPT },
         { role: 'user', content: userPrompt }
-    ]);
+    ], {
+        callbacks: [
+            createDebugCallback('intent-router')
+        ]
+    });
 
     return result;
 }

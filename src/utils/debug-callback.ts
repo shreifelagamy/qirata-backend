@@ -47,6 +47,8 @@ export class DebugCallback extends BaseCallbackHandler {
     }
 
     async handleChatModelStart(llm: any, messages: any[][]): Promise<void> {
+        if (process.env.NODE_ENV === 'production') return;
+        
         try {
             const debugContent = this.formatPromptDebug(messages);
             const filePath = this.getLogFilePath('prompt');
@@ -57,6 +59,8 @@ export class DebugCallback extends BaseCallbackHandler {
     }
 
     async handleLLMEnd(output: any): Promise<void> {
+        if (process.env.NODE_ENV === 'production') return;
+        
         try {
             const responseContent = this.formatResponseDebug(output);
             const filePath = this.getLogFilePath('response');

@@ -33,14 +33,8 @@ export const socketRoutes: Record<string, SocketRoute> = {
     'chat:interrupt': {
         controller: ChatController,
         method: 'handleInterrupt',
-        middleware: ['auth', 'validation'],
+        middleware: ['auth', 'validation', 'sessionOwner'],
         validation: [
-            {
-                field: 'sessionId',
-                type: 'string',
-                required: true,
-                minLength: 1
-            },
             {
                 field: 'reason',
                 type: 'string',

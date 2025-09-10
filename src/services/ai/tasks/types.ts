@@ -45,6 +45,20 @@ const aiResponse = z.object({
     clarifyingQuestion: z.string().optional(),
     socialPostContent: z.string().optional(),
     socialPostId: z.string().optional(),
+    structuredPost: z.object({
+        postContent: z.string(),
+        codeExamples: z.array(z.object({
+            language: z.string(),
+            code: z.string(),
+            description: z.string().optional()
+        })).optional(),
+        visualElements: z.array(z.object({
+            type: z.string(),
+            description: z.string(),
+            content: z.string(),
+            style: z.string()
+        })).optional()
+    }).optional(),
 })
 
 export const TaskOutput = z.object({

@@ -54,7 +54,7 @@ class SocketService {
                     isAuthenticated: true,
                     lastActivity: new Date(),
                     connectionTime: new Date(),
-                    activeStreams: new Set(),
+                    activeStreams: new Map(),
                     email: userEmail,
                     name: userName,
                     sessionId

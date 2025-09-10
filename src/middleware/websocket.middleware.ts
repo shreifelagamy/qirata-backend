@@ -181,7 +181,6 @@ class WebSocketMiddleware {
                 };
             }
 
-            console.log(sessionId, userId)
             const isOwner = await this.chatSessionService.isOwner(sessionId, userId);
 
             if (!isOwner) {

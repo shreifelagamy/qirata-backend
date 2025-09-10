@@ -49,9 +49,9 @@ export const socialPostEditTask = task('socialPostEdit', async (
 
         return {
             response: {
-                message: `${result.message}\n\n**Updated Post:**\n${result.socialPostContent}`,
+                message: `${result.message}\n\n**Updated Post:**\n${result.structuredPost.postContent}`,
                 suggestedOptions: result.suggestedOptions,
-                socialPostContent: result.socialPostContent,
+                structuredPost: result.structuredPost,
                 socialPostId
             },
             contextUpdates: {

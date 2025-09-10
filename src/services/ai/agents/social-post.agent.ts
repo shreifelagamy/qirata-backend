@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for social post generation and editing
 const SocialPostInput = z.object({
@@ -21,12 +22,45 @@ const SocialPostInput = z.object({
     })).nullable().describe('Previously created social posts for reference and editing')
 });
 
-// Output schema for social post generation
+// TypeScript interfaces for structured output (matching old generator)
+export interface CodeExample {
+    language: string; // Programming language (e.g., javascript, python, sql)
+    code: string; // The actual code content
+    description?: string; // Optional explanation of the code
+}
+
+export interface VisualElement {
+    type: string; // Type of visual (diagram, chart, infographic, screenshot)
+    description: string; // Detailed description of the visual to create
+    content: string; // Text content or data for the visual
+    style: string; // Visual style preferences
+}
+
+export interface StructuredSocialPostOutput {
+    postContent: string; // Main text content for the social media post
+    codeExamples?: CodeExample[]; // Optional array of code snippets
+    visualElements?: VisualElement[]; // Optional array of visual elements to create
+}
+
+// Output schema for social post generation (for agent return)
 export const SocialPostOutput = z.object({
-    socialPostContent: z.string().describe('The generated social media post content'),
     message: z.string().describe('Response message to the user about the generated post'),
     suggestedOptions: z.array(z.string()).max(3).describe('Up to 3 suggested actions for the user'),
-    socialPostId: z.string().nullable().describe('ID of the social post being edited (only for edit operations)')
+    socialPostId: z.string().nullable().describe('ID of the social post being edited (only for edit operations)'),
+    structuredPost: z.object({
+        postContent: z.string().describe('Main text content for the social media post'),
+        codeExamples: z.array(z.object({
+            language: z.string().describe('Programming language'),
+            code: z.string().describe('The actual code content'),
+            description: z.string().optional().describe('Optional explanation of the code')
+        })).optional().describe('Optional array of code snippets'),
+        visualElements: z.array(z.object({
+            type: z.string().describe('Type of visual'),
+            description: z.string().describe('Detailed description of the visual to create'),
+            content: z.string().describe('Text content or data for the visual'),
+            style: z.string().describe('Visual style preferences')
+        })).optional().describe('Optional array of visual elements to create')
+    }).describe('Structured social post content with code examples and visual elements')
 });
 
 // System prompt for social post generation and editing
@@ -48,6 +82,25 @@ CONTENT STRATEGY:
 - Make it engaging and shareable for the target platform
 - Add value to the user's professional or personal brand
 
+STRUCTURED CONTENT CREATION:
+When the conversation includes technical topics, programming concepts, or educational content:
+
+**Code Examples**: Always place code in the structuredPost.codeExamples array, never in the main postContent
+- Identify programming languages, code snippets, or technical examples from the conversation
+- Extract code into separate objects with language, code, and description fields
+- Support languages: javascript, python, sql, html, css, typescript, etc.
+
+**Visual Elements**: When content would benefit from visual representation
+- Identify opportunities for diagrams, charts, infographics, or screenshots
+- Create detailed descriptions for visual elements that enhance understanding
+- Include content and style preferences for visual creation
+
+**Content Separation Rules**:
+- Main social media text goes in structuredPost.postContent only
+- All code examples go in structuredPost.codeExamples array
+- All visual descriptions go in structuredPost.visualElements array
+- Never include code blocks or visual descriptions in the main postContent
+
 EDIT DETECTION & HANDLING:
 - EDIT REQUEST: Contains action words (edit, change, modify, update, fix) + references to existing posts
 - POST IDENTIFICATION: Use context clues to identify which post to edit:
@@ -68,6 +121,12 @@ SOCIAL POSTS CONTEXT AWARENESS:
 PLATFORM OPTIMIZATION:
 - Twitter: Concise, engaging, hashtag-friendly, under 280 chars
 - LinkedIn: Professional, thoughtful, industry insights, longer form
+
+STRUCTURED OUTPUT REQUIREMENTS:
+Always provide the structuredPost object with:
+- postContent: Platform-optimized main text (required)
+- codeExamples: Array of code snippets if technical content is present (optional)
+- visualElements: Array of visual element descriptions if applicable (optional)
 
 Keep responses focused and provide actionable next steps for the user.`;
 
@@ -177,6 +236,10 @@ ${options.socialPosts && options.socialPosts.length > 0
     ? 'If this is an edit request, identify the target post from the SOCIAL_POSTS_CONTEXT above and MUST return the socialPostId of the post being edited. Apply only the requested changes. If this is a new post request, create engaging content that avoids duplicating existing posts and do NOT return a socialPostId.'
     : 'Create an engaging'} ${options.platform} post that incorporates the provided context and follows platform best practices.`));
 
-    const result = await model.invoke(messages);
+    const result = await model.invoke(messages, {
+        callbacks: [
+            createDebugCallback('social-post')
+        ]
+    });
     return result;
 }

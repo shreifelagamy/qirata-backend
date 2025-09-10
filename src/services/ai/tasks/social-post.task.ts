@@ -30,9 +30,9 @@ export const socialPostTask = task('socialPost', async (
 
         return {
             response: {
-                message: `${result.message}\n\n**Generated ${memory.detectedPlatform} Post:**\n${result.socialPostContent}`,
+                message: `${result.message}\n\n**Generated ${memory.detectedPlatform} Post:**\n${result.structuredPost.postContent}`,
                 suggestedOptions: result.suggestedOptions,
-                socialPostContent: result.socialPostContent,
+                structuredPost: result.structuredPost,
                 socialPostId: result.socialPostId || undefined
             },
             contextUpdates: {
