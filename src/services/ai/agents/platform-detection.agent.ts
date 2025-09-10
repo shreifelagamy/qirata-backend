@@ -13,7 +13,7 @@ const KEEP_RECENT = 5; // Keep last 5 user messages for context
 // Zod schema for platform detection response
 const PlatformDetectionSchema = z.object({
     platform: z.enum(['twitter', 'linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'])
-        .nullable()
+        .optional()
         .describe('The detected social media platform where user wants to share content. Null if no platform could be determined with reasonable confidence'),
 
     confidence: z.number()
@@ -29,7 +29,7 @@ const PlatformDetectionSchema = z.object({
         .describe('Brief explanation of why this platform was chosen or why clarification is needed. Should consider both current message and conversation context'),
 
     clarificationQuery: z.string()
-        .nullable()
+        .optional()
         .describe('Specific question to ask the user when clarification is needed. Should be present when needsClarification is true. Example: "Which platform would you like to share this on - Twitter, LinkedIn, or Instagram?"')
 });
 
@@ -95,7 +95,7 @@ export async function detectPlatform(options: PlatformDetectionOptions): Promise
         AILogger.error('Platform detection failed', error);
         // Fallback response when AI fails
         return {
-            platform: null,
+            platform: undefined,
             confidence: 0,
             needsClarification: true,
             reasoning: 'Platform detection failed, requesting user clarification',

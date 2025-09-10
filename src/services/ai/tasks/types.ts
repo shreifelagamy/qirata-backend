@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { partial } from 'zod/v4/core/util';
+
+// Schema for a single cached social post
+export const CachedSocialPost = z.object({
+    id: z.string(),
+    platform: z.enum(['twitter', 'linkedin']),
+    content: z.string(),
+    cachedAt: z.date(),
+});
 
 // Simplified message schema for memory storage
 export const SimplifiedMessage = z.object({
@@ -18,8 +25,12 @@ export const MemoryState = z.object({
     // platform related state
     detectedPlatform: z.enum(['twitter', 'linkedin']).optional(),
     // social post related state
-    lastGeneratedSocialPost: z.string().optional(),
-    lastGeneratedPlatform: z.enum(['twitter', 'linkedin']).optional(),
+    socialPostsCache: z.object({
+        posts: z.array(CachedSocialPost),
+        cachedAt: z.date()
+    }).optional(),
+    // user preferences
+    socialMediaContentPreferences: z.string().optional(),
     // conversation related state
     lastMessages: z.array(SimplifiedMessage).max(10).default([]),
     messagesCount: z.number().default(0),
@@ -27,10 +38,13 @@ export const MemoryState = z.object({
 });
 
 const aiResponse = z.object({
-    intent: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_LAST_POST']).optional(),
+    intent: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_SOCIAL_POST', 'CLARIFY_INTENT']).optional(),
     message: z.string().optional(),
     suggestedOptions: z.array(z.string()).optional(),
     needsSocialClarification: z.boolean().optional(),
+    clarifyingQuestion: z.string().optional(),
+    socialPostContent: z.string().optional(),
+    socialPostId: z.string().optional(),
 })
 
 export const TaskOutput = z.object({
@@ -40,4 +54,4 @@ export const TaskOutput = z.object({
 
 export type SimplifiedMessage = z.infer<typeof SimplifiedMessage>;
 export type MemoryStateType = z.infer<typeof MemoryState>;
-
+export type CachedSocialPostType = z.infer<typeof CachedSocialPost>;

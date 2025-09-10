@@ -9,9 +9,11 @@ const IntentRouterInput = z.object({
 
 // Enhanced output schema with confidence and reasoning
 export const IntentRouterOutput = z.object({
-    intent: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_LAST_POST']).describe('The classified intent'),
+    intent: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_SOCIAL_POST', 'CLARIFY_INTENT']).describe('The classified intent'),
     confidence: z.number().min(0).max(1).describe('Confidence score between 0 and 1'),
     reasoning: z.string().min(10).describe('Brief explanation for the classification decision'),
+    clarifyingQuestion: z.string().nullable().describe('Clarifying question to ask when intent is unclear (required when intent is CLARIFY_INTENT)'),
+    suggestedOptions: z.array(z.string()).max(3).nullable().describe('Context-aware suggested options for the user (especially important for CLARIFY_INTENT)'),
 });
 
 // Cached system prompt for consistent performance
@@ -28,18 +30,29 @@ Your task is to classify user messages into one of these intents:
 3. ASK_POST - Questions about existing posts or their content
    Examples: "what is this post about?", "summarize the article", "explain this content"
 
-4. EDIT_LAST_POST - Requests to modify the most recently created post
-   Examples: "change the intro", "make it shorter", "add hashtags to the last post"
+4. EDIT_SOCIAL_POST - Requests to modify any previously created social media post
+   Examples:
+   - "change the intro", "make it shorter" (implies most recent post)
+   - "edit the LinkedIn post", "update the Twitter post" (specific platform)
+   - "modify the post about AI", "change the marketing post" (content reference)
+   - "update the second post", "edit the first one" (position reference)
 
-Context considerations:
+5. CLARIFY_INTENT - When the user's intent is unclear or ambiguous (confidence < 0.7)
+   Use this when you cannot confidently classify the message into the above categories.
+   Examples: "do something", "help with this", "change it", vague references without context
+
+Classification Guidelines:
 - Use previous messages to understand conversation flow
 - Consider the last action to maintain context continuity
-- If ambiguous, choose the most likely intent based on conversational context
+- If confidence is below 0.7, use CLARIFY_INTENT and provide a clarifying question
+- If ambiguous but with reasonable context clues, choose the most likely intent with appropriate confidence
 
 You must respond with a JSON object containing:
-- intent: one of the four intents above
+- intent: one of the five intents above
 - confidence: a number between 0.0 and 1.0
-- reasoning: a brief explanation for your decision`;
+- reasoning: a brief explanation for your decision
+- clarifyingQuestion: required when intent is CLARIFY_INTENT, optional otherwise
+- suggestedOptions: array of up to 3 context-aware options (required for CLARIFY_INTENT, optional for others)`;
 
 export async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
     const model = new ChatOpenAI({

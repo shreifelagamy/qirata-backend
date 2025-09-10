@@ -22,20 +22,21 @@ export const socialPostTask = task('socialPost', async (
         const result = await socialPostAgent({
             message: params.message,
             lastMessages: memory.lastMessages || [],
-            postSummary: memory.postSummary,
-            platform: memory.detectedPlatform,
-            socialMediaContentPreferences: undefined // TODO: Get from user settings
+            postSummary: memory.postSummary || null,
+            platform: memory.detectedPlatform || null,
+            socialMediaContentPreferences: memory.socialMediaContentPreferences || null,
+            socialPosts: null
         });
 
         return {
             response: {
                 message: `${result.message}\n\n**Generated ${memory.detectedPlatform} Post:**\n${result.socialPostContent}`,
-                suggestedOptions: result.suggestedOptions
+                suggestedOptions: result.suggestedOptions,
+                socialPostContent: result.socialPostContent,
+                socialPostId: result.socialPostId || undefined
             },
             contextUpdates: {
-                // Store the generated social post content for future reference
-                lastGeneratedSocialPost: result.socialPostContent,
-                lastGeneratedPlatform: memory.detectedPlatform
+                // Remove deprecated fields since we're using cache now
             }
         };
 

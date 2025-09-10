@@ -77,5 +77,7 @@ Provide helpful support as Qirata's AI assistant with suggestions tailored to th
     ];
 
     const result = await model.invoke(messages);
+
+    console.log(result);
     return result;
 }

@@ -13,6 +13,10 @@ export const intentTask = task("intentRouter", async (
     });
 
     return {
-        response,
+        response: {
+            intent: response.intent,
+            suggestedOptions: response.suggestedOptions || undefined,
+            clarifyingQuestion: response.clarifyingQuestion || undefined,
+        },
     }
 });

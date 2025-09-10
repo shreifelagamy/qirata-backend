@@ -1,14 +1,18 @@
 import { entrypoint } from '@langchain/langgraph';
 import { AuthenticatedSocket } from '../../../types/socket.types';
+import { SocialPostsService } from '../../social-posts.service';
+import { MessagesService } from '../../messages.service';
 import { SocketMemoryService } from '../../websocket/socket-memory.service';
 import {
     intentTask,
     platformTask,
     postQATask,
+    socialPostEditTask,
     socialPostTask,
     supportTask
 } from '../tasks';
 import { MemoryStateType } from '../tasks/types';
+import { MessageType } from '../../../entities/message.entity';
 
 interface WorkflowParams {
     message: string;
@@ -23,13 +27,24 @@ interface WorkflowResult {
     suggestedOptions: string[];
 }
 
+interface SocialPostContext {
+    platform: string;
+    content: string;
+    id: string;
+    createdAt: Date;
+    publishedAt?: Date;
+}
+
 /**
  * Qirata Chat Workflow Class
  * Handles the entire AI conversation flow using LangGraph Functional API
  * Manages memory, emits events, and orchestrates all tasks
+ * TODO: handle interrupt
  */
 export class QirataChatWorkflow {
     private socketMemoryService = new SocketMemoryService();
+    private socialPostsService = new SocialPostsService();
+    private messagesService = new MessagesService();
     private workflow: any;
 
     constructor() {
@@ -80,7 +95,7 @@ export class QirataChatWorkflow {
 
         // Detect intent
         const { response: intentResponse } = await intentTask({ message }, memory);
-        console.log('Intent detected:', intentResponse.intent);
+        console.log('Intent detected:', intentResponse);
 
         // Route to appropriate handler based on intent
         switch (intentResponse.intent) {
@@ -92,6 +107,12 @@ export class QirataChatWorkflow {
 
             case 'REQ_SOCIAL_POST':
                 return await this.handleSocialPostRequest({ message, memory, socket, sessionId, emit });
+
+            case 'EDIT_SOCIAL_POST':
+                return await this.handleSocialPostEdit({ message, memory, socket, sessionId, emit });
+
+            case 'CLARIFY_INTENT':
+                return await this.handleIntentClarification({ message, memory, socket, sessionId, emit, intentResponse });
 
             default:
                 return await this.handleUnknownIntent({ message, memory, socket, sessionId, emit });
@@ -119,10 +140,11 @@ export class QirataChatWorkflow {
         // Execute support task
         const { response: supportResponse } = await supportTask({ message }, memory);
 
-        // Update memory
-        this.socketMemoryService.addMessage({
+        // Save message to memory and database (non-blocking)
+        this.saveMessage({
             socket,
             sessionId,
+            userId: memory.userId,
             userMessage: message,
             aiResponse: supportResponse.message!
         });
@@ -158,10 +180,11 @@ export class QirataChatWorkflow {
         // Execute post Q&A task
         const { response: qaResponse, contextUpdates } = await postQATask({ message }, memory);
 
-        // Update memory with message
-        this.socketMemoryService.addMessage({
+        // Save message to memory and database (non-blocking)
+        this.saveMessage({
             socket,
             sessionId,
+            userId: memory.userId,
             userMessage: message,
             aiResponse: qaResponse.message!
         });
@@ -222,7 +245,8 @@ export class QirataChatWorkflow {
                 socket,
                 sessionId,
                 emit,
-                platformResponse
+                platformResponse,
+                memory
             });
         }
     }
@@ -257,6 +281,28 @@ export class QirataChatWorkflow {
         // Generate social post
         const { response: socialPostResponse, contextUpdates: socialPostContextUpdates } = await socialPostTask({ message }, updatedMemory);
 
+        // Save generated social post to database
+        if (socialPostResponse.socialPostContent) {
+            try {
+                const savedPost = await this.socialPostsService.upsert(sessionId, memory.userId, {
+                    content: socialPostResponse.socialPostContent,
+                    platform: platformContextUpdates.detectedPlatform,
+                    image_urls: [],
+                    code_examples: [],
+                    visual_elements: []
+                });
+
+                console.log(`💾 [Workflow] Saved social post ${savedPost.id} to database`);
+
+                // Invalidate cache after successful save
+                this.socketMemoryService.invalidateSocialPostsCache({ socket, sessionId });
+
+            } catch (error) {
+                console.error('❌ [Workflow] Error saving social post to database:', error);
+                // Continue execution - don't block the user experience
+            }
+        }
+
         // Update memory with social post context if needed
         if (socialPostContextUpdates) {
             this.socketMemoryService.updateContext({
@@ -266,10 +312,11 @@ export class QirataChatWorkflow {
             });
         }
 
-        // Add message to memory
-        this.socketMemoryService.addMessage({
+        // Save message to memory and database (non-blocking)
+        this.saveMessage({
             socket,
             sessionId,
+            userId: memory.userId,
             userMessage: message,
             aiResponse: socialPostResponse.message!
         });
@@ -293,13 +340,15 @@ export class QirataChatWorkflow {
         sessionId: string;
         emit: (event: string, data: any) => void;
         platformResponse: any;
+        memory: MemoryStateType;
     }): Promise<WorkflowResult> {
-        const { message, socket, sessionId, emit, platformResponse } = params;
+        const { message, socket, sessionId, emit, platformResponse, memory } = params;
 
-        // Add platform clarification to memory
-        this.socketMemoryService.addMessage({
+        // Save platform clarification message to memory and database (non-blocking)
+        this.saveMessage({
             socket,
             sessionId,
+            userId: memory.userId,
             userMessage: message,
             aiResponse: platformResponse.message!
         });
@@ -308,6 +357,158 @@ export class QirataChatWorkflow {
         const result = {
             response: platformResponse.message!,
             suggestedOptions: platformResponse.suggestedOptions || []
+        };
+
+        this.emitCompletion(sessionId, result, emit);
+        return result;
+    }
+
+    /**
+     * Handle social media post edit requests
+     */
+    private async handleSocialPostEdit(params: {
+        message: string;
+        memory: MemoryStateType;
+        socket: AuthenticatedSocket;
+        sessionId: string;
+        emit: (event: string, data: any) => void;
+    }): Promise<WorkflowResult> {
+        const { message, memory, socket, sessionId, emit } = params;
+
+        // Emit progress
+        emit('chat:stream:token', {
+            sessionId,
+            token: 'Analyzing edit request...'
+        });
+
+        // Get existing social posts from session context using cached method
+        const socialPosts = await this.socketMemoryService.getSocialPosts({ socket, sessionId, userId: memory.userId });
+
+        if (!socialPosts || socialPosts.length === 0) {
+            // No posts to edit
+            const result = {
+                response: "I couldn't find any social posts to edit in this session. Would you like to create a new social media post instead?",
+                suggestedOptions: ['Create a new social media post', 'Ask about content']
+            };
+
+            this.emitCompletion(sessionId, result, emit);
+            return result;
+        }
+
+        // Emit progress
+        emit('chat:stream:token', {
+            sessionId,
+            token: 'Editing social media post...'
+        });
+
+        // Use the dedicated social post edit task
+        const { response: socialPostResponse, contextUpdates: socialPostContextUpdates } = await socialPostEditTask(
+            {
+                message,
+                socialPosts: socialPosts.map(post => ({
+                    ...post,
+                    publishedAt: post.publishedAt || null // Convert undefined to null
+                }))
+            },
+            memory
+        );
+
+        // Save edited social post to database
+        if (socialPostResponse.socialPostContent && socialPostResponse.socialPostId) {
+            try {
+                const updatedPost = await this.socialPostsService.update(
+                    sessionId,
+                    socialPostResponse.socialPostId,
+                    memory.userId,
+                    {
+                        content: socialPostResponse.socialPostContent,
+                        image_urls: [],
+                        code_examples: [],
+                        visual_elements: []
+                    }
+                );
+                console.log(`💾 [Workflow] Updated social post ${updatedPost.id} in database`);
+
+                // Invalidate cache after successful save
+                this.socketMemoryService.invalidateSocialPostsCache({ socket, sessionId });
+
+            } catch (error) {
+                console.error('❌ [Workflow] Error updating social post in database:', error);
+                // Continue execution - don't block the user experience
+            }
+        }
+
+        // Update memory with any context updates
+        if (socialPostContextUpdates) {
+            this.socketMemoryService.updateContext({
+                socket,
+                sessionId,
+                updates: socialPostContextUpdates
+            });
+        }
+
+        // Save message to memory and database (non-blocking)
+        this.saveMessage({
+            socket,
+            sessionId,
+            userId: memory.userId,
+            userMessage: message,
+            aiResponse: socialPostResponse.message!
+        });
+
+        // Return result
+        const result = {
+            response: socialPostResponse.message!,
+            suggestedOptions: socialPostResponse.suggestedOptions || []
+        };
+
+        this.emitCompletion(sessionId, result, emit);
+        return result;
+    }
+
+
+    /**
+     * Handle intent clarification requests
+     */
+    private async handleIntentClarification(params: {
+        message: string;
+        memory: MemoryStateType;
+        socket: AuthenticatedSocket;
+        sessionId: string;
+        emit: (event: string, data: any) => void;
+        intentResponse: any;
+    }): Promise<WorkflowResult> {
+        const { message, memory, socket, sessionId, emit, intentResponse } = params;
+
+        // Emit progress
+        emit('chat:stream:token', {
+            sessionId,
+            token: 'Understanding your request...'
+        });
+
+        // Save clarification message to memory and database (non-blocking)
+        this.saveMessage({
+            socket,
+            sessionId,
+            userId: memory.userId,
+            userMessage: message,
+            aiResponse: intentResponse.clarifyingQuestion || "I need more information to help you properly."
+        });
+
+        // Use the clarifying question and suggested options from the intent agent
+        const clarifyingQuestion = intentResponse.clarifyingQuestion ||
+            "I'm not sure exactly what you'd like me to help with. Could you be more specific?";
+
+        // Use agent-provided suggested options, or fall back to generic ones
+        const suggestedOptions = intentResponse.suggestedOptions || [
+            "Ask about content",
+            "Create social post",
+            "Edit existing post"
+        ];
+
+        const result = {
+            response: clarifyingQuestion,
+            suggestedOptions
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -333,6 +534,38 @@ export class QirataChatWorkflow {
 
         this.emitCompletion(sessionId, result, emit);
         return result;
+    }
+
+    /**
+     * Save message to both memory and database (fire-and-forget)
+     */
+    private async saveMessage(params: {
+        socket: AuthenticatedSocket;
+        sessionId: string;
+        userId: string;
+        userMessage: string;
+        aiResponse: string;
+    }): Promise<void> {
+        const { socket, sessionId, userId, userMessage, aiResponse } = params;
+
+        try {
+            // Update memory cache
+            this.socketMemoryService.addMessage({
+                socket,
+                sessionId,
+                userMessage,
+                aiResponse
+            });
+
+            // Save to database immediately (non-blocking)
+            this.messagesService.saveMessage(sessionId, userId, userMessage, aiResponse, MessageType.MESSAGE);
+
+            console.log(`💾 [Workflow] Saved message to database for session ${sessionId}`);
+
+        } catch (error) {
+            console.error('❌ [Workflow] Error saving message to database:', error);
+            // Continue execution - don't block user experience
+        }
     }
 
     /**

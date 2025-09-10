@@ -1,5 +1,7 @@
 import { ChatSessionService } from '../chat-session.service';
 import { MessagesService } from '../messages.service';
+import { SettingsService } from '../settings.service';
+import { SocialPostsService } from '../social-posts.service';
 import { MemoryStateType, SimplifiedMessage } from '../ai/tasks/types';
 import { AuthenticatedSocket } from '../../types/socket.types';
 
@@ -50,6 +52,20 @@ interface ClearAllMemoryParams {
     socket: AuthenticatedSocket;
 }
 
+interface GetSocialPostsParams {
+    socket: AuthenticatedSocket;
+    sessionId: string;
+    userId: string;
+}
+
+interface SocialPostContext {
+    platform: string;
+    content: string;
+    id: string;
+    createdAt: Date;
+    publishedAt?: Date;
+}
+
 /**
  * Service for managing WebSocket session memory cache
  * Handles all memory operations for chat sessions stored in socket data
@@ -57,6 +73,8 @@ interface ClearAllMemoryParams {
 export class SocketMemoryService {
     private chatSessionService = new ChatSessionService();
     private messagesService = new MessagesService();
+    private settingsService = new SettingsService();
+    private socialPostsService = new SocialPostsService();
 
     /**
      * Get or build memory for a session, automatically caching in socket
@@ -65,6 +83,7 @@ export class SocketMemoryService {
         // Initialize memory cache if not exists
         if (!socket.data.memoryCache) {
             socket.data.memoryCache = new Map<string, any>();
+            console.log(`🔧 [SocketMemory] Initializing memory cache for socket ${socket.id}`);
         }
 
         // Get memory from socket cache
@@ -72,8 +91,11 @@ export class SocketMemoryService {
 
         // Build memory if it doesn't exist or is incomplete
         if (!memory || !memory.currentPostId) {
+            console.log(`🔄 [SocketMemory] Loading from DATABASE for session ${sessionId}`);
             memory = await this.buildMemoryFromDatabase(sessionId, userId);
             socket.data.memoryCache.set(sessionId, memory);
+        } else {
+            console.log(`⚡ [SocketMemory] Using CACHED memory for session ${sessionId}`);
         }
 
         return memory;
@@ -91,10 +113,10 @@ export class SocketMemoryService {
             user_message: userMessage,
             ai_response: aiResponse
         });
-        
+
         // Update message count
         memory.messagesCount = memory.lastMessages.length;
-        
+
         // Keep only last 10 messages to prevent memory bloat
         if (memory.lastMessages.length > 10) {
             memory.lastMessages = memory.lastMessages.slice(-10);
@@ -113,10 +135,10 @@ export class SocketMemoryService {
 
         // Merge context updates with existing memory
         const updatedMemory = { ...memory, ...updates };
-        
+
         // Update cache
         socket.data.memoryCache?.set(sessionId, updatedMemory);
-        
+
         return updatedMemory;
     }
 
@@ -128,13 +150,81 @@ export class SocketMemoryService {
     }
 
     /**
-     * Store generated social post content in memory
+     * Get social posts from session with 1-minute caching
      */
-    setSocialPostContent({ socket, sessionId, content, platform }: SetSocialPostContentParams): void {
-        this.updateContext({ socket, sessionId, updates: {
-            lastGeneratedSocialPost: content,
-            lastGeneratedPlatform: platform
-        }});
+    async getSocialPosts({ socket, sessionId, userId }: GetSocialPostsParams): Promise<SocialPostContext[] | null> {
+        try {
+            const memory = this.getMemoryFromCache({ socket, sessionId });
+
+            // Check if we have cached posts less than 1 minute old
+            if (memory?.socialPostsCache) {
+                const cacheAge = Date.now() - memory.socialPostsCache.cachedAt.getTime();
+                const oneMinute = 60 * 1000; // 1 minute in milliseconds
+
+                if (cacheAge < oneMinute) {
+                    console.log('🚀 [SocketMemory] Using cached social posts');
+                    return memory.socialPostsCache.posts.map(post => ({
+                        platform: post.platform,
+                        content: post.content,
+                        id: post.id,
+                        createdAt: post.cachedAt,
+                        publishedAt: undefined // cached posts don't track publish status
+                    }));
+                }
+            }
+
+            // Cache is stale or doesn't exist, fetch from DB
+            console.log('🔄 [SocketMemory] Fetching social posts from database');
+            const posts = await this.socialPostsService.findByChatSession(sessionId, userId);
+
+            const transformedPosts: SocialPostContext[] = posts.map(post => ({
+                platform: post.platform,
+                content: post.content,
+                id: post.id,
+                createdAt: post.created_at,
+                publishedAt: post.published_at || undefined
+            }));
+
+            // Update cache in memory if memory exists
+            if (memory) {
+                this.updateContext({
+                    socket,
+                    sessionId,
+                    updates: {
+                        socialPostsCache: {
+                            posts: posts.map(post => ({
+                                id: post.id,
+                                platform: post.platform as 'twitter' | 'linkedin',
+                                content: post.content,
+                                cachedAt: new Date()
+                            })),
+                            cachedAt: new Date()
+                        }
+                    }
+                });
+            }
+
+            console.log(this.getMemoryFromCache({ socket, sessionId }))
+
+            return transformedPosts;
+        } catch (error) {
+            console.error('❌ [SocketMemory] Error retrieving social posts:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Invalidate social posts cache when posts are modified
+     */
+    invalidateSocialPostsCache({ socket, sessionId }: { socket: AuthenticatedSocket; sessionId: string }): void {
+        this.updateContext({
+            socket,
+            sessionId,
+            updates: {
+                socialPostsCache: undefined
+            }
+        });
+        console.log('🗑️  [SocketMemory] Social posts cache invalidated');
     }
 
     /**
@@ -170,6 +260,9 @@ export class SocketMemoryService {
         const rawMessages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
         const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
 
+        // Get user preferences
+        const socialMediaContentPreferences = await this.settingsService.getSocialMediaContentPreferences(userId);
+
         // Transform messages to simplified format
         const messages: SimplifiedMessage[] = rawMessages.map(msg => ({
             user_message: msg.user_message,
@@ -183,6 +276,9 @@ export class SocketMemoryService {
             // post related
             currentPostId: session?.post_id,
             postSummary: session?.post?.expanded?.summary,
+            postContent: session?.post?.expanded?.content,
+            // user preferences
+            socialMediaContentPreferences: socialMediaContentPreferences || undefined,
             // conversation related
             lastMessages: messages.reverse(), // Most recent first
             messagesCount: totalMessageCount,
