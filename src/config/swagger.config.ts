@@ -483,7 +483,13 @@ Authorization header as \`Bearer <token>\`.
                         },
                         ai_response: {
                             type: 'string',
-                            description: 'AI response content',
+                            description: 'AI response content - for social posts, this contains JSON structured data',
+                        },
+                        type: {
+                            type: 'string',
+                            enum: ['message', 'social_post'],
+                            description: 'Type of message - determines how the ai_response should be interpreted',
+                            default: 'message'
                         },
                         created_at: {
                             type: 'string',
@@ -781,14 +787,14 @@ Authorization header as \`Bearer <token>\`.
                 },
 
                 // WebSocket Event Schemas
-                WebSocketEvents: {
+                WebSocketClientEvents: {
                     type: 'object',
-                    title: 'WebSocket Events',
-                    description: 'Real-time communication events for chat functionality',
+                    title: 'WebSocket Client Events',
+                    description: 'Events sent from client to server for real-time chat functionality',
                     properties: {
                         'chat:message': {
                             type: 'object',
-                            description: 'Send a message to start AI chat interaction',
+                            description: 'Send a message to start AI chat interaction (supports both Q&A and social post generation)',
                             properties: {
                                 sessionId: {
                                     type: 'string',
@@ -827,22 +833,26 @@ Authorization header as \`Bearer <token>\`.
                         'chat:join': {
                             type: 'string',
                             pattern: '^[a-zA-Z0-9\\-_]+$',
-                            description: 'Join a chat session',
+                            description: 'Join a chat session (sessionId as string)',
                             example: 'session_12345'
                         },
                         'chat:leave': {
                             type: 'string',
                             pattern: '^[a-zA-Z0-9\\-_]+$',
-                            description: 'Leave a chat session',
+                            description: 'Leave a chat session (sessionId as string)',
                             example: 'session_12345'
+                        },
+                        'chat:disconnect': {
+                            type: 'null',
+                            description: 'Socket disconnect event (automatically handled)'
                         }
                     }
                 },
 
-                WebSocketResponses: {
+                WebSocketServerEvents: {
                     type: 'object',
                     title: 'WebSocket Server Events',
-                    description: 'Events sent from server to clients',
+                    description: 'Events sent from server to clients during AI chat interactions',
                     properties: {
                         'chat:stream:start': {
                             type: 'object',
@@ -879,24 +889,120 @@ Authorization header as \`Bearer <token>\`.
                             properties: {
                                 sessionId: {
                                     type: 'string',
+                                    description: 'Chat session identifier',
                                     example: 'session_12345'
                                 },
-                                fullContent: {
+                                message: {
                                     type: 'string',
-                                    description: 'Complete AI response',
-                                    example: 'Here is your LinkedIn post...'
+                                    description: 'Status message',
+                                    example: 'Process completed'
+                                },
+                                response: {
+                                    type: 'string',
+                                    description: 'Complete AI response text',
+                                    example: 'Here is your LinkedIn post about TypeScript best practices...'
+                                },
+                                suggestedOptions: {
+                                    type: 'array',
+                                    items: {
+                                        type: 'string'
+                                    },
+                                    description: 'Array of suggested follow-up options',
+                                    example: ['Edit this post', 'Create another post', 'Ask a question']
                                 },
                                 messageType: {
                                     type: 'string',
-                                    enum: ['MESSAGE', 'SOCIAL_POST'],
-                                    description: 'Type of response generated'
+                                    enum: ['message', 'social_post'],
+                                    description: 'Type of message - determines how frontend should handle the response',
+                                    example: 'social_post'
                                 },
-                                userMessage: {
-                                    type: 'string',
-                                    description: 'Original user message',
-                                    example: 'Create a LinkedIn post about TypeScript'
+                                structuredPost: {
+                                    type: 'object',
+                                    nullable: true,
+                                    description: 'Structured social post data (only present when messageType is social_post)',
+                                    properties: {
+                                        postContent: {
+                                            type: 'string',
+                                            description: 'Main social media post content',
+                                            example: '🚀 TypeScript Best Practices for 2024\n\nKey takeaways:\n• Use strict type checking\n• Leverage utility types\n• Implement proper error handling\n\n#TypeScript #WebDev'
+                                        },
+                                        codeExamples: {
+                                            type: 'array',
+                                            items: {
+                                                type: 'object',
+                                                properties: {
+                                                    language: {
+                                                        type: 'string',
+                                                        description: 'Programming language',
+                                                        example: 'typescript'
+                                                    },
+                                                    code: {
+                                                        type: 'string',
+                                                        description: 'Code snippet',
+                                                        example: 'interface User {\n  id: string;\n  name: string;\n  email?: string;\n}'
+                                                    },
+                                                    description: {
+                                                        type: 'string',
+                                                        description: 'Optional description of the code',
+                                                        example: 'Basic user interface with optional email'
+                                                    }
+                                                },
+                                                required: ['language', 'code']
+                                            },
+                                            description: 'Array of code examples to display with the post'
+                                        },
+                                        visualElements: {
+                                            type: 'array',
+                                            items: {
+                                                type: 'object',
+                                                properties: {
+                                                    type: {
+                                                        type: 'string',
+                                                        description: 'Type of visual element',
+                                                        example: 'diagram'
+                                                    },
+                                                    description: {
+                                                        type: 'string',
+                                                        description: 'Description of what the visual should show',
+                                                        example: 'Flow chart showing TypeScript compilation process'
+                                                    },
+                                                    content: {
+                                                        type: 'string',
+                                                        description: 'Content or data for the visual',
+                                                        example: 'TS Files → Type Checking → JS Output'
+                                                    },
+                                                    style: {
+                                                        type: 'string',
+                                                        description: 'Styling suggestions for the visual',
+                                                        example: 'Clean, modern flow chart with blue accents'
+                                                    }
+                                                },
+                                                required: ['type', 'description', 'content', 'style']
+                                            },
+                                            description: 'Array of visual elements to create for the post'
+                                        }
+                                    },
+                                    example: {
+                                        postContent: '🚀 TypeScript Best Practices for 2024...',
+                                        codeExamples: [
+                                            {
+                                                language: 'typescript',
+                                                code: 'interface User { id: string; name: string; }',
+                                                description: 'Basic user interface'
+                                            }
+                                        ],
+                                        visualElements: [
+                                            {
+                                                type: 'infographic',
+                                                description: 'TypeScript benefits overview',
+                                                content: 'Type Safety, Better IDE Support, Early Error Detection',
+                                                style: 'Modern, clean design with icons'
+                                            }
+                                        ]
+                                    }
                                 }
-                            }
+                            },
+                            required: ['sessionId', 'message', 'response', 'suggestedOptions', 'messageType']
                         },
                         'chat:stream:interrupted': {
                             type: 'object',
