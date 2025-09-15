@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for post Q&A
@@ -36,12 +37,19 @@ RESPONSE GUIDELINES:
 Keep responses helpful and suggest relevant follow-up questions.`;
 
 export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise<z.infer<typeof PostQAOutput>> {
+    // Create tool from Zod schema
+    const postQATool = {
+        name: "postQAResponse",
+        description: "Provide an answer to a post-related question with code blocks allowed",
+        schema: zodToJsonSchema(PostQAOutput)
+    };
+
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.2,
-        maxTokens: 350,
+        maxTokens: 800,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).withStructuredOutput(PostQAOutput);
+    }).bindTools([postQATool]);
 
     // Build context from conversation history
     const conversationContext = options.lastMessages.length > 0
@@ -74,5 +82,12 @@ Answer the question using available post content. Be educational and helpful.`;
         ]
     });
 
-    return result;
+    // Extract tool call result
+    const toolCall = result.tool_calls?.[0];
+    if (!toolCall) {
+        throw new Error('No tool call found in response');
+    }
+
+    // Validate with Zod and return
+    return PostQAOutput.parse(toolCall.args);
 }

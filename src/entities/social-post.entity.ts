@@ -15,7 +15,7 @@ export enum SocialPlatform {
 export interface CodeExample {
     language: string;
     code: string;
-    description?: string;
+    description?: string | null;
 }
 
 export interface VisualElement {

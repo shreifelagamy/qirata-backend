@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for social post generation and editing
@@ -52,14 +53,14 @@ export const SocialPostOutput = z.object({
         codeExamples: z.array(z.object({
             language: z.string().describe('Programming language'),
             code: z.string().describe('The actual code content'),
-            description: z.string().optional().describe('Optional explanation of the code')
-        })).optional().describe('Optional array of code snippets'),
+            description: z.string().nullable().describe('Optional explanation of the code')
+        })).nullable().describe('Optional array of code snippets'),
         visualElements: z.array(z.object({
             type: z.string().describe('Type of visual'),
             description: z.string().describe('Detailed description of the visual to create'),
             content: z.string().describe('Text content or data for the visual'),
             style: z.string().describe('Visual style preferences')
-        })).optional().describe('Optional array of visual elements to create')
+        })).nullable().describe('Optional array of visual elements to create')
     }).describe('Structured social post content with code examples and visual elements')
 });
 
@@ -131,12 +132,19 @@ Always provide the structuredPost object with:
 Keep responses focused and provide actionable next steps for the user.`;
 
 export async function socialPostAgent(options: z.infer<typeof SocialPostInput>): Promise<z.infer<typeof SocialPostOutput>> {
+    // Create tool from Zod schema
+    const socialPostTool = {
+        name: "socialPostResponse",
+        description: "Generate or edit social media post content with code examples and structured elements",
+        schema: zodToJsonSchema(SocialPostOutput)
+    };
+
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.7,
-        maxTokens: 500,
+        maxTokens: 1000,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).withStructuredOutput(SocialPostOutput);
+    }).bindTools([socialPostTool]);
 
     // Build messages array with XML tags
     const messages = [new SystemMessage(SYSTEM_PROMPT)];
@@ -241,5 +249,13 @@ ${options.socialPosts && options.socialPosts.length > 0
             createDebugCallback('social-post')
         ]
     });
-    return result;
+
+    // Extract tool call result
+    const toolCall = result.tool_calls?.[0];
+    if (!toolCall) {
+        throw new Error('No tool call found in response');
+    }
+
+    // Validate with Zod and return
+    return SocialPostOutput.parse(toolCall.args);
 }

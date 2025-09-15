@@ -11,7 +11,6 @@ export const postQATask = task('postQA', async (
     const postService = new PostsService();
 
     // Get post summary from expanded post
-
     const lastMessages = memory.lastMessages.map(msg => msg.user_message) || []
 
     // First try with summary only

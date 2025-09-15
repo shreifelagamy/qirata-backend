@@ -12,7 +12,7 @@ const PlatformInput = z.object({
 // Output schema for platform detection
 export const PlatformOutput = z.object({
     platform: z.enum(['twitter', 'linkedin'])
-        .optional()
+        .nullable()
         .describe('The detected social media platform. Null if unclear'),
     confidence: z.number()
         .min(0)

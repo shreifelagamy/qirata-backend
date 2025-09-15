@@ -50,15 +50,15 @@ const aiResponse = z.object({
         codeExamples: z.array(z.object({
             language: z.string(),
             code: z.string(),
-            description: z.string().optional()
-        })).optional(),
+            description: z.string().optional().nullable()
+        })).optional().nullable(),
         visualElements: z.array(z.object({
             type: z.string(),
             description: z.string(),
             content: z.string(),
             style: z.string()
-        })).optional()
-    }).optional(),
+        })).nullable()
+    }).optional().nullable(),
 })
 
 export const TaskOutput = z.object({

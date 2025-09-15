@@ -64,7 +64,8 @@
         "turndown": "^7.2.0",
         "typeorm": "^0.3.16",
         "winston": "^3.8.2",
-        "zod": "^3.25.42"
+        "zod": "^3.25.42",
+        "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
         "@types/bcryptjs": "^2.4.2",

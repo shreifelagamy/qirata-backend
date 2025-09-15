@@ -26,20 +26,20 @@ interface WorkflowResult {
     response: string;
     suggestedOptions: string[];
     messageType?: MessageType;
-    structuredPost?: {
+    structuredPost: {
         postContent: string;
-        codeExamples?: Array<{
+        codeExamples: Array<{
             language: string;
             code: string;
-            description?: string;
-        }>;
-        visualElements?: Array<{
+            description?: string | null;
+        }> | null;
+        visualElements: Array<{
             type: string;
             description: string;
             content: string;
             style: string;
-        }>;
-    };
+        }> | null;
+    } | null;
 }
 
 interface SocialPostContext {
@@ -54,7 +54,6 @@ interface SocialPostContext {
  * Qirata Chat Workflow Class
  * Handles the entire AI conversation flow using LangGraph Functional API
  * Manages memory, emits events, and orchestrates all tasks
- * TODO: handle interrupt
  */
 export class QirataChatWorkflow {
     private socketMemoryService = new SocketMemoryService();
@@ -178,7 +177,8 @@ export class QirataChatWorkflow {
         const result = {
             response: supportResponse.message!,
             suggestedOptions: supportResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE
+            messageType: MessageType.MESSAGE,
+            structuredPost: null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -228,7 +228,8 @@ export class QirataChatWorkflow {
         const result = {
             response: qaResponse.message!,
             suggestedOptions: qaResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE
+            messageType: MessageType.MESSAGE,
+            structuredPost: null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -354,7 +355,11 @@ export class QirataChatWorkflow {
             response: socialPostResponse.message!,
             suggestedOptions: socialPostResponse.suggestedOptions || [],
             messageType: MessageType.SOCIAL_POST,
-            structuredPost: socialPostResponse.structuredPost
+            structuredPost: socialPostResponse.structuredPost ? {
+                postContent: socialPostResponse.structuredPost.postContent,
+                codeExamples: socialPostResponse.structuredPost.codeExamples || null,
+                visualElements: socialPostResponse.structuredPost.visualElements || null
+            } : null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -387,7 +392,8 @@ export class QirataChatWorkflow {
         const result = {
             response: platformResponse.message!,
             suggestedOptions: platformResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE
+            messageType: MessageType.MESSAGE,
+            structuredPost: null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -420,7 +426,8 @@ export class QirataChatWorkflow {
             const result = {
                 response: "I couldn't find any social posts to edit in this session. Would you like to create a new social media post instead?",
                 suggestedOptions: ['Create a new social media post', 'Ask about content'],
-                messageType: MessageType.MESSAGE
+                messageType: MessageType.MESSAGE,
+                structuredPost: null
             };
 
             this.emitCompletion(sessionId, result, emit);
@@ -494,7 +501,11 @@ export class QirataChatWorkflow {
             response: socialPostResponse.message!,
             suggestedOptions: socialPostResponse.suggestedOptions || [],
             messageType: MessageType.SOCIAL_POST,
-            structuredPost: socialPostResponse.structuredPost
+            structuredPost: socialPostResponse.structuredPost ? {
+                postContent: socialPostResponse.structuredPost.postContent,
+                codeExamples: socialPostResponse.structuredPost.codeExamples || null,
+                visualElements: socialPostResponse.structuredPost.visualElements || null
+            } : null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -544,7 +555,8 @@ export class QirataChatWorkflow {
         const result = {
             response: clarifyingQuestion,
             suggestedOptions,
-            messageType: MessageType.MESSAGE
+            messageType: MessageType.MESSAGE,
+            structuredPost: null
         };
 
         this.emitCompletion(sessionId, result, emit);
@@ -566,7 +578,8 @@ export class QirataChatWorkflow {
         const result = {
             response: "I'm not sure how to help with that. Could you please clarify your request?",
             suggestedOptions: ['Ask a question about the post', 'Create social media content'],
-            messageType: MessageType.MESSAGE
+            messageType: MessageType.MESSAGE,
+            structuredPost: null
         };
 
         this.emitCompletion(sessionId, result, emit);
