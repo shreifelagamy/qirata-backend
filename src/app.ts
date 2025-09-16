@@ -160,7 +160,17 @@ server.on('error', (error: any) => {
 const initializeDatabase = async () => {
     startupProfiler.startTimer('db-connection');
 
+    // Debug: Log database configuration (without sensitive data)
+    console.log('🔍 Database connection debug info:');
+    console.log(`   Host: ${process.env.DB_HOST || 'NOT SET'}`);
+    console.log(`   Port: ${process.env.DB_PORT || '5432 (default)'}`);
+    console.log(`   Database: ${process.env.DB_DATABASE || 'NOT SET'}`);
+    console.log(`   Username: ${process.env.DB_USERNAME ? 'SET' : 'NOT SET'}`);
+    console.log(`   Password: ${process.env.DB_PASSWORD ? 'SET' : 'NOT SET'}`);
+    console.log(`   Node ENV: ${process.env.NODE_ENV || 'NOT SET'}`);
+
     try {
+        console.log('🔌 Attempting database connection...');
         await AppDataSource.initialize();
         startupProfiler.log('db-connection');
 
@@ -182,7 +192,12 @@ const initializeDatabase = async () => {
         console.log(`✅ Database connected and routes mounted (${startupProfiler.getTotalTime()}ms)`);
 
     } catch (error) {
-        console.error('❌ Database connection failed:', error);
+        console.error('❌ Database connection failed:');
+        console.error('   Error details:', error);
+        if (error instanceof Error) {
+            console.error('   Error message:', error.message);
+            console.error('   Error stack:', error.stack);
+        }
         // Don't exit - keep server running for health checks
 
         // Add fallback route for database errors
