@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for platform detection
@@ -45,12 +46,18 @@ RESPONSE GUIDELINES:
 SUPPORTED PLATFORMS: Twitter (X), LinkedIn`;
 
 export async function platformAgent(options: z.infer<typeof PlatformInput>): Promise<z.infer<typeof PlatformOutput>> {
+    const platformTool = {
+        name: "platformResponse",
+        description: "Detect social media platform from user message",
+        schema: zodToJsonSchema(PlatformOutput)
+    };
+
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.1,
         maxTokens: 300,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).withStructuredOutput(PlatformOutput);
+    }).bindTools([platformTool]);
 
     // Build conversation context
     const conversationContext = options.lastMessages.length > 0
@@ -71,5 +78,13 @@ Analyze this message to detect whether the user wants Twitter (X) or LinkedIn, a
             createDebugCallback('platform')
         ]
     });
-    return result;
+
+    // Extract tool call result
+    const toolCall = result.tool_calls?.[0];
+    if (!toolCall) {
+        throw new Error('No tool call found in response');
+    }
+
+    // Validate with Zod and return
+    return PlatformOutput.parse(toolCall.args);
 }

@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema for general support with post context
@@ -43,12 +44,18 @@ YOUR ROLE:
 Keep responses concise and actionable for MVP.`;
 
 export async function supportAgent(options: z.infer<typeof GeneralSupportInput>): Promise<z.infer<typeof GeneralSupportOutput>> {
+    const supportTool = {
+        name: "supportResponse",
+        description: "Provide general support and assistance",
+        schema: zodToJsonSchema(GeneralSupportOutput)
+    };
+
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.3,
         maxTokens: 350,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).withStructuredOutput(GeneralSupportOutput);
+    }).bindTools([supportTool]);
 
     const isFirstMessage = options.lastMessages.length === 0;
 
@@ -80,5 +87,13 @@ Provide helpful support as Qirata's AI assistant with suggestions tailored to th
     const result = await model.invoke(messages, {
         callbacks: [createDebugCallback('general-support')]
     });
-    return result;
+
+    // Extract tool call result
+    const toolCall = result.tool_calls?.[0];
+    if (!toolCall) {
+        throw new Error('No tool call found in response');
+    }
+
+    // Validate with Zod and return
+    return GeneralSupportOutput.parse(toolCall.args);
 }

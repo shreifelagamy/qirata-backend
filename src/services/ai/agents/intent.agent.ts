@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema with better context
@@ -56,12 +57,18 @@ You must respond with a JSON object containing:
 - suggestedOptions: array of up to 3 context-aware options (required for CLARIFY_INTENT, optional for others)`;
 
 export async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
+    const intentTool = {
+        name: "intentResponse",
+        description: "Classify user intent and provide analysis",
+        schema: zodToJsonSchema(IntentRouterOutput)
+    };
+
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0,
         maxTokens: 200,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).withStructuredOutput(IntentRouterOutput);
+    }).bindTools([intentTool]);
 
     const contextMessages = options.lastMessages.length > 0
         ? `Recent conversation context: ${options.lastMessages.join(' → ')}\n`
@@ -81,5 +88,12 @@ Classify this message and provide your analysis.`;
         ]
     });
 
-    return result;
+    // Extract tool call result
+    const toolCall = result.tool_calls?.[0];
+    if (!toolCall) {
+        throw new Error('No tool call found in response');
+    }
+
+    // Validate with Zod and return
+    return IntentRouterOutput.parse(toolCall.args);
 }
