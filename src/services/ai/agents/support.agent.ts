@@ -15,7 +15,7 @@ const GeneralSupportInput = z.object({
 // Enhanced output schema for support responses
 export const GeneralSupportOutput = z.object({
     response: z.string().min(20).describe('Friendly response to the user - can be a question or regular message'),
-    suggestedOptions: z.array(z.string()).max(3).describe('Up to 3 suggested actions or options tailored to the post context')
+    suggestedOptions: z.array(z.string()).max(3).describe('3 short, direct actions tailored to the post context')
 });
 
 // Enhanced system prompt with post context awareness
@@ -34,7 +34,7 @@ YOUR ROLE:
 - Be warm and friendly
 - If it's their first message (no previous context), welcome them and explain capabilities
 - If mid-conversation, build on context and avoid repetition
-- Provide helpful responses and 2-3 specific suggested options TAILORED TO THE POST CONTENT
+- Provide helpful responses and 3 short, direct suggested options TAILORED TO THE POST CONTENT
 - When post context is available, suggest actions like:
   * "Ask questions about [specific post topic]"
   * "Create a LinkedIn post about [post theme]"

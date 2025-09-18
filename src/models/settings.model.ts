@@ -13,11 +13,11 @@ export class SettingsModel {
 
     async create(data: CreateSettingsDto): Promise<Settings> {
         const existing = await this.repository.findOne({
-            where: { key: data.key }
+            where: { key: data.key, user_id: data.user_id }
         });
 
         if (existing) {
-            throw new HttpError(400, `Setting with key "${data.key}" already exists`);
+            throw new HttpError(400, `Setting with key "${data.key}" already exists for this user`);
         }
 
         const setting = this.repository.create(data);
@@ -25,33 +25,21 @@ export class SettingsModel {
     }
 
     async findByKey(key: string): Promise<Settings> {
-        const setting = await this.repository.findOne({ where: { key } });
-
-        if (!setting) {
-            throw new HttpError(404, `Setting with key "${key}" not found`);
-        }
-
-        return setting;
+        throw new HttpError(400, 'Use findByKeyAndUser method instead - settings require user_id');
     }
 
     async update(key: string, data: UpdateSettingsDto): Promise<Settings> {
-        let setting = await this.repository.findOne({ where: { key } });
-
-        if (!setting) {
-            // Create new setting if it doesn't exist
-            setting = this.repository.create({ key, ...data });
-        } else {
-            // Update existing setting
-            Object.assign(setting, data);
-        }
-
-        return await this.repository.save(setting);
+        throw new HttpError(400, 'Use updateByUser method instead - settings require user_id');
     }
 
     async delete(key: string): Promise<void> {
-        const result = await this.repository.delete({ key });
+        throw new HttpError(400, 'Use deleteByUser method instead - settings require user_id');
+    }
+
+    async deleteByUser(key: string, userId: string): Promise<void> {
+        const result = await this.repository.delete({ key, user_id: userId });
         if (result.affected === 0) {
-            throw new HttpError(404, `Setting with key "${key}" not found`);
+            throw new HttpError(404, `Setting with key "${key}" not found for this user`);
         }
     }
 

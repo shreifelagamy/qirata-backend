@@ -122,25 +122,42 @@ export class QirataChatWorkflow {
         console.log('Intent detected:', intentResponse);
 
         // Route to appropriate handler based on intent
+        let result: WorkflowResult;
+
         switch (intentResponse.intent) {
             case 'GENERAL':
-                return await this.handleGeneralSupport({ message, memory, socket, sessionId, emit });
+                result = await this.handleGeneralSupport({ message, memory, socket, sessionId, emit });
+                break;
 
             case 'ASK_POST':
-                return await this.handlePostQuestion({ message, memory, socket, sessionId, emit });
+                result = await this.handlePostQuestion({ message, memory, socket, sessionId, emit });
+                break;
 
             case 'REQ_SOCIAL_POST':
-                return await this.handleSocialPostRequest({ message, memory, socket, sessionId, emit });
+                result = await this.handleSocialPostRequest({ message, memory, socket, sessionId, emit });
+                break;
 
             case 'EDIT_SOCIAL_POST':
-                return await this.handleSocialPostEdit({ message, memory, socket, sessionId, emit });
+                result = await this.handleSocialPostEdit({ message, memory, socket, sessionId, emit });
+                break;
 
             case 'CLARIFY_INTENT':
-                return await this.handleIntentClarification({ message, memory, socket, sessionId, emit, intentResponse });
+                result = await this.handleIntentClarification({ message, memory, socket, sessionId, emit, intentResponse });
+                break;
 
             default:
-                return await this.handleUnknownIntent({ message, memory, socket, sessionId, emit });
+                result = await this.handleUnknownIntent({ message, memory, socket, sessionId, emit });
+                break;
         }
+
+        // Update last intent in socket memory cache
+        this.socketMemoryService.updateContext({
+            socket,
+            sessionId,
+            updates: { lastIntent: intentResponse.intent }
+        });
+
+        return result;
     }
 
     /**

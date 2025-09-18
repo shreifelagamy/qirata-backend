@@ -1,3 +1,4 @@
+import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -7,6 +8,7 @@ import { createDebugCallback } from '../../../utils/debug-callback';
 const IntentRouterInput = z.object({
     message: z.string().describe('The current user message to classify'),
     lastMessages: z.array(z.string()).max(5).describe('Up to 5 previous messages for context'),
+    lastIntent: z.string().optional(),
 });
 
 // Enhanced output schema with confidence and reasoning
@@ -15,13 +17,13 @@ export const IntentRouterOutput = z.object({
     confidence: z.number().min(0).max(1).describe('Confidence score between 0 and 1'),
     reasoning: z.string().min(10).describe('Brief explanation for the classification decision'),
     clarifyingQuestion: z.string().nullable().describe('Clarifying question to ask when intent is unclear (required when intent is CLARIFY_INTENT)'),
-    suggestedOptions: z.array(z.string()).max(3).nullable().describe('Context-aware suggested options for the user (especially important for CLARIFY_INTENT)'),
+    suggestedOptions: z.array(z.string()).max(3).nullable().describe('Short, direct context-aware options for the user (required for CLARIFY_INTENT)'),
 });
 
 // Cached system prompt for consistent performance
-const CACHED_SYSTEM_PROMPT = `You are an expert intent classifier for a chat application that handles social media content creation.
+const CACHED_SYSTEM_PROMPT = `You are an expert qirata intent classifier for our application.
 
-Your task is to classify user messages into one of these intents:
+Your task is to classify the intent of the user last message to these avaliable intents:
 
 1. GENERAL - General conversation, greetings, casual chat, or non-specific requests
    Examples: "hi", "hello", "how are you?", "what should I do?", "thanks", "help me"
@@ -29,8 +31,8 @@ Your task is to classify user messages into one of these intents:
 2. REQ_SOCIAL_POST - Requests to create new social media content
    Examples: "create a LinkedIn post about AI", "make me a tweet", "write a post for Instagram"
 
-3. ASK_POST - Questions about existing posts or their content
-   Examples: "what is this post about?", "summarize the article", "explain this content"
+3. ASK_POST - Questions about an existing post/articale or their content
+   Examples: "what is this post about?", "summarize the article", "explain this content", "What is x?"
 
 4. EDIT_SOCIAL_POST - Requests to modify any previously created social media post
    Examples:
@@ -39,15 +41,16 @@ Your task is to classify user messages into one of these intents:
    - "modify the post about AI", "change the marketing post" (content reference)
    - "update the second post", "edit the first one" (position reference)
 
-5. CLARIFY_INTENT - When the user's intent is unclear or ambiguous (confidence < 0.7)
+5. CLARIFY_INTENT - When you can't clarify the user's intent and it's seems ambiguous (confidence < 0.7)
    Use this when you cannot confidently classify the message into the above categories.
    Examples: "do something", "help with this", "change it", vague references without context
 
 Classification Guidelines:
 - Use previous messages to understand conversation flow
-- Consider the last action to maintain context continuity
+- Consider the last intent to maintain context continuity
 - If confidence is below 0.7, use CLARIFY_INTENT and provide a clarifying question
 - If ambiguous but with reasonable context clues, choose the most likely intent with appropriate confidence
+- Consider ASK POST category if the user is likely asking about something
 
 You must respond with a JSON object containing:
 - intent: one of the five intents above
@@ -70,19 +73,23 @@ export async function intentAgent(options: z.infer<typeof IntentRouterInput>): P
         openAIApiKey: process.env.OPENAI_API_KEY
     }).bindTools([intentTool]);
 
-    const contextMessages = options.lastMessages.length > 0
-        ? `Recent conversation context: ${options.lastMessages.join(' → ')}\n`
-        : '';
+    const messages = []
+    messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT))
 
+    messages.push(new AIMessage("My Last intent was: " + (options.lastIntent || "None")))
 
-    const userPrompt = `${contextMessages}Current message: "${options.message}"
+    if (options.lastMessages.length > 0) {
+        options.lastMessages.forEach((msg, index) => {
+            messages.push(new HumanMessage(msg))
+        })
+    }
 
-Classify this message and provide your analysis.`;
+    // confirm receiving the old messages
+    messages.push(new AIMessage('I have the old messages and will maintain context.'))
 
-    const result = await model.invoke([
-        { role: 'system', content: CACHED_SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt }
-    ], {
+    messages.push(new HumanMessage(options.message))
+
+    const result = await model.invoke(messages, {
         callbacks: [
             createDebugCallback('intent-router')
         ]

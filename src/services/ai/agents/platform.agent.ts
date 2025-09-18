@@ -25,7 +25,7 @@ export const PlatformOutput = z.object({
         .describe('Response message explaining the detection or asking for clarification'),
     suggestedOptions: z.array(z.string())
         .max(2)
-        .describe('Suggested platform options when clarification is needed')
+        .describe('Short, direct platform options when clarification is needed')
 });
 
 const SYSTEM_PROMPT = `You are Qirata's platform detection AI. Analyze user messages to detect whether they want to create content for Twitter (X) or LinkedIn.
@@ -40,7 +40,7 @@ PLATFORM DETECTION RULES:
 RESPONSE GUIDELINES:
 - If platform is clear (confidence > 0.7): Confirm the detected platform
 - If unclear (confidence < 0.7): Ask for clarification with both options
-- Provide Twitter and LinkedIn as suggested options when clarification is needed
+- Provide short, direct Twitter and LinkedIn options when clarification is needed
 - Keep responses concise and helpful
 
 SUPPORTED PLATFORMS: Twitter (X), LinkedIn`;

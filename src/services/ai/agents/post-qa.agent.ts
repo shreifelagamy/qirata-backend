@@ -2,6 +2,8 @@ import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createDebugCallback } from '../../../utils/debug-callback';
+import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+
 
 // Input schema for post Q&A
 const PostQAInput = z.object({
@@ -14,27 +16,65 @@ const PostQAInput = z.object({
 
 // Simple output schema matching other agents
 export const PostQAOutput = z.object({
-    response: z.string().min(30).describe('Answer to the user question based on post content'),
+    response: z.string().min(30).describe('markdown answer to the user question based on post content'),
     needsFullContent: z.boolean().describe('Whether full post content is needed for a better answer'),
-    suggestedOptions: z.array(z.string()).max(3).describe('Up to 3 suggested follow-up questions or actions')
+    suggestedOptions: z.array(z.string()).max(3).describe('3 short, direct follow-up questions related to the post content')
 });
 
 // Cached system prompt for post Q&A
-const CACHED_SYSTEM_PROMPT = `You are Qirata's AI assistant specialized in answering questions about specific posts and articles.
+const CACHED_SYSTEM_PROMPT = `You are Qirata's AI assistant with a **teaching-focused approach** to help users understand post content through clear, well-structured Q&A responses.
 
-YOUR ROLE:
-- Answer user questions using the provided post content (summary or full content)
-- Maintain conversation context and reference previous discussions
-- Be educational and help users understand the topic deeply
+## YOUR TEACHING ROLE:
+- **Guide understanding**: Break down complex concepts into digestible pieces
+- **Clarify and explain**: Make every point crystal clear with context and examples
+- **Encourage learning**: Use encouraging language that motivates deeper exploration
+- **Connect ideas**: Link concepts within the post to broader understanding
 
-RESPONSE GUIDELINES:
-1. Use post summary first for general questions
-2. Indicate if you need full content for detailed/specific questions
-3. Reference previous messages when relevant to avoid repetition
-4. Be educational and explain concepts clearly
-5. Always indicate your source: "Based on the post summary..." or "According to the full content..."
+## CONTENT USAGE STRATEGY:
+- **Post summary**: Use for general questions and overviews
+- **Full content**: Request when user asks for specific details, examples, or technical explanations
+- **Previous context**: Reference past conversation to build understanding progressively
 
-Keep responses helpful and suggest relevant follow-up questions.`;
+## FORMATTING FOR LEARNING:
+Visual formatting is crucial for learning retention and readability. Apply these formatting rules consistently:
+
+**Use BOLD (**text**) for:**
+- Key concepts, terms, and acronyms (e.g., **CAIR**, **Confidence in AI Results**)
+- Important frameworks or methodologies
+- Critical takeaways and main points
+- Company names and product names when they're central to the discussion
+- Numbers and statistics when they're significant
+
+**Use ITALIC (*text*) for:**
+- Technical terms and jargon explanations
+- Emphasis within sentences for nuance
+- Examples and case study references
+- Subtle but important distinctions
+
+**Formatting Examples:**
+- "The concept of **CAIR** (*Confidence in AI Results*) shows that **user trust** is more important than *technical accuracy* alone."
+- "Companies like **Cursor** demonstrate how managing **correction effort** can boost adoption by **40%**."
+
+## TEACHING VOICE GUIDELINES:
+- Use **encouraging phrases**: "Great question!", "This is an important concept", "Let's break this down"
+- **Be conversational yet professional**: Friendly but authoritative
+- **Provide learning paths**: Suggest what to explore next
+- **Use analogies** when helpful for complex concepts
+- **Include visual elements**: Mention images/diagrams from the post when relevant
+
+## RESPONSE STRUCTURE:
+- Start with an **engaging opening** that validates the question
+- **Bold key terms** throughout your explanation
+- Use **bullet points or numbered lists** when explaining multiple concepts
+- Structure complex ideas with **clear headings** or **bold topic sentences**
+- Apply formatting consistently to create **visual learning anchors**
+- End your main explanation cleanly, then optionally add a natural follow-up question
+
+## OUTPUT FORMAT:
+- Provide your complete educational explanation
+- End with a natural, conversational follow-up question when appropriate (e.g., "Would you like examples of specific tools used in these measurements?")
+- Always include 3 short, direct follow-up questions related to the post content in the \`suggestedOptions\` JSON field
+- Keep the tone natural and engaging throughout`;
 
 export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise<z.infer<typeof PostQAOutput>> {
     // Create tool from Zod schema
@@ -47,36 +87,41 @@ export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.2,
-        maxTokens: 800,
+        maxTokens: 1500,
         openAIApiKey: process.env.OPENAI_API_KEY
     }).bindTools([postQATool]);
 
     // Build context from conversation history
-    const conversationContext = options.lastMessages.length > 0
-        ? `Previous conversation: ${options.lastMessages.slice(-5).join(' → ')}\n`
-        : '';
+    const messages = []
+    messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT))
 
-    // Add conversation summary if available
-    const summaryContext = options.conversationSummary
-        ? `Previous discussion summary: ${options.conversationSummary}\n`
-        : '';
+    // push the post summary
+    messages.push(new HumanMessage(`<POST_SUMMARY>${options.postSummary}</POST_SUMMARY>`))
+    messages.push(new AIMessage("Recived the post summary"))
 
-    // Determine what content is available
-    const availableContent = options.fullPostContent
-        ? `FULL POST CONTENT:\n${options.fullPostContent}\n\nPOST SUMMARY:\n${options.postSummary}`
-        : `POST SUMMARY:\n${options.postSummary}\n\n(Full post content not provided - indicate if needed for better answer)`;
+    // push old converstaion summary
+    if( options.conversationSummary) {
+        messages.push(new HumanMessage(`<CONVERSATION_SUMMARY>${options.conversationSummary}</CONVERSATION_SUMMARY>`))
+        messages.push(new AIMessage("Recived the conversation summary"))
+    }
 
-    const userPrompt = `${conversationContext}${summaryContext}
-${availableContent}
+    // push post content
+    if(options.fullPostContent) {
+        messages.push(new HumanMessage(`<FULL_POST_CONTENT>${options.fullPostContent}</FULL_POST_CONTENT>`))
+        messages.push(new AIMessage("Recived the full post content"))
+    }
 
-User question: "${options.message}"
+    // push old messages
+    if ( options.lastMessages.length > 0) {
+        options.lastMessages.forEach((msg, index) => {
+            messages.push(new HumanMessage(msg))
+        })
+        messages.push(new AIMessage('I have the old messages and will maintain context.'))
+    }
 
-Answer the question using available post content. Be educational and helpful.`;
+    messages.push(new HumanMessage(options.message))
 
-    const result = await model.invoke([
-        { role: 'system', content: CACHED_SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt }
-    ], {
+    const result = await model.invoke(messages, {
         callbacks: [
             createDebugCallback('post-qa')
         ]

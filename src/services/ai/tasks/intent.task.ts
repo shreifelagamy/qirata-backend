@@ -10,6 +10,7 @@ export const intentTask = task("intentRouter", async (
     const response = await intentAgent({
         message: params.message,
         lastMessages: memory.lastMessages.map(msg => msg.user_message) || [],
+        lastIntent: memory.lastIntent
     });
 
     return {

@@ -46,7 +46,7 @@ export interface StructuredSocialPostOutput {
 // Output schema for social post generation (for agent return)
 export const SocialPostOutput = z.object({
     message: z.string().describe('Response message to the user about the generated post'),
-    suggestedOptions: z.array(z.string()).max(3).describe('Up to 3 suggested actions for the user'),
+    suggestedOptions: z.array(z.string()).max(3).describe('3 short, direct actions relevant to the social post context'),
     socialPostId: z.string().nullable().describe('ID of the social post being edited (only for edit operations)'),
     structuredPost: z.object({
         postContent: z.string().describe('Main text content for the social media post'),
@@ -129,7 +129,7 @@ Always provide the structuredPost object with:
 - codeExamples: Array of code snippets if technical content is present (optional)
 - visualElements: Array of visual element descriptions if applicable (optional)
 
-Keep responses focused and provide actionable next steps for the user.`;
+Keep responses focused and provide 3 short, direct, actionable next steps relevant to the social post context.`;
 
 export async function socialPostAgent(options: z.infer<typeof SocialPostInput>): Promise<z.infer<typeof SocialPostOutput>> {
     // Create tool from Zod schema

@@ -14,8 +14,8 @@ export class CreateSettingsDto {
   description?: string;
 
   @IsString()
-  @IsOptional()
-  user_id?: string;
+  @IsNotEmpty()
+  user_id!: string;
 }
 
 export class UpdateSettingsDto {

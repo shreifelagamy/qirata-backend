@@ -35,6 +35,9 @@ export const MemoryState = z.object({
     lastMessages: z.array(SimplifiedMessage).max(10).default([]),
     messagesCount: z.number().default(0),
     conversationSummary: z.string().optional(),
+
+    // Last intent
+    lastIntent: z.string().optional()
 });
 
 const aiResponse = z.object({

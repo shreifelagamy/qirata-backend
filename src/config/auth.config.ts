@@ -32,7 +32,7 @@ export const auth = betterAuth({
     logger: {
         disabled: false,
         level: "error",
-        log: (level, message, ...args) => {
+        log: (level: string, message: string, ...args: any[]) => {
             // Custom logging implementation
             logger.debug(`[${level}] ${message}`);
         }
@@ -40,7 +40,7 @@ export const auth = betterAuth({
 
     onAPIError: {
         throw: true,
-        onError(error, ctx) {
+        onError(error: any, ctx: any) {
             console.log("Error :", error)
         },
     },
