@@ -17,6 +17,8 @@ interface PostFilters {
     limit?: number;
     offset?: number;
     external_links?: string[];
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
 }
 
 export class PostsService {

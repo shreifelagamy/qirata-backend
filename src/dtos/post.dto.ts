@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUrl, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUrl, IsUUID, IsDateString } from 'class-validator';
 
 export class CreatePostDto {
   @IsString()
@@ -24,6 +24,10 @@ export class CreatePostDto {
   @IsUUID()
   @IsNotEmpty()
   linkId!: string;
+
+  @IsDateString()
+  @IsOptional()
+  published_date?: string;
 }
 
 export class UpdatePostDto {
@@ -54,4 +58,8 @@ export class UpdatePostDto {
   @IsBoolean()
   @IsOptional()
   isRead?: boolean;
+
+  @IsDateString()
+  @IsOptional()
+  published_date?: string;
 }

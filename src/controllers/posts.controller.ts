@@ -80,6 +80,20 @@ export class PostsController {
      *         name: source
      *         schema:
      *           type: string
+     *       - in: query
+     *         name: sortBy
+     *         schema:
+     *           type: string
+     *           enum: [added_date, published_date]
+     *           default: added_date
+     *         description: Sort posts by added date (sequence) or published date
+     *       - in: query
+     *         name: sortOrder
+     *         schema:
+     *           type: string
+     *           enum: [ASC, DESC]
+     *           default: DESC
+     *         description: Sort order - ascending or descending
      *     responses:
      *       200:
      *         description: Success
@@ -94,7 +108,7 @@ export class PostsController {
      *                     items:
      *                       type: array
      *                       items:
-     *                         $ref: '#/components/schemas/Post'
+     *                         $ref: '#/components/schemas/PostSummary'
      *                     total:
      *                       type: integer
      *                     page:

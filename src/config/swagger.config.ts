@@ -169,52 +169,75 @@ Authorization header as \`Bearer <token>\`.
                         },
                     },
                 },
-                Post: {
+                PostSummary: {
                     type: 'object',
+                    description: 'Post summary for list views (excludes content)',
                     properties: {
                         id: {
                             type: 'string',
                             format: 'uuid',
                         },
+                        user_id: {
+                            type: 'string',
+                            format: 'uuid',
+                        },
+                        sequence_id: {
+                            type: 'integer',
+                            description: 'Auto-incrementing sequence ID for ordering',
+                        },
                         title: {
                             type: 'string',
                             description: 'Post title',
                         },
-                        content: {
+                        image_url: {
                             type: 'string',
-                            description: 'Post content',
-                        },
-                        expandedContent: {
-                            type: 'string',
-                            description: 'AI-expanded content of the post',
                             nullable: true,
+                            description: 'URL of the post image',
                         },
-                        read: {
-                            type: 'boolean',
-                            description: 'Whether the post has been read',
+                        external_link: {
+                            type: 'string',
+                            description: 'Original link URL',
                         },
-                        publishedAt: {
+                        source: {
+                            type: 'string',
+                            description: 'Source name/RSS feed name',
+                        },
+                        read_at: {
                             type: 'string',
                             format: 'date-time',
-                            description: 'When the post was published',
+                            nullable: true,
+                            description: 'When the post was marked as read',
                         },
-                        createdAt: {
+                        published_date: {
                             type: 'string',
                             format: 'date-time',
+                            nullable: true,
+                            description: 'When the post was originally published',
                         },
-                        updatedAt: {
+                        created_at: {
                             type: 'string',
                             format: 'date-time',
-                        },
-                        link: {
-                            $ref: '#/components/schemas/Link',
-                            description: 'Associated link',
                         },
                     },
                 },
+                Post: {
+                    type: 'object',
+                    allOf: [
+                        { $ref: '#/components/schemas/PostSummary' },
+                        {
+                            type: 'object',
+                            properties: {
+                                content: {
+                                    type: 'string',
+                                    description: 'Full post content',
+                                },
+                            },
+                        },
+                    ],
+                },
                 CreatePostDto: {
                     type: 'object',
-                    required: ['title', 'content'],
+                    required: ['title', 'external_link', 'source', 'linkId'],
                     properties: {
                         title: {
                             type: 'string',
@@ -223,16 +246,30 @@ Authorization header as \`Bearer <token>\`.
                         content: {
                             type: 'string',
                             description: 'Post content',
+                        },
+                        external_link: {
+                            type: 'string',
+                            description: 'Original link URL',
+                        },
+                        source: {
+                            type: 'string',
+                            description: 'Source name/RSS feed name',
+                        },
+                        image_url: {
+                            type: 'string',
+                            nullable: true,
+                            description: 'URL of the post image',
                         },
                         linkId: {
                             type: 'string',
                             format: 'uuid',
                             description: 'Associated link ID',
                         },
-                        publishedAt: {
+                        published_date: {
                             type: 'string',
                             format: 'date-time',
-                            description: 'Publication date',
+                            nullable: true,
+                            description: 'When the post was originally published',
                         },
                     },
                 },

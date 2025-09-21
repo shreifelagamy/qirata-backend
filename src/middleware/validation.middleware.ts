@@ -50,7 +50,7 @@ export const commonValidation = {
         .toInt(),
       query('sortBy')
         .optional()
-        .isIn(['createdAt', 'publishedAt', 'title'])
+        .isIn(['added_date', 'published_date', 'title'])
         .withMessage('Invalid sort field'),
       query('sortOrder')
         .optional()

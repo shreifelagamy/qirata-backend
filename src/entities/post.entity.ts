@@ -1,5 +1,6 @@
 import { Entity, Column, Index, OneToMany, OneToOne, Generated, ManyToOne, JoinColumn } from "typeorm";
 import { IsUrl, MaxLength, IsOptional, IsNotEmpty, IsNumber } from "class-validator";
+import { Transform } from "class-transformer";
 import { BaseEntity } from "./base.entity";
 import { User } from "./user.entity";
 import { SocialPost } from "./social-post.entity";
@@ -50,6 +51,11 @@ export class Post extends BaseEntity {
     @Column({ type: "timestamp with time zone", nullable: true })
     @Index("IDX_POSTS_READ_AT")
     read_at?: Date;
+
+    @Column({ type: "timestamp with time zone", nullable: true })
+    @IsOptional()
+    @Transform(({ value }) => value ? new Date(value) : undefined)
+    published_date?: Date;
 
     @OneToMany(() => SocialPost, socialPost => socialPost.post)
     social_posts!: SocialPost[];

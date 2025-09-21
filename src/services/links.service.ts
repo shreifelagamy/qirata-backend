@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
 import { RSSService } from './content/rss.service';
 import { ScraperService } from './content/scraper.service';
 import { PostsService } from './posts.service';
+import { parseRSSDate, formatDateForDatabase } from '../utils/date.util';
 
 interface ProcessRssResult {
     linkData: CreateLinkDto;
@@ -177,14 +178,20 @@ export class LinksService {
             const newEntries = feedEntries.filter(entry => !existingLinks.has(entry.link));
 
             // Create new posts from feed entries
-            const newPosts: CreatePostDto[] = newEntries.map(entry => ({
-                title: entry.title || 'Untitled Post',
-                content: entry.description || entry.content || '',
-                external_link: entry.link,
-                source: link.name,
-                linkId: link.id,
-                image_url: entry.image_url // Using feed content only, undefined for optional field
-            }));
+            const newPosts: CreatePostDto[] = newEntries.map(entry => {
+                // Parse the published date from the RSS feed
+                const publishedDate = parseRSSDate(entry.pubDate);
+
+                return {
+                    title: entry.title || 'Untitled Post',
+                    content: entry.description || entry.content || '',
+                    external_link: entry.link,
+                    source: link.name,
+                    linkId: link.id,
+                    image_url: entry.image_url, // Using feed content only, undefined for optional field
+                    published_date: formatDateForDatabase(publishedDate)
+                };
+            });
 
             // Start a transaction for atomic operations
             const transaction = await AppDataSource.transaction(async (manager: EntityManager) => {

@@ -13,6 +13,8 @@ interface PostFilters {
     limit?: number;
     offset?: number;
     external_links?: string[];
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
 }
 
 export class PostModel {
@@ -118,8 +120,33 @@ export class PostModel {
 
     async findAllByUser(filters: PostFilters, userId: string): Promise<[Post[], number]> {
         const query = this.repository.createQueryBuilder('post')
-            .where('post.user_id = :userId', { userId })
-            .orderBy('post.sequence_id', 'DESC');
+            .select([
+                'post.id',
+                'post.user_id',
+                'post.sequence_id',
+                'post.title',
+                'post.image_url',
+                'post.external_link',
+                'post.source',
+                'post.read_at',
+                'post.published_date',
+                'post.created_at'
+            ])
+            .where('post.user_id = :userId', { userId });
+
+        // Handle sorting
+        const sortBy = filters.sortBy || 'added_date';
+        const sortOrder = filters.sortOrder || 'DESC';
+
+        if (sortBy === 'published_date') {
+            // For published_date, handle null values - put them at the end
+            query.orderBy('post.published_date', sortOrder, 'NULLS LAST');
+            // Add secondary sort by sequence_id for consistent ordering
+            query.addOrderBy('post.sequence_id', 'DESC');
+        } else {
+            // Default to sequence_id (maps to added_date)
+            query.orderBy('post.sequence_id', sortOrder);
+        }
 
         if (filters.external_links?.length) {
             query.andWhere('post.external_link IN (:...links)', { links: filters.external_links });
