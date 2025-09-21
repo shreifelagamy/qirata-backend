@@ -113,7 +113,7 @@ export class RSSService {
             let match;
             while ((match = pattern.exec(html)) !== null) {
                 let url: string;
-                
+
                 if (pattern.source.includes('type=')) {
                     // For links with type attribute
                     const [_, type, foundUrl] = match;
@@ -151,12 +151,12 @@ export class RSSService {
 
         try {
             const base = new URL(baseUrl);
-            
+
             // Handle relative URLs that start with /
             if (url.startsWith('/')) {
                 return `${base.protocol}//${base.host}${url}`;
             }
-            
+
             // Handle relative URLs without leading /
             const basePath = base.pathname.endsWith('/') ? base.pathname : base.pathname + '/';
             return `${base.protocol}//${base.host}${basePath}${url}`;
@@ -203,6 +203,24 @@ export class RSSService {
             feedparser.on('readable', function (this: FeedParser) {
                 let item: Item;
                 while (item = this.read()) {
+                    // Extract image from media attributes first, then fallback to content extraction
+                    let imageUrl: string | undefined;
+
+                    // Check for enclosures (RSS 2.0 style)
+                    if (item.enclosures && item.enclosures.length > 0) {
+                        const imageEnclosure = item.enclosures.find(enc =>
+                            enc.type && enc.type.startsWith('image')
+                        );
+                        if (imageEnclosure) {
+                            imageUrl = imageEnclosure.url;
+                        }
+                    }
+
+                    // Check for item.image property
+                    if (!imageUrl && item.image) {
+                        imageUrl = typeof item.image === 'string' ? item.image : item.image.url;
+                    }
+
                     const entry: FeedEntry = {
                         title: item.title,
                         link: item.link,
@@ -211,7 +229,8 @@ export class RSSService {
                         content: item.summary || item.description,
                         author: item.author,
                         categories: item.categories || [],
-                        guid: item.guid
+                        guid: item.guid,
+                        image_url: imageUrl
                     };
                     feed.entries.push(entry);
                 }
@@ -268,7 +287,12 @@ export class RSSService {
 
         return feed.entries.map(entry => {
             const content = entry.content || entry.description || '';
-            const image_url = this.extractImageFromContent(content);
+
+            // Prioritize media URL from RSS parsing, fallback to content extraction
+            let image_url = entry.image_url;
+            if (!image_url) {
+                image_url = this.extractImageFromContent(content);
+            }
 
             return {
                 ...entry,
@@ -293,15 +317,15 @@ export class RSSService {
                 // Apple touch icons (high resolution)
                 /<link[^>]+rel=[\"']apple-touch-icon[^\"']*[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
                 /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']apple-touch-icon[^\"']*[\"'][^>]*>/i,
-                
+
                 // Standard favicon with icon rel
                 /<link[^>]+rel=[\"']icon[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
                 /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']icon[\"'][^>]*>/i,
-                
+
                 // Shortcut icon
                 /<link[^>]+rel=[\"']shortcut icon[\"'][^>]+href=[\"']([^\"']+)[\"'][^>]*>/i,
                 /<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']shortcut icon[\"'][^>]*>/i,
-                
+
                 // Any link with favicon in href
                 /<link[^>]+href=[\"']([^\"']*favicon[^\"']*)[\"'][^>]*>/i
             ];
@@ -344,7 +368,7 @@ export class RSSService {
 
         // Check for common favicon file extensions
         const faviconExtensions = /\.(ico|png|jpg|jpeg|gif|svg)(\?.*)?$/i;
-        
+
         // Check for favicon-related keywords in the URL
         const faviconKeywords = /(favicon|icon|logo|apple-touch)/i;
 

@@ -179,7 +179,7 @@ export class LinksService {
             // Create new posts from feed entries
             const newPosts: CreatePostDto[] = newEntries.map(entry => ({
                 title: entry.title || 'Untitled Post',
-                content: entry.content || entry.description || '',
+                content: entry.description || entry.content || '',
                 external_link: entry.link,
                 source: link.name,
                 linkId: link.id,
