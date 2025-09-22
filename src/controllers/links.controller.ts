@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { CreateLinkDto, UpdateLinkDto } from '../dtos/link.dto';
+import { CreateLinkDto } from '../dtos/link.dto';
 import { LinksService } from '../services/links.service';
 import { logger } from '../utils/logger';
 
@@ -76,16 +76,84 @@ export class LinksController {
      *                 summary: Invalid URL
      *                 value:
      *                   message: "URL is required"
-     *               duplicate_url:
-     *                 summary: Duplicate URL
+     *               invalid_rss_url:
+     *                 summary: Invalid RSS URL format
      *                 value:
-     *                   message: "URL already exists"
+     *                   message: "Invalid RSS URL format. Please provide a valid URL."
+     *               link_no_rss_feed:
+     *                 summary: Link has no RSS feed
+     *                 value:
+     *                   message: "Link does not have an RSS feed configured"
      *       401:
-     *         description: Unauthorized
+     *         description: Unauthorized - Authentication required
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               no_token:
+     *                 summary: No authentication token provided
+     *                 value:
+     *                   message: "Authentication token required"
+     *                   status: 401
+     *               invalid_token:
+     *                 summary: Invalid authentication token
+     *                 value:
+     *                   message: "Invalid or expired authentication token"
+     *                   status: 401
+     *       409:
+     *         description: Conflict - Duplicate URL
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               duplicate_url:
+     *                 summary: URL already exists
+     *                 value:
+     *                   message: "A link with this URL already exists"
+     *       422:
+     *         description: Unprocessable Entity - Invalid RSS content
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               invalid_rss_structure:
+     *                 summary: RSS feed has invalid structure
+     *                 value:
+     *                   message: "The RSS feed exists but has an invalid structure or is missing required content."
+     *               empty_rss_feed:
+     *                 summary: RSS feed contains no articles
+     *                 value:
+     *                   message: "The RSS feed is valid but contains no articles. Please ensure the feed has published content."
+     *               invalid_rss_content:
+     *                 summary: RSS articles missing required information
+     *                 value:
+     *                   message: "The RSS feed exists but the articles are missing required information (title, link, or content)."
+     *               not_rss_content:
+     *                 summary: URL does not contain RSS content
+     *                 value:
+     *                   message: "The URL does not contain valid RSS content. Please provide a direct link to an RSS feed."
+     *               no_valid_feeds:
+     *                 summary: No valid RSS feeds found
+     *                 value:
+     *                   message: "Found RSS feed links, but none contain valid RSS content with articles."
+     *       503:
+     *         description: Service Unavailable - Network or access issues
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               network_error:
+     *                 summary: Unable to access URL
+     *                 value:
+     *                   message: "Unable to access the URL. Please check the URL and try again."
+     *               rss_access_error:
+     *                 summary: Unable to access RSS feed
+     *                 value:
+     *                   message: "Unable to access the RSS feed. Please check the URL and try again."
      */
     async store(
         req: Request,
@@ -177,7 +245,35 @@ export class LinksController {
      *                   type: integer
      *                   example: 200
      *       401:
-     *         description: Unauthorized
+     *         description: Unauthorized - Authentication required
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               no_token:
+     *                 summary: No authentication token provided
+     *                 value:
+     *                   message: "Authentication token required"
+     *                   status: 401
+     *               invalid_token:
+     *                 summary: Invalid authentication token
+     *                 value:
+     *                   message: "Invalid or expired authentication token"
+     *                   status: 401
+     *       403:
+     *         description: Forbidden - Access denied
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               access_denied:
+     *                 summary: Access denied to user links
+     *                 value:
+     *                   message: "Access denied to user links"
+     *       500:
+     *         description: Failed to get links
      *         content:
      *           application/json:
      *             schema:
@@ -196,90 +292,6 @@ export class LinksController {
         }
     }
 
-    /**
-     * @swagger
-     * /links/{id}:
-     *   patch:
-     *     summary: Update a link
-     *     description: Updates an existing link by ID
-     *     tags: [Links]
-     *     security:
-     *       - bearerAuth: []
-     *     parameters:
-     *       - in: path
-     *         name: id
-     *         required: true
-     *         schema:
-     *           type: string
-     *           format: uuid
-     *         description: Link ID
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             type: object
-     *             properties:
-     *               name:
-     *                 type: string
-     *                 description: Link name
-     *               url:
-     *                 type: string
-     *                 description: Link URL
-     *               rss_url:
-     *                 type: string
-     *                 description: RSS feed URL
-     *               is_rss:
-     *                 type: boolean
-     *                 description: Whether this is an RSS feed
-     *     responses:
-     *       200:
-     *         description: Link updated successfully
-     *         content:
-     *           application/json:
-     *             schema:
-     *               type: object
-     *               properties:
-     *                 data:
-     *                   $ref: '#/components/schemas/Link'
-     *                 status:
-     *                   type: integer
-     *                   example: 200
-     *       400:
-     *         description: Bad request
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
-     *       401:
-     *         description: Unauthorized
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
-     *       404:
-     *         description: Link not found
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
-     */
-    async update(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const id = req.params.id;
-            const data: UpdateLinkDto = req.body;
-            const link = await this.linksService.updateLink(id, data, req.user!.id);
-
-            logger.info('Link updated:', { id: link.id, url: link.url });
-            res.json({ data: link, status: 200 });
-        } catch (error) {
-            next(error);
-        }
-    }
 
     /**
      * @swagger
@@ -301,14 +313,58 @@ export class LinksController {
      *     responses:
      *       204:
      *         description: Link deleted successfully
-     *       401:
-     *         description: Unauthorized
+     *       400:
+     *         description: Bad request - Invalid link ID format
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               invalid_id:
+     *                 summary: Invalid link ID format
+     *                 value:
+     *                   message: "Invalid link ID format"
+     *       401:
+     *         description: Unauthorized - Authentication required
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               no_token:
+     *                 summary: No authentication token provided
+     *                 value:
+     *                   message: "Authentication token required"
+     *                   status: 401
+     *               invalid_token:
+     *                 summary: Invalid authentication token
+     *                 value:
+     *                   message: "Invalid or expired authentication token"
+     *                   status: 401
      *       404:
-     *         description: Link not found
+     *         description: Link not found or access denied
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               link_not_found:
+     *                 summary: Link not found
+     *                 value:
+     *                   message: "Link not found or access denied"
+     *       409:
+     *         description: Conflict - Cannot delete due to dependencies
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               has_dependencies:
+     *                 summary: Link has associated data
+     *                 value:
+     *                   message: "Cannot delete link. It has associated data that must be removed first."
+     *       500:
+     *         description: Failed to delete link
      *         content:
      *           application/json:
      *             schema:
@@ -369,24 +425,77 @@ export class LinksController {
      *                 status:
      *                   type: integer
      *                   example: 200
+     *       400:
+     *         description: Bad request - Invalid link ID or link configuration
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               invalid_id:
+     *                 summary: Invalid link ID format
+     *                 value:
+     *                   message: "Invalid link ID format"
+     *               no_rss_feed:
+     *                 summary: Link has no RSS feed
+     *                 value:
+     *                   message: "Link does not have an RSS feed configured"
      *       401:
-     *         description: Unauthorized
+     *         description: Unauthorized - Authentication required
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               no_token:
+     *                 summary: No authentication token provided
+     *                 value:
+     *                   message: "Authentication token required"
+     *                   status: 401
+     *               invalid_token:
+     *                 summary: Invalid authentication token
+     *                 value:
+     *                   message: "Invalid or expired authentication token"
+     *                   status: 401
      *       404:
-     *         description: Link not found
+     *         description: Link not found or access denied
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               link_not_found:
+     *                 summary: Link not found
+     *                 value:
+     *                   message: "Link not found or access denied"
+     *       422:
+     *         description: Unprocessable Entity - RSS feed issues
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               invalid_rss_feed:
+     *                 summary: Unable to parse RSS feed
+     *                 value:
+     *                   message: "Unable to parse RSS feed. The feed may be invalid or corrupted."
      *       500:
      *         description: Failed to fetch posts
      *         content:
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
+     *       503:
+     *         description: Service Unavailable - Unable to access RSS feed
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     *             examples:
+     *               rss_access_error:
+     *                 summary: Unable to access RSS feed
+     *                 value:
+     *                   message: "Unable to access RSS feed. Please try again later."
      */
     async fetchPosts(
         req: Request,

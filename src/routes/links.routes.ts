@@ -24,17 +24,6 @@ export function createLinksRouter(): Router {
         linksController.index.bind(linksController)
     );
 
-    router.put(
-        '/:id',
-        validate([
-            ...commonValidation.id(),
-            body('url').optional().isURL().withMessage('Must be a valid URL'),
-            body('title').optional().isString().trim(),
-            body('description').optional().isString().trim(),
-            body('read_at').optional().isISO8601().toDate()
-        ]),
-        linksController.update.bind(linksController)
-    );
 
     router.delete(
         '/:id',

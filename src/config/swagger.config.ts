@@ -45,20 +45,55 @@ Authorization header as \`Bearer <token>\`.
             schemas: {
                 Error: {
                     type: 'object',
+                    required: ['message', 'status'],
                     properties: {
-                        error: {
-                            type: 'object',
-                            properties: {
-                                code: {
-                                    type: 'string',
-                                    description: 'Error code identifier',
-                                },
-                                message: {
-                                    type: 'string',
-                                    description: 'Human-readable error message',
-                                },
-                            },
+                        message: {
+                            type: 'string',
+                            description: 'Human-readable error message',
+                            example: 'Error occurred while processing request'
                         },
+                        status: {
+                            type: 'integer',
+                            description: 'HTTP status code',
+                            example: 400
+                        },
+                        errors: {
+                            type: 'object',
+                            description: 'Validation errors (optional)',
+                            additionalProperties: {
+                                type: 'array',
+                                items: {
+                                    type: 'string'
+                                }
+                            },
+                            example: {
+                                'url': ['Must be a valid URL'],
+                                'name': ['Name is required']
+                            }
+                        },
+                        data: {
+                            type: 'object',
+                            description: 'Additional error context (development mode only)',
+                            properties: {
+                                timestamp: {
+                                    type: 'string',
+                                    format: 'date-time',
+                                    description: 'Error timestamp'
+                                },
+                                path: {
+                                    type: 'string',
+                                    description: 'Request path'
+                                },
+                                method: {
+                                    type: 'string',
+                                    description: 'HTTP method'
+                                },
+                                stack: {
+                                    type: 'string',
+                                    description: 'Error stack trace (development only)'
+                                }
+                            }
+                        }
                     },
                 },
                 PaginatedResponse: {
