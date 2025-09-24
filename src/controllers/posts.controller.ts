@@ -68,6 +68,7 @@ export class PostsController {
      *         name: read
      *         schema:
      *           type: boolean
+     *         description: Filter posts by read status - true for read posts, false for unread posts, omit for all posts
      *       - in: query
      *         name: link_id
      *         schema:

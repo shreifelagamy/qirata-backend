@@ -5,21 +5,10 @@ import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';
 import { HttpError } from '../middleware/error.middleware';
 import { PostModel } from '../models/post.model';
+import { PostFilters } from '../types/posts.types';
 import { logger } from '../utils/logger';
 import { ChatSessionService } from './chat-session.service';
 import contentAggregationService from './content/content-aggregation.service';
-
-interface PostFilters {
-    read?: boolean;
-    link_id?: string;
-    search?: string;
-    source?: string;
-    limit?: number;
-    offset?: number;
-    external_links?: string[];
-    sortBy?: string;
-    sortOrder?: 'ASC' | 'DESC';
-}
 
 export class PostsService {
     private postModel: PostModel;

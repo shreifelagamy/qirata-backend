@@ -4,18 +4,7 @@ import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';
 import { HttpError } from '../middleware/error.middleware';
-
-interface PostFilters {
-    read?: boolean;
-    link_id?: string;
-    search?: string;
-    source?: string;
-    limit?: number;
-    offset?: number;
-    external_links?: string[];
-    sortBy?: string;
-    sortOrder?: 'ASC' | 'DESC';
-}
+import { PostFilters } from '../types/posts.types';
 
 export class PostModel {
     private repository: Repository<Post>;
