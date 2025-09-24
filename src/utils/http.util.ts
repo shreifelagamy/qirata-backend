@@ -70,6 +70,8 @@ export function handleHttpErrors(error: any): Error {
         });
 
         switch (status) {
+            case 403:
+                return new Error('Access to this website is blocked. The site may have anti-bot protection. Please try providing the RSS feed URL directly.');
             case 404:
                 return new Error('Resource not found');
             case 429:

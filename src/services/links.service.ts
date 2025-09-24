@@ -100,7 +100,10 @@ export class LinksService {
                 throw error;
             }
             logger.error('Error processing link:', error);
-            // Differentiate between network errors and processing errors
+            // Differentiate between different types of access errors
+            if ((error as Error).message?.includes('Access to this website is blocked')) {
+                throw new HttpError(400, (error as Error).message);
+            }
             if ((error as Error).message?.includes('fetch') || (error as Error).message?.includes('network') || (error as Error).message?.includes('timeout')) {
                 throw new HttpError(503, 'Unable to access the URL. Please check the URL and try again.');
             }
@@ -302,6 +305,9 @@ export class LinksService {
             // Handle different types of errors with appropriate status codes
             if ((error as Error).message?.includes('Invalid URL format')) {
                 throw new HttpError(400, 'Invalid RSS URL format. Please provide a valid URL.');
+            }
+            if ((error as Error).message?.includes('Access to this website is blocked')) {
+                throw new HttpError(400, (error as Error).message);
             }
             if ((error as Error).message?.includes('fetch') || (error as Error).message?.includes('network') || (error as Error).message?.includes('timeout')) {
                 throw new HttpError(503, 'Unable to access the RSS feed. Please check the URL and try again.');
