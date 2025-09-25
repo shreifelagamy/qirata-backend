@@ -19,8 +19,9 @@ real-time communication, and social media integration capabilities.
 - User authentication and authorization
 
 ## Authentication
-API uses JWT tokens for authentication. Include the token in the
-Authorization header as \`Bearer <token>\`.
+API uses secure HTTP-only cookies for authentication. Authentication is handled
+automatically through Better Auth's cookie-based session management.
+Authentication endpoints are available at \`/api/auth/*\`.
       `,
         },
         servers: [
@@ -35,11 +36,11 @@ Authorization header as \`Bearer <token>\`.
         ],
         components: {
             securitySchemes: {
-                bearerAuth: {
-                    type: 'http',
-                    scheme: 'bearer',
-                    bearerFormat: 'JWT',
-                    description: 'JWT token obtained from the authentication endpoint',
+                cookieAuth: {
+                    type: 'apiKey',
+                    in: 'cookie',
+                    name: 'better-auth.session_token',
+                    description: 'Session cookie for authentication. Automatically managed by Better Auth.',
                 },
             },
             schemas: {
@@ -1198,21 +1199,17 @@ Authorization header as \`Bearer <token>\`.
                 AuthResponse: {
                     type: 'object',
                     properties: {
-                        token: {
-                            type: 'string',
-                            description: 'JWT authentication token',
-                            example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-                        },
                         user: {
                             $ref: '#/components/schemas/User',
                             description: 'Authenticated user information'
                         },
-                        expiresAt: {
+                        message: {
                             type: 'string',
-                            format: 'date-time',
-                            description: 'When the token expires'
+                            description: 'Success message',
+                            example: 'Login successful'
                         }
-                    }
+                    },
+                    description: 'Authentication response. Session is managed via secure HTTP-only cookies.'
                 },
                 ForgotPasswordRequest: {
                     type: 'object',

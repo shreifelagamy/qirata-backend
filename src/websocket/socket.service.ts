@@ -2,7 +2,8 @@ import { Server as HTTPServer } from 'http';
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, ClientToServerEvents, ServerToClientEvents } from '../types/socket.types';
 import { logger } from '../utils/logger';
-import { validateToken } from '../config/auth.config';
+import { auth } from '../config/auth.config';
+import { fromNodeHeaders } from 'better-auth/node';
 
 class SocketService {
     private io!: Server<ClientToServerEvents, ServerToClientEvents>;
@@ -31,40 +32,70 @@ class SocketService {
     private setupMiddleware(): void {
         this.io.use(async (socket: AuthenticatedSocket, next) => {
             try {
-                const token = socket.handshake.auth.token;
                 const sessionId = socket.handshake.auth.sessionId;
 
-                if (!token) {
-                    throw new Error('Authentication token missing');
+                // First try to get session from cookies in headers
+                const session = await auth.api.getSession({
+                    headers: fromNodeHeaders(socket.handshake.headers)
+                });
+
+                if (session?.user) {
+                    // Setup socket data from session
+                    socket.data = {
+                        userId: session.user.id,
+                        isAuthenticated: true,
+                        lastActivity: new Date(),
+                        connectionTime: new Date(),
+                        activeStreams: new Map(),
+                        email: session.user.email,
+                        name: session.user.name,
+                        sessionId: sessionId || session.session.id
+                    };
+
+                    // Set userId on socket for convenience
+                    socket.userId = session.user.id;
+
+                    logger.info(`Socket authenticated via session for user: ${session.user.id} (${session.user.email})`);
+                    return next();
                 }
 
-                // Validate JWT token using better-auth
-                const payload = await validateToken(token);
-                if (!payload || !payload.sub) {
-                    throw new Error('Invalid or expired token');
+                // Fallback: Check for session token in handshake auth (for cases where cookies aren't available)
+                const sessionToken = socket.handshake.auth.sessionToken;
+                if (sessionToken) {
+                    try {
+                        // Create temporary headers with session token as cookie
+                        const tempHeaders = {
+                            cookie: `better-auth.session_token=${sessionToken}`
+                        };
+
+                        const tokenSession = await auth.api.getSession({
+                            headers: fromNodeHeaders(tempHeaders)
+                        });
+
+                        if (tokenSession?.user) {
+                            socket.data = {
+                                userId: tokenSession.user.id,
+                                isAuthenticated: true,
+                                lastActivity: new Date(),
+                                connectionTime: new Date(),
+                                activeStreams: new Map(),
+                                email: tokenSession.user.email,
+                                name: tokenSession.user.name,
+                                sessionId: sessionId || tokenSession.session.id
+                            };
+
+                            socket.userId = tokenSession.user.id;
+
+                            logger.info(`Socket authenticated via session token for user: ${tokenSession.user.id} (${tokenSession.user.email})`);
+                            return next();
+                        }
+                    } catch (tokenError) {
+                        logger.warn('Session token validation failed:', tokenError);
+                    }
                 }
 
-                const userId = payload.sub as string;
-                const userEmail = payload.email as string;
-                const userName = payload.name as string;
+                throw new Error('No valid session found');
 
-                // Setup socket data
-                socket.data = {
-                    userId,
-                    isAuthenticated: true,
-                    lastActivity: new Date(),
-                    connectionTime: new Date(),
-                    activeStreams: new Map(),
-                    email: userEmail,
-                    name: userName,
-                    sessionId
-                };
-
-                // Set userId on socket for convenience
-                socket.userId = userId;
-
-                logger.info(`Socket authenticated for user: ${userId} (${userEmail})`);
-                next();
             } catch (error) {
                 logger.error('Socket authentication failed:', error);
                 next(new Error('Authentication failed'));

@@ -1,7 +1,6 @@
 import { betterAuth } from "better-auth";
-import { bearer, jwt, openAPI } from 'better-auth/plugins';
+import { openAPI } from 'better-auth/plugins';
 import { Pool } from "pg";
-import { jwtVerify, createRemoteJWKSet } from 'jose';
 
 import dotenv from 'dotenv';
 import { logger } from "../utils/logger";
@@ -21,12 +20,27 @@ const pool = new Pool({
 export const auth = betterAuth({
     database: pool,
 
-    // JWT Configuration for token-based authentication
-    secret: process.env.BETTER_AUTH_SECRET || "your-super-secret-jwt-key-change-in-production",
+    // Secret for session management and CSRF protection
+    secret: process.env.BETTER_AUTH_SECRET || "your-super-secret-key-change-in-production",
+
+    // Base URL for redirects and cookie domain
+    baseURL: process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000',
 
     // Enable email/password authentication
     emailAndPassword: {
         enabled: true,
+        autoSignIn: true, // Automatically sign in users after registration
+        requireEmailVerification: false, // Set to true if you want email verification
+    },
+
+    // Session configuration
+    session: {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+        updateAge: 60 * 60 * 24, // 1 day - session will be updated if it's older than this
+        cookieCache: {
+            enabled: true,
+            maxAge: 5 * 60 * 1000, // 5 minutes in milliseconds
+        }
     },
 
     logger: {
@@ -52,56 +66,26 @@ export const auth = betterAuth({
         ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []) // Additional trusted origins from env
     ],
 
-    // Advanced cookie configuration for cross-origin support
+    // Enhanced cookie configuration for security
     advanced: {
-        useSecureCookies: process.env.NODE_ENV === 'production', // false for localhost development
+        useSecureCookies: process.env.NODE_ENV === 'production',
+        cookiePrefix: process.env.COOKIE_PREFIX || "better-auth",
         defaultCookieAttributes: {
-            sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax", // lax for localhost, none for production
+            sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax",
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // false for localhost development
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 60 * 60 * 24 * 7, // 7 days
+            domain: process.env.COOKIE_DOMAIN || undefined, // Allow cross-subdomain cookies if needed
+        },
+        // Additional security options
+        crossSubDomainCookies: {
+            enabled: process.env.ENABLE_CROSS_SUBDOMAIN === 'true',
+            domain: process.env.COOKIE_DOMAIN || undefined,
         }
     },
 
     plugins: [
-        openAPI(),
-        bearer({ requireSignature: true }),
-        jwt({
-            jwt: {
-                issuer: process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000',
-                audience: process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000',
-                // Optional: add claims you care about
-                definePayload: ({ user, session }) => ({
-                    sub: user.id,
-                    email: user.email,
-                    name: user.name,
-                    sid: session.id,
-                    // add roles/permissions if you have them
-                }),
-            }
-        })
+        openAPI(), // Keep OpenAPI documentation plugin
     ]
 });
 
-/**
- * Validates JWT token using Better Auth's JWKS endpoint
- * @param token - JWT token to validate
- * @returns JWT payload if valid, null if invalid
- */
-export const validateToken = async (token: string) => {
-    try {
-        const backendUrl = process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:3000';
-        const JWKS = createRemoteJWKSet(
-            new URL(`${backendUrl}/api/auth/jwks`)
-        );
-        
-        const { payload } = await jwtVerify(token, JWKS, {
-            issuer: backendUrl,
-            audience: backendUrl
-        });
-        
-        return payload;
-    } catch (error) {
-        logger.error('JWT validation failed:', error);
-        return null;
-    }
-};
