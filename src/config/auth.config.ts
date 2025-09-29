@@ -33,6 +33,18 @@ export const auth = betterAuth({
         requireEmailVerification: false, // Set to true if you want email verification
     },
 
+    // Social providers
+    socialProviders: {
+        google: {
+            clientId: process.env.GOOGLE_CLIENT_ID as string,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+        },
+        github: {
+            clientId: process.env.GITHUB_CLIENT_ID as string,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+        },
+    },
+
     // Session configuration
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
@@ -45,23 +57,18 @@ export const auth = betterAuth({
 
     logger: {
         disabled: false,
-        level: "error",
-        log: (level: string, message: string, ...args: any[]) => {
-            // Custom logging implementation
-            logger.debug(`[${level}] ${message}`);
-        }
+        level: "info",
     },
 
     onAPIError: {
         throw: true,
-        onError(error: any, ctx: any) {
-            console.log("Error :", error)
-        },
     },
 
     trustedOrigins: [
         "http://localhost:5173",   // Vite dev
         "http://localhost:3000",   // your API host
+        "https://accounts.google.com", // Required for Google sign-in
+        "https://github.com", // Required for GitHub sign-in
         ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend from env
         ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []) // Additional trusted origins from env
     ],
