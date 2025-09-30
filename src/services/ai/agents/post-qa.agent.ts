@@ -8,7 +8,10 @@ import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages
 // Input schema for post Q&A
 const PostQAInput = z.object({
     message: z.string().describe('The user question about the post'),
-    lastMessages: z.array(z.string()).max(10).describe('Last 10 conversation messages for context'),
+    lastMessages: z.array(z.object({
+        user_message: z.string(),
+        ai_response: z.string()
+    })).max(5).describe('Last 5 conversation message pairs (10 total messages) for context'),
     postSummary: z.string().describe('Summary of the post content'),
     conversationSummary: z.string().optional().describe('Summary of previous conversation if available'),
     fullPostContent: z.string().optional().describe('Full post content if needed for detailed answers')
@@ -63,7 +66,12 @@ Visual formatting is crucial for learning retention and readability. Apply these
 - **Include visual elements**: Mention images/diagrams from the post when relevant
 
 ## RESPONSE STRUCTURE:
-- Start with an **engaging opening** that validates the question
+- Start with a **varied, natural opening** - NEVER use repetitive phrases like "Great question!" or "That's an important topic"
+  - For factual questions: Jump directly into the answer
+  - For complex questions: Acknowledge the depth naturally (e.g., "This touches on several key aspects...")
+  - For follow-up questions: Reference the conversation flow (e.g., "Building on what we discussed...")
+  - For clarification questions: Be direct (e.g., "Let me clarify that...")
+  - **Avoid bot-like patterns** - vary your approach based on context and previous responses
 - **Bold key terms** throughout your explanation
 - Use **bullet points or numbered lists** when explaining multiple concepts
 - Structure complex ideas with **clear headings** or **bold topic sentences**
@@ -74,7 +82,15 @@ Visual formatting is crucial for learning retention and readability. Apply these
 - Provide your complete educational explanation
 - End with a natural, conversational follow-up question when appropriate (e.g., "Would you like examples of specific tools used in these measurements?")
 - Always include 3 short, direct follow-up questions related to the post content in the \`suggestedOptions\` JSON field
-- Keep the tone natural and engaging throughout`;
+- Keep the tone natural and engaging throughout
+
+## SUGGESTING SOCIAL POST CREATION:
+**When to suggest**: If the user has engaged in 3+ message exchanges AND progressed from basic/general questions to detailed/specific questions, this indicates they've mastered the topic.
+
+**How to suggest**: Replace ONE of the 3 suggested options with: "Create a social post to share this knowledge"
+- This option should be phrased naturally as a call-to-action
+- Only include this suggestion when you detect genuine topic understanding progression
+- Keep the other 2 options as regular follow-up questions`;
 
 export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise<z.infer<typeof PostQAOutput>> {
     // Create tool from Zod schema
@@ -111,12 +127,12 @@ export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise
         messages.push(new AIMessage("Recived the full post content"))
     }
 
-    // push old messages
+    // push old conversation messages (interleaved user and AI messages)
     if ( options.lastMessages.length > 0) {
-        options.lastMessages.forEach((msg, index) => {
-            messages.push(new HumanMessage(msg))
+        options.lastMessages.forEach((msg) => {
+            messages.push(new HumanMessage(msg.user_message))
+            messages.push(new AIMessage(msg.ai_response))
         })
-        messages.push(new AIMessage('I have the old messages and will maintain context.'))
     }
 
     messages.push(new HumanMessage(options.message))

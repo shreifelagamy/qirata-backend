@@ -10,8 +10,8 @@ export const postQATask = task('postQA', async (
 ): Promise<z.infer<typeof TaskOutput>> => {
     const postService = new PostsService();
 
-    // Get post summary from expanded post
-    const lastMessages = memory.lastMessages.map(msg => msg.user_message) || []
+    // Get full conversation history (both user and AI messages)
+    const lastMessages = memory.lastMessages || []
 
     // First try with summary only
     let qaResult = await postQAAgent({
