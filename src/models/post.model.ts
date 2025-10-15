@@ -3,9 +3,23 @@ import { AppDataSource } from '../app';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';
+import { UserPost } from '../entities/user-post.entity';
 import { HttpError } from '../middleware/error.middleware';
 import { PostFilters } from '../types/posts.types';
 
+/**
+ * TODO: MIGRATION REQUIRED - Story 20 Backend Task
+ *
+ * This model needs refactoring after running migrations to work with the new global feed schema:
+ *
+ * 1. Add UserPost repository for tracking read/bookmark states
+ * 2. Update markAsRead() and markAsReadByUser() to create/update UserPost entries instead of Post.read_at
+ * 3. Update findAll() to join with user_posts for filtering by read status
+ * 4. Update getSourcesByUser() to query from feeds table via feed_id instead of post.source
+ * 5. Consider removing source-based filtering until feeds are implemented
+ *
+ * These changes should be made in the next story (Story 21) when updating API endpoints.
+ */
 export class PostModel {
     private repository: Repository<Post>;
     private expandedRepository: Repository<PostExpanded>;
@@ -78,7 +92,8 @@ export class PostModel {
 
     async markAsRead(id: string): Promise<Post> {
         const post = await this.findById(id);
-        post.read_at = new Date();
+        // TODO: After migration, create UserPost entry instead
+        // post.read_at = new Date();
         return await this.repository.save(post);
     }
 
@@ -193,7 +208,8 @@ export class PostModel {
 
     async markAsReadByUser(id: string, userId: string): Promise<Post> {
         const post = await this.findByIdAndUser(id, userId);
-        post.read_at = new Date();
+        // TODO: After migration, create UserPost entry instead
+        // post.read_at = new Date();
         return await this.repository.save(post);
     }
 

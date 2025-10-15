@@ -4,10 +4,12 @@ import { BaseEntity } from "./base.entity";
 import { ChatSession } from "./chat-session.entity";
 import { Link } from "./link.entity";
 import { Post } from "./post.entity";
-import { PostExpanded } from "./post-expanded.entity";
 import { Message } from "./message.entity";
 import { SocialPost } from "./social-post.entity";
 import { Settings } from "./settings.entity";
+import { UserFeed } from "./user-feed.entity";
+import { UserPost } from "./user-post.entity";
+import { Category } from "./category.entity";
 
 @Entity("user")
 export class User extends BaseEntity {
@@ -41,9 +43,6 @@ export class User extends BaseEntity {
     @OneToMany(() => Post, post => post.user)
     posts!: Post[];
 
-    @OneToMany(() => PostExpanded, postExpanded => postExpanded.user)
-    expanded_posts!: PostExpanded[];
-
     @OneToMany(() => Message, message => message.user)
     messages!: Message[];
 
@@ -53,6 +52,14 @@ export class User extends BaseEntity {
     @OneToMany(() => Settings, settings => settings.user)
     settings!: Settings[];
 
+    @OneToMany(() => UserFeed, userFeed => userFeed.user)
+    user_feeds!: UserFeed[];
+
+    @OneToMany(() => UserPost, userPost => userPost.user)
+    user_posts!: UserPost[];
+
+    @OneToMany(() => Category, category => category.user)
+    categories!: Category[];
 
     constructor(partial: Partial<User> = {}) {
         super();

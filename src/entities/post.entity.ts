@@ -3,6 +3,8 @@ import { IsUrl, MaxLength, IsOptional, IsNotEmpty, IsNumber } from "class-valida
 import { Transform } from "class-transformer";
 import { BaseEntity } from "./base.entity";
 import { User } from "./user.entity";
+import { Feed } from "./feed.entity";
+import { UserPost } from "./user-post.entity";
 import { SocialPost } from "./social-post.entity";
 import { PostExpanded } from "./post-expanded.entity";
 
@@ -43,19 +45,22 @@ export class Post extends BaseEntity {
     @IsNotEmpty()
     external_link: string = "";
 
-    @Column({ type: "varchar", length: 255 })
-    @MaxLength(255)
-    @IsNotEmpty()
-    source: string = "";
-
-    @Column({ type: "timestamp with time zone", nullable: true })
-    @Index("IDX_POSTS_READ_AT")
-    read_at?: Date;
-
     @Column({ type: "timestamp with time zone", nullable: true })
     @IsOptional()
     @Transform(({ value }) => value ? new Date(value) : undefined)
     published_date?: Date;
+
+    @Column({ type: "uuid", nullable: true })
+    @Index("idx_posts_feed")
+    @IsOptional()
+    feed_id?: string;
+
+    @ManyToOne(() => Feed, feed => feed.posts, { onDelete: "CASCADE", nullable: true })
+    @JoinColumn({ name: "feed_id" })
+    feed?: Feed;
+
+    @OneToMany(() => UserPost, userPost => userPost.post)
+    user_posts!: UserPost[];
 
     @OneToMany(() => SocialPost, socialPost => socialPost.post)
     social_posts!: SocialPost[];

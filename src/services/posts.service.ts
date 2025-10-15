@@ -161,7 +161,6 @@ export class PostsService {
 
         const expanded = new PostExpanded({
             post_id: post.id,
-            user_id: userId,
             content,
             summary
         });
