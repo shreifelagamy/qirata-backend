@@ -195,8 +195,8 @@ export class LinksController {
      * @swagger
      * /links:
      *   get:
-     *     summary: Get all links
-     *     description: Retrieves all links with pagination support
+     *     summary: Get all user feed subscriptions
+     *     description: Retrieves all user's feed subscriptions with feed metadata and category information
      *     tags: [Links]
      *     security:
      *       - bearerAuth: []
@@ -231,7 +231,7 @@ export class LinksController {
      *         description: Sort order direction
      *     responses:
      *       200:
-     *         description: List of links
+     *         description: List of user feed subscriptions with metadata
      *         content:
      *           application/json:
      *             schema:
@@ -240,7 +240,7 @@ export class LinksController {
      *                 data:
      *                   type: array
      *                   items:
-     *                     $ref: '#/components/schemas/Link'
+     *                     $ref: '#/components/schemas/UserFeed'
      *                 status:
      *                   type: integer
      *                   example: 200

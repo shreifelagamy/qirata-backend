@@ -3,7 +3,6 @@ import { IsEmail, IsNotEmpty, MaxLength, IsOptional, IsBoolean } from "class-val
 import { BaseEntity } from "./base.entity";
 import { ChatSession } from "./chat-session.entity";
 import { Link } from "./link.entity";
-import { Post } from "./post.entity";
 import { Message } from "./message.entity";
 import { SocialPost } from "./social-post.entity";
 import { Settings } from "./settings.entity";
@@ -39,9 +38,6 @@ export class User extends BaseEntity {
 
     @OneToMany(() => Link, link => link.user)
     links!: Link[];
-
-    @OneToMany(() => Post, post => post.user)
-    posts!: Post[];
 
     @OneToMany(() => Message, message => message.user)
     messages!: Message[];

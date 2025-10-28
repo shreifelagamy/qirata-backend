@@ -110,7 +110,9 @@ export class ChatSessionService {
     async create(dto: CreateChatSessionDto, userId: string) {
         let post = undefined;
         if (dto.postId) {
-            post = await this.postRepository.findOne({ where: { id: dto.postId, user_id: userId } });
+            // Post no longer has user_id - just check if it exists
+            // User access is controlled via user_feeds now
+            post = await this.postRepository.findOne({ where: { id: dto.postId } });
             if (!post) throw new Error('Post not found');
         }
         const session = this.chatSessionRepository.create({

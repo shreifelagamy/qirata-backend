@@ -18,11 +18,22 @@ export class Feed extends BaseEntity {
     @IsNotEmpty()
     name: string = "";
 
+    @Column({ type: "varchar", length: 2000, unique: true })
+    @Index("idx_feeds_rss_url")
+    @IsUrl()
+    @MaxLength(2000)
+    @IsNotEmpty()
+    rss_url: string = "";
+
     @Column({ type: "varchar", length: 2000, nullable: true })
     @IsUrl()
     @MaxLength(2000)
     @IsOptional()
     favicon_url?: string;
+
+    @Column({ type: "text", nullable: true })
+    @IsOptional()
+    description?: string;
 
     @Column({ type: "timestamp with time zone", nullable: true })
     @Index("idx_feeds_last_fetch")

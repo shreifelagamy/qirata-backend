@@ -6,6 +6,7 @@ import { createChatSessionRouter } from './chat-session.routes';
 import { createLinksRouter } from './links.routes';
 import { createPostsRouter } from './posts.routes';
 import { createSettingsRouter } from './settings.routes';
+import { createCategoryRouter } from './category.routes';
 
 export function createRouter(): Router {
     const router = Router();
@@ -19,6 +20,7 @@ export function createRouter(): Router {
     router.use('/posts', createPostsRouter());
     router.use('/settings', createSettingsRouter());
     router.use('/chat-sessions', createChatSessionRouter());
+    router.use('/categories', createCategoryRouter());
 
     return router;
 }

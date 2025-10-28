@@ -1,8 +1,15 @@
 import FeedParser, { Item, Meta } from 'feedparser';
 import { Readable } from 'stream';
 import { FeedEntry, RSSFeed } from '../../types/content.types';
-import { fetchWithTimeout, validateUrl } from '../../utils/http.util';
+import { fetchWithTimeout, fetchWithHeaders, validateUrl } from '../../utils/http.util';
 import { logger } from '../../utils/logger';
+
+export interface FeedFetchResult {
+    feed?: RSSFeed;
+    etag?: string;
+    lastModified?: Date;
+    notModified: boolean;
+}
 
 export class RSSService {
     /**
@@ -167,6 +174,151 @@ export class RSSService {
             logger.warn(`Failed to resolve URL: ${url} against base: ${baseUrl}`, error);
             return url; // Return original URL if resolution fails
         }
+    }
+
+    /**
+     * Parse RSS feed with conditional request support (ETag and Last-Modified)
+     * @param url - The feed URL
+     * @param etag - Optional ETag from previous fetch
+     * @param lastModified - Optional Last-Modified date from previous fetch
+     * @returns FeedFetchResult with feed data and caching headers
+     */
+    async parseFeedWithCache(url: string, etag?: string, lastModified?: Date): Promise<FeedFetchResult> {
+        if (!validateUrl(url)) {
+            throw new Error('Invalid URL format');
+        }
+
+        const startTime = Date.now();
+        const headers: Record<string, string> = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+        };
+
+        // Add conditional request headers if we have cached values
+        if (etag) {
+            headers['If-None-Match'] = etag;
+        }
+        if (lastModified) {
+            headers['If-Modified-Since'] = lastModified.toUTCString();
+        }
+
+        try {
+            const response = await fetchWithHeaders<string>(url, {
+                responseType: 'text',
+                headers
+            });
+
+            // Check if content was not modified (304 status)
+            if (response.status === 304) {
+                logger.info(`Feed not modified (304): ${url}`);
+                return {
+                    notModified: true,
+                    etag: etag,
+                    lastModified: lastModified
+                };
+            }
+
+            // Extract caching headers from response
+            const newEtag = response.headers['etag'];
+            const newLastModified = response.headers['last-modified']
+                ? new Date(response.headers['last-modified'])
+                : undefined;
+
+            // Parse the feed content
+            const feed = await this.parseFeedContent(response.data, url);
+
+            logger.info(`Feed fetched and parsed in ${Date.now() - startTime}ms: ${url}`);
+
+            return {
+                feed,
+                etag: newEtag,
+                lastModified: newLastModified,
+                notModified: false
+            };
+        } catch (error) {
+            logger.error(`Error fetching feed with cache: ${url}`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Parse feed content from XML string
+     * @param content - XML content
+     * @param url - Feed URL for logging
+     * @returns Parsed RSS feed
+     */
+    private async parseFeedContent(content: string, url: string): Promise<RSSFeed> {
+        return new Promise((resolve, reject) => {
+            const feed: RSSFeed = {
+                title: '',
+                link: url,
+                entries: []
+            };
+
+            const feedparser = new FeedParser({ addmeta: true });
+            const stream = new Readable();
+            stream.push(content);
+            stream.push(null);
+
+            feedparser.on('error', reject);
+
+            feedparser.on('meta', (meta: Meta) => {
+                feed.title = meta.title;
+                feed.description = meta.description;
+                feed.language = meta.language;
+                feed.lastBuildDate = meta.date || undefined;
+            });
+
+            feedparser.on('readable', function (this: FeedParser) {
+                let item: Item;
+                while (item = this.read()) {
+                    // Extract image from media attributes first, then fallback to content extraction
+                    let imageUrl: string | undefined;
+
+                    // Check for enclosures (RSS 2.0 style)
+                    if (item.enclosures && item.enclosures.length > 0) {
+                        const imageEnclosure = item.enclosures.find(enc =>
+                            enc.type && enc.type.startsWith('image')
+                        );
+                        if (imageEnclosure) {
+                            imageUrl = imageEnclosure.url;
+                        }
+                    }
+
+                    // Check for item.image property
+                    if (!imageUrl && item.image) {
+                        imageUrl = typeof item.image === 'string' ? item.image : item.image.url;
+                    }
+
+                    const entry: FeedEntry = {
+                        title: item.title,
+                        link: item.link,
+                        pubDate: item.pubdate || item.date || undefined,
+                        description: item.description,
+                        content: item.summary || item.description,
+                        author: item.author,
+                        categories: item.categories || [],
+                        guid: item.guid,
+                        image_url: imageUrl
+                    };
+                    feed.entries.push(entry);
+                }
+            });
+
+            feedparser.on('end', () => {
+                if (this.validateFeed(feed)) {
+                    resolve(feed);
+                } else {
+                    reject(new Error('Invalid feed structure'));
+                }
+            });
+
+            stream.pipe(feedparser);
+        });
     }
 
     async parseFeed(url: string): Promise<RSSFeed> {

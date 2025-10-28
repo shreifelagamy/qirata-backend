@@ -1,15 +1,15 @@
-import { EntityManager } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { AppDataSource } from '../app';
 import { CreateLinkDto } from '../dtos/link.dto';
-import { CreatePostDto } from '../dtos/post.dto';
 import { Link } from '../entities/link.entity';
+import { UserFeed } from '../entities/user-feed.entity';
+import { Feed } from '../entities/feed.entity';
 import { HttpError } from '../middleware/error.middleware';
 import { LinkModel } from '../models/link.model';
 import { logger } from '../utils/logger';
 import { RSSService } from './content/rss.service';
 import { ScraperService } from './content/scraper.service';
-import { PostsService } from './posts.service';
-import { parseRSSDate, formatDateForDatabase } from '../utils/date.util';
+import { FeedService } from './content/feed.service';
 
 interface ProcessRssResult {
     linkData: CreateLinkDto;
@@ -20,13 +20,17 @@ export class LinksService {
     private linkModel: LinkModel;
     private rssService: RSSService;
     private scraperService: ScraperService;
-    private postsService: PostsService;
+    private feedService: FeedService;
+    private userFeedRepository: Repository<UserFeed>;
+    private feedRepository: Repository<Feed>;
 
     constructor() {
         this.linkModel = new LinkModel();
         this.rssService = new RSSService();
         this.scraperService = new ScraperService();
-        this.postsService = new PostsService();
+        this.feedService = new FeedService();
+        this.userFeedRepository = AppDataSource.getRepository(UserFeed);
+        this.feedRepository = AppDataSource.getRepository(Feed);
     }
 
     async processLink(data: CreateLinkDto): Promise<ProcessRssResult> {
@@ -117,9 +121,41 @@ export class LinksService {
                 throw new HttpError(400, 'URL is required');
             }
 
+            // Check if user already subscribed to this feed
+            const existingUserFeed = await this.userFeedRepository.findOne({
+                where: { user_id: userId },
+                relations: ['feed']
+            });
+
+            if (existingUserFeed && existingUserFeed.feed.url === data.rss_url) {
+                throw new HttpError(409, 'You are already subscribed to this feed');
+            }
+
+            // Create or get global feed
+            const feed = await this.feedService.getOrCreateFeed(
+                data.rss_url,
+                data.name,
+                data.favicon_url
+            );
+
+            // Create user_feed subscription
+            const userFeed = this.userFeedRepository.create({
+                user_id: userId,
+                feed_id: feed.id,
+                custom_name: data.name !== feed.name ? data.name : undefined,
+                subscribed_at: new Date()
+            });
+
+            await this.userFeedRepository.save(userFeed);
+
+            // Increment subscriber count
+            await this.feedService.incrementSubscriberCount(feed.id);
+
+            // Still create Link for backward compatibility
             await this.validateUniqueRSSUrl(data.rss_url, userId);
             const linkData = { ...data, user_id: userId };
             const link = await this.linkModel.create(linkData);
+
             return link;
         } catch (error) {
             if (error instanceof HttpError) {
@@ -139,9 +175,14 @@ export class LinksService {
         }
     }
 
-    async getLinks(userId: string): Promise<Link[]> {
+    async getLinks(userId: string): Promise<UserFeed[]> {
         try {
-            return await this.linkModel.findByUserId(userId);
+            // Return user_feeds with feed metadata instead of just links
+            return await this.userFeedRepository.find({
+                where: { user_id: userId },
+                relations: ['feed', 'category'],
+                order: { subscribed_at: 'DESC' }
+            });
         } catch (error) {
             logger.error('Error getting links:', error);
 
@@ -169,58 +210,20 @@ export class LinksService {
                 throw new HttpError(400, "Link does not have an RSS feed configured");
             }
 
-            // Parse and validate the RSS feed
-            const feed = await this.rssService.parseFeed(link.rss_url);
-
-            const feedEntries = this.rssService.extractEntries(feed);
-
-            if (!feedEntries.length) {
-                logger.warn(`No entries found in feed: ${link.rss_url}`);
-                return { link, insertedCount: 0 };
+            // Get the feed from the global registry
+            const feed = await this.feedService.getFeedByUrl(link.rss_url);
+            if (!feed) {
+                throw new HttpError(404, 'Feed not found in registry');
             }
 
-            // Check for existing posts to prevent duplicates
-            const feedLinks = feedEntries.map(entry => entry.link);
-            const [existingPosts] = await this.postsService.getPosts({
-                external_links: feedLinks
-            }, userId);
+            // Fetch posts using FeedService (creates global posts with deduplication)
+            const { feed: updatedFeed, insertedCount } = await this.feedService.fetchFeed(feed.id);
 
-            const existingLinks = new Set(existingPosts.map(post => post.external_link));
+            // Update link's last_fetch_at
+            link.last_fetch_at = new Date();
+            await this.linkModel.update(link.id, { last_fetch_at: link.last_fetch_at });
 
-            // Filter out entries that already exist
-            const newEntries = feedEntries.filter(entry => !existingLinks.has(entry.link));
-
-            // Create new posts from feed entries
-            const newPosts: CreatePostDto[] = newEntries.map(entry => {
-                // Parse the published date from the RSS feed
-                const publishedDate = parseRSSDate(entry.pubDate);
-
-                return {
-                    title: entry.title || 'Untitled Post',
-                    content: entry.description || entry.content || '',
-                    external_link: entry.link,
-                    source: link.name,
-                    linkId: link.id,
-                    image_url: entry.image_url, // Using feed content only, undefined for optional field
-                    published_date: formatDateForDatabase(publishedDate)
-                };
-            });
-
-            // Start a transaction for atomic operations
-            const transaction = await AppDataSource.transaction(async (manager: EntityManager) => {
-                // Bulk insert new posts
-                if (newPosts.length > 0) {
-                    await this.postsService.createMany(newPosts, userId, manager);
-                }
-
-                // Save updated link model
-                link.last_fetch_at = new Date();
-                const updatedLink = await manager.save(link);
-
-                return { link: updatedLink, insertedCount: newPosts.length };
-            });
-
-            return transaction;
+            return { link, insertedCount };
         } catch (error) {
             if (error instanceof HttpError) {
                 throw error;
@@ -244,6 +247,28 @@ export class LinksService {
             if (!Link.isValidUUID(id)) {
                 throw new HttpError(400, 'Invalid link ID format');
             }
+
+            // Get the link to find associated feed
+            const link = await this.linkModel.findByIdAndUser(id, userId);
+            if (!link) {
+                throw new HttpError(404, 'Link not found or access denied');
+            }
+
+            // Find and delete user_feed subscription
+            const feed = await this.feedService.getFeedByUrl(link.rss_url);
+            if (feed) {
+                const userFeed = await this.userFeedRepository.findOne({
+                    where: { user_id: userId, feed_id: feed.id }
+                });
+
+                if (userFeed) {
+                    await this.userFeedRepository.remove(userFeed);
+                    // Decrement subscriber count
+                    await this.feedService.decrementSubscriberCount(feed.id);
+                }
+            }
+
+            // Delete the link (for backward compatibility)
             await this.linkModel.deleteByUser(id, userId);
         } catch (error) {
             if (error instanceof HttpError) {

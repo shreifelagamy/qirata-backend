@@ -2,7 +2,6 @@ import { Entity, Column, Index, OneToMany, OneToOne, Generated, ManyToOne, JoinC
 import { IsUrl, MaxLength, IsOptional, IsNotEmpty, IsNumber } from "class-validator";
 import { Transform } from "class-transformer";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
 import { Feed } from "./feed.entity";
 import { UserPost } from "./user-post.entity";
 import { SocialPost } from "./social-post.entity";
@@ -10,14 +9,6 @@ import { PostExpanded } from "./post-expanded.entity";
 
 @Entity("posts")
 export class Post extends BaseEntity {
-    @Column({ type: "varchar" })
-    @IsNotEmpty()
-    user_id!: string;
-
-    @ManyToOne(() => User, user => user.posts, { onDelete: "CASCADE" })
-    @JoinColumn({ name: "user_id" })
-    user!: User;
-
     @Generated("increment")
     @Column({ type: "integer", unique: true })
     @Index("IDX_POSTS_SEQUENCE_ID")

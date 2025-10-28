@@ -213,13 +213,19 @@ Authentication endpoints are available at \`/api/auth/*\`.
                             type: 'string',
                             format: 'uuid',
                         },
-                        user_id: {
-                            type: 'string',
-                            format: 'uuid',
-                        },
                         sequence_id: {
                             type: 'integer',
                             description: 'Auto-incrementing sequence ID for ordering',
+                        },
+                        feed_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            nullable: true,
+                            description: 'Associated feed ID',
+                        },
+                        feed: {
+                            $ref: '#/components/schemas/Feed',
+                            description: 'Associated feed details',
                         },
                         title: {
                             type: 'string',
@@ -236,13 +242,18 @@ Authentication endpoints are available at \`/api/auth/*\`.
                         },
                         source: {
                             type: 'string',
-                            description: 'Source name/RSS feed name',
+                            description: 'Source name/RSS feed name (deprecated - use feed.name)',
                         },
-                        read_at: {
+                        user_read_at: {
                             type: 'string',
                             format: 'date-time',
                             nullable: true,
-                            description: 'When the post was marked as read',
+                            description: 'When the user marked this post as read (from user_posts)',
+                        },
+                        user_bookmarked: {
+                            type: 'boolean',
+                            nullable: true,
+                            description: 'Whether the user bookmarked this post (from user_posts)',
                         },
                         published_date: {
                             type: 'string',
@@ -1240,7 +1251,173 @@ Authentication endpoints are available at \`/api/auth/*\`.
                             example: 'newSecurePassword123'
                         }
                     }
-                }
+                },
+                Category: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Unique identifier',
+                        },
+                        user_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'User who owns this category',
+                        },
+                        name: {
+                            type: 'string',
+                            maxLength: 100,
+                            description: 'Category name',
+                            example: 'Tech Blogs',
+                        },
+                        parent_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            nullable: true,
+                            description: 'Parent category ID for nested folders',
+                        },
+                        children: {
+                            type: 'array',
+                            description: 'Child categories (subcategories)',
+                            items: {
+                                $ref: '#/components/schemas/Category',
+                            },
+                        },
+                        user_feeds: {
+                            type: 'array',
+                            description: 'Feeds in this category',
+                            items: {
+                                $ref: '#/components/schemas/UserFeed',
+                            },
+                        },
+                        created_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updated_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                Feed: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Unique identifier',
+                        },
+                        url: {
+                            type: 'string',
+                            maxLength: 2000,
+                            description: 'RSS feed URL',
+                        },
+                        name: {
+                            type: 'string',
+                            maxLength: 255,
+                            description: 'Feed name',
+                        },
+                        favicon_url: {
+                            type: 'string',
+                            maxLength: 2000,
+                            nullable: true,
+                            description: 'Feed favicon URL',
+                        },
+                        last_fetch_at: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            description: 'Last time feed was fetched',
+                        },
+                        last_modified: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            description: 'Last-Modified header from feed',
+                        },
+                        etag: {
+                            type: 'string',
+                            maxLength: 255,
+                            nullable: true,
+                            description: 'ETag header from feed',
+                        },
+                        fetch_error_count: {
+                            type: 'integer',
+                            default: 0,
+                            description: 'Consecutive fetch error count',
+                        },
+                        status: {
+                            type: 'string',
+                            enum: ['active', 'inactive', 'error'],
+                            default: 'active',
+                            description: 'Feed health status',
+                        },
+                        subscriber_count: {
+                            type: 'integer',
+                            default: 0,
+                            description: 'Number of users subscribed to this feed',
+                        },
+                        created_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updated_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                UserFeed: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Unique identifier',
+                        },
+                        user_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'User ID',
+                        },
+                        feed_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Feed ID',
+                        },
+                        feed: {
+                            $ref: '#/components/schemas/Feed',
+                            description: 'Associated feed details',
+                        },
+                        category_id: {
+                            type: 'string',
+                            format: 'uuid',
+                            nullable: true,
+                            description: 'Category/folder ID',
+                        },
+                        custom_name: {
+                            type: 'string',
+                            maxLength: 255,
+                            nullable: true,
+                            description: 'User\'s custom name for this feed',
+                        },
+                        subscribed_at: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'When user subscribed to this feed',
+                        },
+                        created_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updated_at: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
             },
         },
     },

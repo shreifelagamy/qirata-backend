@@ -184,8 +184,10 @@ export class PostModel {
     }
 
     async findByIdAndUser(id: string, userId: string): Promise<Post> {
+        // Note: Post no longer has user_id - access control is now handled via user_feeds
+        // This method is deprecated and should use PostsService.getPost() instead
         const post = await this.repository.findOne({
-            where: { id, user_id: userId }
+            where: { id }
         });
 
         if (!post) {

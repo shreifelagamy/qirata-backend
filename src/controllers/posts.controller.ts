@@ -432,6 +432,68 @@ export class PostsController {
 
     /**
      * @swagger
+     * /posts/{id}/bookmark:
+     *   patch:
+     *     summary: Toggle bookmark status for a post
+     *     description: Toggles bookmark status on/off for the post. Creates user_post entry if it doesn't exist.
+     *     tags: [Posts]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Post ID
+     *     responses:
+     *       200:
+     *         description: Bookmark toggled successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     post:
+     *                       $ref: '#/components/schemas/Post'
+     *                     bookmarked:
+     *                       type: boolean
+     *                       description: New bookmark status
+     *                 status:
+     *                   type: integer
+     *                   example: 200
+     *       404:
+     *         description: Post not found
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/Error'
+     */
+    async bookmark(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const id = req.params.id;
+            const result = await this.postsService.toggleBookmark(id, req.user!.id);
+
+            logger.info('Post bookmark toggled:', { id, bookmarked: result.bookmarked });
+            res.json({
+                data: result,
+                status: 200
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
+     * @swagger
      * /posts/{id}/expanded:
      *   get:
      *     summary: Get saved expanded content for a post

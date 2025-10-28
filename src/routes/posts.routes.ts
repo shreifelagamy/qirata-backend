@@ -73,6 +73,13 @@ export function createPostsRouter(): Router {
     postsController.read.bind(postsController)
   );
 
+  // REST API: PATCH /posts/:id/bookmark - Toggle bookmark status
+  router.patch(
+    '/:id/bookmark',
+    validate(commonValidation.id()),
+    postsController.bookmark.bind(postsController)
+  );
+
   // REST API: GET /posts/:id/expanded - Get expanded content (sub-resource)
   router.get(
     '/:id/expanded',

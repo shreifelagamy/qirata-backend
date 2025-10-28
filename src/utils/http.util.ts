@@ -18,6 +18,12 @@ export interface FetchOptions extends AxiosRequestConfig {
     };
 }
 
+export interface FetchWithHeadersResponse<T = any> {
+    data: T;
+    headers: Record<string, string>;
+    status: number;
+}
+
 export async function fetchWithTimeout<T = any>(url: string, options: FetchOptions = {}): Promise<T> {
     const { timeout = DEFAULT_TIMEOUT, retries = 3, ...axiosOptions } = options;
     let lastError: AxiosError<ErrorResponse> | Error | null = null;
@@ -30,6 +36,47 @@ export async function fetchWithTimeout<T = any>(url: string, options: FetchOptio
                 ...axiosOptions,
             });
             return response.data;
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                lastError = error as AxiosError<ErrorResponse>;
+            } else if (error instanceof Error) {
+                lastError = error;
+            } else {
+                lastError = new Error('Unknown error occurred');
+            }
+            if (attempt < retries - 1) {
+                const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+        }
+    }
+
+    throw handleHttpErrors(lastError);
+}
+
+/**
+ * Fetch with timeout and return full response including headers
+ * Useful for conditional requests (ETag, Last-Modified)
+ */
+export async function fetchWithHeaders<T = any>(url: string, options: FetchOptions = {}): Promise<FetchWithHeadersResponse<T>> {
+    const { timeout = DEFAULT_TIMEOUT, retries = 3, ...axiosOptions } = options;
+    let lastError: AxiosError<ErrorResponse> | Error | null = null;
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const response = await axios<T>({
+                url,
+                timeout,
+                validateStatus: (status) => status < 500, // Don't throw on 304 Not Modified
+                ...axiosOptions,
+            });
+
+            return {
+                data: response.data,
+                headers: response.headers as Record<string, string>,
+                status: response.status
+            };
         } catch (error) {
             if (axios.isAxiosError(error)) {
                 lastError = error as AxiosError<ErrorResponse>;
