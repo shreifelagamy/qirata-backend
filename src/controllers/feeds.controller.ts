@@ -293,20 +293,20 @@ export class FeedsController {
      *       - bearerAuth: []
      *     parameters:
      *       - in: query
-     *         name: limit
+     *         name: page
+     *         schema:
+     *           type: integer
+     *           minimum: 1
+     *           default: 1
+     *         description: Page number
+     *       - in: query
+     *         name: pageSize
      *         schema:
      *           type: integer
      *           minimum: 1
      *           maximum: 100
      *           default: 50
-     *         description: Maximum number of results to return
-     *       - in: query
-     *         name: offset
-     *         schema:
-     *           type: integer
-     *           minimum: 0
-     *           default: 0
-     *         description: Number of results to skip
+     *         description: Number of items per page
      *     responses:
      *       200:
      *         description: User subscriptions retrieved successfully
@@ -318,11 +318,17 @@ export class FeedsController {
      *                 data:
      *                   type: object
      *                   properties:
-     *                     subscriptions:
+     *                     items:
      *                       type: array
      *                       items:
      *                         $ref: '#/components/schemas/UserFeed'
      *                     total:
+     *                       type: integer
+     *                     page:
+     *                       type: integer
+     *                     pageSize:
+     *                       type: integer
+     *                     totalPages:
      *                       type: integer
      *                 status:
      *                   type: integer
@@ -342,16 +348,28 @@ export class FeedsController {
      */
     async getUserSubscriptions(req: Request, res: Response, next: NextFunction) {
         try {
-            const { limit = 50, offset = 0 } = req.query;
+            const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+            const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 50;
             const userId = req.user!.id;
 
             const result = await this.feedsService.getUserSubscriptions(userId, {
-                limit: parseInt(limit as string, 10),
-                offset: parseInt(offset as string, 10)
+                limit: pageSize,
+                offset: (page - 1) * pageSize
             });
 
+            const totalPages = Math.ceil(result.total / pageSize);
+
             logger.info(`Retrieved ${result.subscriptions.length} subscriptions for user ${userId}`);
-            res.status(200).json({ data: result, status: 200 });
+            res.status(200).json({
+                data: {
+                    items: result.subscriptions,
+                    total: result.total,
+                    page,
+                    pageSize,
+                    totalPages
+                },
+                status: 200
+            });
         } catch (error) {
             next(error);
         }

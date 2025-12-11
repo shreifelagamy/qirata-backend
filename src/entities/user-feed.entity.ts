@@ -1,13 +1,14 @@
-import { Entity, Column, Index, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, Column, Index, ManyToOne, JoinColumn, PrimaryGeneratedColumn } from "typeorm";
 import { MaxLength, IsNotEmpty, IsOptional } from "class-validator";
-import { BaseEntity } from "./base.entity";
 import { User } from "./user.entity";
 import { Feed } from "./feed.entity";
 import { Category } from "./category.entity";
 
 @Entity("user_feeds")
 @Index("uq_user_feeds_user_feed", ["user_id", "feed_id"], { unique: true })
-export class UserFeed extends BaseEntity {
+export class UserFeed {
+    @PrimaryGeneratedColumn("uuid")
+    id!: string;
     @Column({ type: "varchar" })
     @Index("idx_user_feeds_user")
     @IsNotEmpty()
@@ -47,7 +48,6 @@ export class UserFeed extends BaseEntity {
     subscribed_at: Date = new Date();
 
     constructor(partial: Partial<UserFeed> = {}) {
-        super();
         Object.assign(this, partial);
     }
 }
