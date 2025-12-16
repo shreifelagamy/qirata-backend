@@ -19,11 +19,12 @@ export function createPostsRouter(): Router {
     postsController.store.bind(postsController)
   );
 
-  // REST API: GET /posts/sources - Get unique sources list (must be before /:id route)
-  router.get(
-    '/sources',
-    postsController.sources.bind(postsController)
-  );
+  // DEPRECATED: Sources endpoint has been deprecated in favor of feed subscriptions
+  // Use /api/v1/feeds/subscriptions instead
+  // router.get(
+  //   '/sources',
+  //   postsController.sources.bind(postsController)
+  // );
 
   // REST API: GET /posts - Get all posts (with filters and pagination)
   router.get(

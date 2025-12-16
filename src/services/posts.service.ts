@@ -141,8 +141,8 @@ export class PostsService {
                 });
             }
 
-            if (filters.source) {
-                query.andWhere('feed.name ILIKE :source', { source: `%${filters.source}%` });
+            if (filters.feed_id) {
+                query.andWhere('post.feed_id = :feedId', { feedId: filters.feed_id });
             }
 
             if (filters.limit) {

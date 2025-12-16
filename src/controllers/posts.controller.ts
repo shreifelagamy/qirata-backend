@@ -78,9 +78,11 @@ export class PostsController {
      *         schema:
      *           type: string
      *       - in: query
-     *         name: source
+     *         name: feed_id
      *         schema:
      *           type: string
+     *           format: uuid
+     *         description: Filter posts by feed ID
      *       - in: query
      *         name: sortBy
      *         schema:
@@ -132,7 +134,7 @@ export class PostsController {
                 read: req.query.read !== undefined ? req.query.read === 'true' : undefined,
                 link_id: req.query.link_id as string,
                 search: req.query.search as string,
-                source: req.query.source as string,
+                feed_id: req.query.feed_id as string,
                 limit: pageSize,
                 offset: (page - 1) * pageSize,
                 sortBy: req.query.sortBy as string,
@@ -531,11 +533,15 @@ export class PostsController {
     }
 
     /**
+     * DEPRECATED: This endpoint has been deprecated in favor of feed subscriptions
+     * Use GET /api/v1/feeds/subscriptions instead
+     *
      * @swagger
      * /posts/sources:
      *   get:
-     *     summary: Get unique sources list
-     *     description: Returns all unique RSS sources that have posts in the database with optional post counts
+     *     deprecated: true
+     *     summary: Get unique sources list (DEPRECATED)
+     *     description: Returns all unique RSS sources that have posts in the database with optional post counts. DEPRECATED - Use /api/v1/feeds/subscriptions instead.
      *     tags: [Posts]
      *     parameters:
      *       - in: query
@@ -568,21 +574,21 @@ export class PostsController {
      *                 status:
      *                   type: integer
      */
-    async sources(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const includeCount = req.query.includeCount === 'true';
-            const sources = await this.postsService.getSources(includeCount, req.user!.id);
+    // async sources(
+    //     req: Request,
+    //     res: Response,
+    //     next: NextFunction
+    // ) {
+    //     try {
+    //         const includeCount = req.query.includeCount === 'true';
+    //         const sources = await this.postsService.getSources(includeCount, req.user!.id);
 
-            res.json({
-                data: sources,
-                status: 200
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
+    //         res.json({
+    //             data: sources,
+    //             status: 200
+    //         });
+    //     } catch (error) {
+    //         next(error);
+    //     }
+    // }
 }

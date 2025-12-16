@@ -57,8 +57,8 @@ export class PostModel {
                 { search: `%${filters.search}%` });
         }
 
-        if (filters.source) {
-            query.andWhere('post.source ILIKE :source', { source: `%${filters.source}%` });
+        if (filters.feed_id) {
+            query.andWhere('post.feed_id = :feedId', { feedId: filters.feed_id });
         }
 
         if (filters.limit) {
@@ -169,8 +169,8 @@ export class PostModel {
                 { search: `%${filters.search}%` });
         }
 
-        if (filters.source) {
-            query.andWhere('post.source ILIKE :source', { source: `%${filters.source}%` });
+        if (filters.feed_id) {
+            query.andWhere('post.feed_id = :feedId', { feedId: filters.feed_id });
         }
 
         if (filters.limit) {
