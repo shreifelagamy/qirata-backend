@@ -1,7 +1,6 @@
 import { IsBoolean, IsOptional, IsUrl, MaxLength, IsNotEmpty } from "class-validator";
 import { Column, Entity, ManyToOne, JoinColumn, Unique } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
 
 @Entity("links")
 @Unique("UQ_links_rss_url_user_id", ["rss_url", "user_id"])
@@ -10,9 +9,9 @@ export class Link extends BaseEntity {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.links, { onDelete: "CASCADE" })
+    @ManyToOne("User", "links", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({ type: "timestamp", nullable: true })
     @IsOptional()

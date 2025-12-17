@@ -1,9 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
 import { IsNotEmpty, MaxLength, IsArray, IsUrl, IsOptional, IsString } from "class-validator";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
-import { ChatSession } from "./chat-session.entity";
-import { Post } from "./post.entity";
 
 export enum SocialPlatform {
     TWITTER = "twitter",
@@ -31,9 +28,9 @@ export class SocialPost extends BaseEntity {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.social_posts, { onDelete: "CASCADE" })
+    @ManyToOne("User", "social_posts", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({
         type: "varchar",
@@ -67,16 +64,16 @@ export class SocialPost extends BaseEntity {
     @Column({ type: "uuid" })
     chat_session_id: string = "";
 
-    @ManyToOne(() => ChatSession, chatSession => chatSession.social_posts, { onDelete: "CASCADE" })
+    @ManyToOne("ChatSession", "social_posts", { onDelete: "CASCADE" })
     @JoinColumn({ name: "chat_session_id" })
-    chat_session!: ChatSession;
+    chat_session!: any;
 
     @Column({ type: "uuid", nullable: true })
     post_id?: string;
 
-    @ManyToOne(() => Post, post => post.social_posts, { onDelete: "SET NULL" })
+    @ManyToOne("Post", "social_posts", { onDelete: "SET NULL" })
     @JoinColumn({ name: "post_id" })
-    post?: Post;
+    post?: any;
 
     @Column({ type: "timestamp with time zone", nullable: true })
     published_at?: Date;

@@ -1,8 +1,5 @@
 import { Entity, Column, Index, ManyToOne, JoinColumn, PrimaryGeneratedColumn } from "typeorm";
 import { MaxLength, IsNotEmpty, IsOptional } from "class-validator";
-import { User } from "./user.entity";
-import { Feed } from "./feed.entity";
-import { Category } from "./category.entity";
 
 @Entity("user_feeds")
 @Index("uq_user_feeds_user_feed", ["user_id", "feed_id"], { unique: true })
@@ -14,30 +11,30 @@ export class UserFeed {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.user_feeds, { onDelete: "CASCADE" })
+    @ManyToOne("User", "user_feeds", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({ type: "uuid" })
     @Index("idx_user_feeds_feed")
     @IsNotEmpty()
     feed_id!: string;
 
-    @ManyToOne(() => Feed, feed => feed.user_feeds, { onDelete: "CASCADE" })
+    @ManyToOne("Feed", "user_feeds", { onDelete: "CASCADE" })
     @JoinColumn({ name: "feed_id" })
-    feed!: Feed;
+    feed!: any;
 
     @Column({ type: "uuid", nullable: true })
     @Index("idx_user_feeds_category", ["user_id", "category_id"])
     @IsOptional()
     category_id?: string;
 
-    @ManyToOne(() => Category, category => category.user_feeds, {
+    @ManyToOne("Category", "user_feeds", {
         onDelete: "SET NULL",
         nullable: true
     })
     @JoinColumn({ name: "category_id" })
-    category?: Category;
+    category?: any;
 
     @Column({ type: "varchar", length: 255, nullable: true })
     @MaxLength(255)

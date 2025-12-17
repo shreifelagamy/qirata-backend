@@ -1,8 +1,6 @@
 import { Entity, Column, Index, OneToMany } from "typeorm";
 import { IsUrl, MaxLength, IsOptional, IsNotEmpty, IsNumber, IsIn } from "class-validator";
 import { BaseEntity } from "./base.entity";
-import { UserFeed } from "./user-feed.entity";
-import { Post } from "./post.entity";
 
 @Entity("feeds")
 export class Feed extends BaseEntity {
@@ -52,11 +50,11 @@ export class Feed extends BaseEntity {
     @IsNumber()
     subscriber_count: number = 0;
 
-    @OneToMany(() => UserFeed, userFeed => userFeed.feed)
-    user_feeds!: UserFeed[];
+    @OneToMany("UserFeed", "feed")
+    user_feeds!: any[];
 
-    @OneToMany(() => Post, post => post.feed)
-    posts!: Post[];
+    @OneToMany("Post", "feed")
+    posts!: any[];
 
     constructor(partial: Partial<Feed> = {}) {
         super();

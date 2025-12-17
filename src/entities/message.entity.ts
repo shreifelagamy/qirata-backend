@@ -1,8 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
 import { IsNotEmpty, IsEnum } from "class-validator";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
-import { ChatSession } from "./chat-session.entity";
 
 export enum MessageType {
     MESSAGE = "message",
@@ -15,16 +13,16 @@ export class Message extends BaseEntity {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.messages, { onDelete: "CASCADE" })
+    @ManyToOne("User", "messages", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({ type: "uuid" })
     chat_session_id: string = "";
 
-    @ManyToOne(() => ChatSession, chatSession => chatSession.messages, { onDelete: "CASCADE" })
+    @ManyToOne("ChatSession", "messages", { onDelete: "CASCADE" })
     @JoinColumn({ name: "chat_session_id" })
-    chat_session!: ChatSession;
+    chat_session!: any;
 
     @Column({ type: "text" })
     @IsNotEmpty()

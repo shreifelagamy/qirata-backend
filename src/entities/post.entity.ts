@@ -2,10 +2,6 @@ import { Entity, Column, Index, OneToMany, OneToOne, Generated, ManyToOne, JoinC
 import { IsUrl, MaxLength, IsOptional, IsNotEmpty, IsNumber } from "class-validator";
 import { Transform } from "class-transformer";
 import { BaseEntity } from "./base.entity";
-import { Feed } from "./feed.entity";
-import { UserPost } from "./user-post.entity";
-import { SocialPost } from "./social-post.entity";
-import { PostExpanded } from "./post-expanded.entity";
 
 @Entity("posts")
 export class Post extends BaseEntity {
@@ -46,18 +42,18 @@ export class Post extends BaseEntity {
     @IsOptional()
     feed_id?: string;
 
-    @ManyToOne(() => Feed, feed => feed.posts, { onDelete: "CASCADE", nullable: true })
+    @ManyToOne("Feed", "posts", { onDelete: "CASCADE", nullable: true })
     @JoinColumn({ name: "feed_id" })
-    feed?: Feed;
+    feed?: any;
 
-    @OneToMany(() => UserPost, userPost => userPost.post)
-    user_posts!: UserPost[];
+    @OneToMany("UserPost", "post")
+    user_posts!: any[];
 
-    @OneToMany(() => SocialPost, socialPost => socialPost.post)
-    social_posts!: SocialPost[];
+    @OneToMany("SocialPost", "post")
+    social_posts!: any[];
 
-    @OneToOne(() => PostExpanded, postExpanded => postExpanded.post)
-    expanded?: PostExpanded;
+    @OneToOne("PostExpanded", "post")
+    expanded?: any;
 
     constructor(partial: Partial<Post> = {}) {
         super();

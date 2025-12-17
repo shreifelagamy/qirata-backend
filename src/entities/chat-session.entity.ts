@@ -1,10 +1,6 @@
 import { IsNotEmpty, MaxLength } from "class-validator";
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
-import { Message } from "./message.entity";
-import { Post } from "./post.entity";
-import { SocialPost } from "./social-post.entity";
 
 @Entity("chat_sessions")
 export class ChatSession extends BaseEntity {
@@ -12,9 +8,9 @@ export class ChatSession extends BaseEntity {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.chat_sessions, { onDelete: "CASCADE" })
+    @ManyToOne("User", "chat_sessions", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({ type: "varchar", length: 255 })
     @MaxLength(255)
@@ -24,15 +20,15 @@ export class ChatSession extends BaseEntity {
     @Column({ type: "uuid", nullable: true })
     post_id?: string;
 
-    @ManyToOne(() => Post, { onDelete: "SET NULL", nullable: true })
+    @ManyToOne("Post", { onDelete: "SET NULL", nullable: true })
     @JoinColumn({ name: "post_id" })
-    post?: Post;
+    post?: any;
 
-    @OneToMany(() => Message, message => message.chat_session)
-    messages!: Message[];
+    @OneToMany("Message", "chat_session")
+    messages!: any[];
 
-    @OneToMany(() => SocialPost, socialPost => socialPost.chat_session)
-    social_posts!: SocialPost[];
+    @OneToMany("SocialPost", "chat_session")
+    social_posts!: any[];
 
     @Column({ type: "text", nullable: true })
     summary?: string;

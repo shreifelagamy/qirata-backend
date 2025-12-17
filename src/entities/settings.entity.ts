@@ -1,7 +1,6 @@
 import { Entity, Column, UpdateDateColumn, Index, ManyToOne, JoinColumn, Unique } from "typeorm";
 import { IsNotEmpty, MaxLength } from "class-validator";
 import { BaseEntity } from "./base.entity";
-import { User } from "./user.entity";
 
 @Entity("settings")
 @Unique(["user_id", "key"])
@@ -10,9 +9,9 @@ export class Settings extends BaseEntity {
     @IsNotEmpty()
     user_id!: string;
 
-    @ManyToOne(() => User, user => user.settings, { onDelete: "CASCADE" })
+    @ManyToOne("User", "settings", { onDelete: "CASCADE" })
     @JoinColumn({ name: "user_id" })
-    user!: User;
+    user!: any;
 
     @Column({ type: "varchar", length: 100 })
     @MaxLength(100)

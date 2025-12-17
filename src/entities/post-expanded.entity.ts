@@ -1,16 +1,15 @@
 import { IsNotEmpty } from "class-validator";
 import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, UpdateDateColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
-import { Post } from "./post.entity";
 
 @Entity("post_expanded")
 export class PostExpanded extends BaseEntity {
     @Column({ type: "uuid" })
     post_id: string = "";
 
-    @OneToOne(() => Post, { onDelete: "CASCADE" })
+    @OneToOne("Post", { onDelete: "CASCADE" })
     @JoinColumn({ name: "post_id" })
-    post!: Post;
+    post!: any;
 
     @Column({ type: "text" })
     @IsNotEmpty()
