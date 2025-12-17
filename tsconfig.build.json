@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Production build optimizations - reduce memory usage
+    "declaration": false,           // Skip .d.ts generation (saves ~50-80 MB)
+    "declarationMap": false,        // Skip declaration source maps
+    "noUnusedLocals": false,        // Skip unused locals check (faster compilation)
+    "noUnusedParameters": false,    // Skip unused params check (faster compilation)
+    "removeComments": true,         // Strip comments from output (smaller files)
+    "sourceMap": false,             // No source maps in production
+
+    // Additional optimizations
+    "isolatedModules": true,        // Faster compilation, better for bundlers
+    "importsNotUsedAsValues": "remove"  // Remove unused imports
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}
