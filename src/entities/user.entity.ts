@@ -1,14 +1,6 @@
 import { Entity, Column, OneToMany } from "typeorm";
 import { IsEmail, IsNotEmpty, MaxLength, IsOptional, IsBoolean } from "class-validator";
 import { BaseEntity } from "./base.entity";
-import { ChatSession } from "./chat-session.entity";
-import { Link } from "./link.entity";
-import { Message } from "./message.entity";
-import { SocialPost } from "./social-post.entity";
-import { Settings } from "./settings.entity";
-import { UserFeed } from "./user-feed.entity";
-import { UserPost } from "./user-post.entity";
-import { Category } from "./category.entity";
 
 @Entity("user")
 export class User extends BaseEntity {
@@ -33,29 +25,29 @@ export class User extends BaseEntity {
     image?: string;
 
     // Relationships to user's data
-    @OneToMany(() => ChatSession, chatSession => chatSession.user)
-    chat_sessions!: ChatSession[];
+    @OneToMany("ChatSession", "user")
+    chat_sessions!: any[];
 
-    @OneToMany(() => Link, link => link.user)
-    links!: Link[];
+    @OneToMany("Link", "user")
+    links!: any[];
 
-    @OneToMany(() => Message, message => message.user)
-    messages!: Message[];
+    @OneToMany("Message", "user")
+    messages!: any[];
 
-    @OneToMany(() => SocialPost, socialPost => socialPost.user)
-    social_posts!: SocialPost[];
+    @OneToMany("SocialPost", "user")
+    social_posts!: any[];
 
-    @OneToMany(() => Settings, settings => settings.user)
-    settings!: Settings[];
+    @OneToMany("Settings", "user")
+    settings!: any[];
 
-    @OneToMany(() => UserFeed, userFeed => userFeed.user)
-    user_feeds!: UserFeed[];
+    @OneToMany("UserFeed", "user")
+    user_feeds!: any[];
 
-    @OneToMany(() => UserPost, userPost => userPost.user)
-    user_posts!: UserPost[];
+    @OneToMany("UserPost", "user")
+    user_posts!: any[];
 
-    @OneToMany(() => Category, category => category.user)
-    categories!: Category[];
+    @OneToMany("Category", "user")
+    categories!: any[];
 
     constructor(partial: Partial<User> = {}) {
         super();
