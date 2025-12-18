@@ -11,11 +11,11 @@ export class RemoveUserSpecificFieldsFromPosts1760528190000 implements Migration
 
         // Remove the source column (feed name is now in feeds.name via feed_id)
         console.log("Removing source column...");
-        await queryRunner.dropColumn("posts", "source");
+        await queryRunner.query(`ALTER TABLE "posts" DROP COLUMN IF EXISTS "source";`);
 
         // Remove the read_at column (now stored in user_posts.read_at)
         console.log("Removing read_at column...");
-        await queryRunner.dropColumn("posts", "read_at");
+        await queryRunner.query(`ALTER TABLE "posts" DROP COLUMN IF EXISTS "read_at";`);
 
         console.log("User-specific fields removed successfully!");
     }

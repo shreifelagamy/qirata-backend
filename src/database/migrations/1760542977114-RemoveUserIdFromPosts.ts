@@ -11,7 +11,7 @@ export class RemoveUserIdFromPosts1760542977114 implements MigrationInterface {
 
         // Drop the user_id column (this will also drop any foreign key constraints)
         console.log("Dropping user_id column...");
-        await queryRunner.dropColumn("posts", "user_id");
+        await queryRunner.query(`ALTER TABLE "posts" DROP COLUMN IF EXISTS "user_id";`);
 
         console.log("user_id removed successfully from posts table!");
     }
