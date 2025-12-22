@@ -1,13 +1,14 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../../app';
+import AppDataSource from '../../config/database.config';
 import { Feed } from '../../entities/feed.entity';
 import { Post } from '../../entities/post.entity';
 import { UserFeed } from '../../entities/user-feed.entity';
 import { HttpError } from '../../middleware/error.middleware';
-import { logger } from '../../utils/logger';
-import { RSSService } from './rss.service';
 import { FeedEntry } from '../../types/content.types';
-import { parseRSSDate, formatDateForDatabase } from '../../utils/date.util';
+import { formatDateForDatabase, parseRSSDate } from '../../utils/date.util';
+import { logger } from '../../utils/logger';
+import { FeedLoggerService } from './feed-logger.service';
+import { RSSService } from './rss.service';
 
 /**
  * FeedService - Manages global feed registry
@@ -24,12 +25,14 @@ export class FeedService {
     private postRepository: Repository<Post>;
     private userFeedRepository: Repository<UserFeed>;
     private rssService: RSSService;
+    private feedLoggerService: FeedLoggerService;
 
     constructor() {
         this.feedRepository = AppDataSource.getRepository(Feed);
         this.postRepository = AppDataSource.getRepository(Post);
         this.userFeedRepository = AppDataSource.getRepository(UserFeed);
         this.rssService = new RSSService();
+        this.feedLoggerService = new FeedLoggerService();
     }
 
     /**
@@ -77,10 +80,15 @@ export class FeedService {
 
     /**
      * Fetch and parse an RSS feed, creating/updating posts
+     * Uses conditional requests (ETag, If-Modified-Since) to avoid unnecessary processing
      * @param feedId - The feed ID
      * @returns Object with feed and count of new posts inserted
      */
     async fetchFeed(feedId: string): Promise<{ feed: Feed; insertedCount: number }> {
+        const startTime = Date.now();
+        let statusCode: number | null = null;
+        let insertedCount = 0;
+
         try {
             const feed = await this.feedRepository.findOne({
                 where: { id: feedId }
@@ -90,45 +98,130 @@ export class FeedService {
                 throw new HttpError(404, 'Feed not found');
             }
 
-            // Parse RSS feed with conditional request headers
-            const parsedFeed = await this.rssService.parseFeed(feed.url);
-            const entries = this.rssService.extractEntries(parsedFeed);
+            // Parse RSS feed with conditional request headers (ETag, If-Modified-Since)
+            const fetchResult = await this.rssService.parseFeedWithCache(
+                feed.url,
+                feed.etag,
+                feed.last_modified
+            );
 
-            if (!entries.length) {
-                logger.warn(`No entries found in feed: ${feed.url}`);
-                // Update last fetch time even if no entries
+            // Calculate response time
+            const responseTimeMs = Date.now() - startTime;
+
+            // Handle 304 Not Modified response
+            if (fetchResult.notModified) {
+                statusCode = 304;
+                logger.info(`Feed not modified (304): ${feed.url}`);
+
+                // Update feed metadata
                 feed.last_fetch_at = new Date();
+                feed.fetch_error_count = 0;
+                feed.status = 'active';
                 await this.feedRepository.save(feed);
+
+                // Log the fetch attempt
+                await this.feedLoggerService.logFetchAttempt(
+                    feedId,
+                    statusCode,
+                    responseTimeMs,
+                    undefined,
+                    0,
+                    false
+                );
+
                 return { feed, insertedCount: 0 };
             }
 
-            // Check for existing posts by external_link to prevent duplicates
-            const feedLinks = entries.map(entry => entry.link);
-            const existingPosts = await this.postRepository.find({
-                where: feedLinks.map(link => ({ external_link: link }))
-            });
+            // Feed was modified, process entries
+            statusCode = 200;
 
-            const existingLinks = new Set(existingPosts.map(post => post.external_link));
+            if (!fetchResult.feed) {
+                throw new Error('No feed data returned');
+            }
 
-            // Filter out entries that already exist globally
-            const newEntries = entries.filter(entry => !existingLinks.has(entry.link));
+            const entries = this.rssService.extractEntries(fetchResult.feed);
 
-            // Create new global posts
-            const insertedCount = await this.createPostsFromEntries(newEntries, feed);
+            if (!entries.length) {
+                logger.warn(`No entries found in feed: ${feed.url}`);
+
+                // Update feed metadata
+                feed.last_fetch_at = new Date();
+                feed.fetch_error_count = 0;
+                feed.status = 'active';
+
+                // Update ETag and Last-Modified from response
+                if (fetchResult.etag) {
+                    feed.etag = fetchResult.etag;
+                }
+                if (fetchResult.lastModified) {
+                    feed.last_modified = fetchResult.lastModified;
+                }
+
+                await this.feedRepository.save(feed);
+
+                // Log the fetch attempt
+                await this.feedLoggerService.logFetchAttempt(
+                    feedId,
+                    statusCode,
+                    responseTimeMs,
+                    undefined,
+                    0,
+                    true
+                );
+
+                return { feed, insertedCount: 0 };
+            }
+
+            // Create new global posts (duplicates will be ignored via upsert)
+            insertedCount = await this.createPostsFromEntries(entries, feed);
 
             // Update feed metadata
             feed.last_fetch_at = new Date();
             feed.fetch_error_count = 0;
             feed.status = 'active';
 
-            // Update last_modified and etag if available from response
-            // Note: These would be extracted from HTTP headers in a more complete implementation
+            // Update ETag and Last-Modified from response
+            if (fetchResult.etag) {
+                feed.etag = fetchResult.etag;
+            }
+            if (fetchResult.lastModified) {
+                feed.last_modified = fetchResult.lastModified;
+            }
 
             await this.feedRepository.save(feed);
 
+            // Log the successful fetch attempt
+            await this.feedLoggerService.logFetchAttempt(
+                feedId,
+                statusCode,
+                responseTimeMs,
+                undefined,
+                insertedCount,
+                true
+            );
+
+            logger.info(`Feed fetched successfully: ${feed.url} - ${insertedCount} new posts`);
+
             return { feed, insertedCount };
         } catch (error) {
+            const responseTimeMs = Date.now() - startTime;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
             logger.error(`Error fetching feed ${feedId}:`, error);
+
+            // Log the failed fetch attempt
+            try {
+                await this.feedLoggerService.logFetchAttempt(
+                    feedId,
+                    statusCode || 500,
+                    responseTimeMs,
+                    errorMessage,
+                    0,
+                    false
+                );
+            } catch (logError) {
+                logger.error('Error logging fetch attempt:', logError);
+            }
 
             // Update error tracking
             await this.handleFeedError(feedId);
@@ -163,9 +256,19 @@ export class FeedService {
                 });
             });
 
-            // Bulk insert
-            const insertedPosts = await this.postRepository.save(posts);
-            return insertedPosts.length;
+            // Use INSERT ... ON CONFLICT DO NOTHING to skip duplicate posts
+            // This handles cases where posts with same external_link already exist
+            const result = await this.postRepository
+                .createQueryBuilder()
+                .insert()
+                .into(Post)
+                .values(posts)
+                .orIgnore() // Skip duplicates without error
+                .returning('id') // Return only actually inserted rows
+                .execute();
+
+            const insertedCount = result.raw?.length || 0;
+            return insertedCount;
         } catch (error) {
             logger.error('Error creating posts from entries:', error);
             throw error;

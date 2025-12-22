@@ -1,5 +1,5 @@
 import { EntityManager, Repository, UpdateResult } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';

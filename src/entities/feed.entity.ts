@@ -56,6 +56,9 @@ export class Feed extends BaseEntity {
     @OneToMany("Post", "feed")
     posts!: any[];
 
+    @OneToMany("FeedFetchLog", "feed")
+    feed_fetch_logs!: any[];
+
     constructor(partial: Partial<Feed> = {}) {
         super();
         Object.assign(this, partial);

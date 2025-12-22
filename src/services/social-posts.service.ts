@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { SocialPost, SocialPlatform, CodeExample, VisualElement } from '../entities/social-post.entity';
 import { ChatSession } from '../entities/chat-session.entity';
 import { logger } from '../utils/logger';

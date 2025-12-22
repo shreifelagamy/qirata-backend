@@ -7,6 +7,7 @@ export { ChatSession } from './chat-session.entity';
 export { Message } from './message.entity';
 export { SocialPost } from './social-post.entity';
 export { Feed } from './feed.entity';
+export { FeedFetchLog } from './feed-fetch-log.entity';
 export { UserFeed } from './user-feed.entity';
 export { UserPost } from './user-post.entity';
 export { Category } from './category.entity';

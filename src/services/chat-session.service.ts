@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { ChatSession } from '../entities/chat-session.entity';
 import { Post } from '../entities/post.entity';

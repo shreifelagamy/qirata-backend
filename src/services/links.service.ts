@@ -1,5 +1,5 @@
 import { EntityManager, Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { CreateLinkDto } from '../dtos/link.dto';
 import { Link } from '../entities/link.entity';
 import { UserFeed } from '../entities/user-feed.entity';

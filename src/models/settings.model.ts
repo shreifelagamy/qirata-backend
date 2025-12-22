@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { CreateSettingsDto, UpdateSettingsDto } from '../dtos/settings.dto';
 import { Settings } from '../entities/settings.entity';
 import { HttpError } from '../middleware/error.middleware';

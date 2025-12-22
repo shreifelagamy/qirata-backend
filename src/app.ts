@@ -6,10 +6,10 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import morgan from 'morgan';
 import path from 'path';
-import { DataSource } from 'typeorm';
 import { auth } from './config/auth.config';
+import AppDataSource from './config/database.config';
 import { errorMiddleware, HttpError } from './middleware/error.middleware';
-import { getDatabaseConfig, isDevelopment, isProduction, LazyLoader, startupProfiler } from './utils/startup-optimizer';
+import { isDevelopment, isProduction, LazyLoader, startupProfiler } from './utils/startup-optimizer';
 
 // Start timing the application startup
 startupProfiler.startTimer('total-startup');
@@ -25,10 +25,8 @@ const app: Express = express();
 const httpServer = createServer(app);
 startupProfiler.log('express-setup');
 
-// Optimized database configuration
-startupProfiler.startTimer('db-config');
-export const AppDataSource = new DataSource(getDatabaseConfig());
-startupProfiler.log('db-config');
+// Export AppDataSource for backward compatibility
+export { AppDataSource };
 
 // Essential middleware setup (minimal for fast startup)
 startupProfiler.startTimer('essential-middleware');

@@ -15,7 +15,7 @@
         "migration:generate": "npm run typeorm migration:generate",
         "migration:run": "npm run typeorm migration:run -- -d src/app.ts",
         "migration:run:prod": "NODE_ENV=production npm run typeorm migration:run -- -d src/app.ts",
-        "migration:revert": "npm run typeorm migration:revert",
+        "migration:revert": "npm run typeorm migration:revert -- -d src/app.ts",
         "migration:revert:prod": "NODE_ENV=production npm run typeorm migration:revert -- -d src/app.ts",
         "ai:health-check": "chmod +x ./scripts/ai-health-check.sh && ./scripts/ai-health-check.sh",
         "ai:test": "chmod +x ./scripts/run-ai-tests.sh && ./scripts/run-ai-tests.sh",
@@ -24,7 +24,10 @@
         "setup:full": "npm install && npm run migration:run && npm run ai:health-check",
         "setup:scripts": "chmod +x ./scripts/*.sh",
         "typecheck:watch": "tsc --noEmit --watch",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "cron:dev": "nodemon --exec ts-node src/jobs/cron-service.ts",
+        "cron:start": "node dist/jobs/cron-service.js",
+        "cron:trigger-now": "ts-node -e \"import('./src/jobs/tasks/feed-fetcher.task').then(m => m.feedFetcherTask())\""
     },
     "keywords": [
         "express",
@@ -52,6 +55,7 @@
         "feedparser": "^2.2.10",
         "helmet": "^7.0.0",
         "morgan": "^1.10.0",
+        "node-cron": "^4.2.1",
         "nodemailer": "^7.0.5",
         "pg": "^8.11.0",
         "sanitize-html": "^2.16.0",
@@ -73,6 +77,7 @@
         "@types/feedparser": "^2.2.8",
         "@types/morgan": "^1.9.4",
         "@types/node": "^20.2.1",
+        "@types/node-cron": "^3.0.11",
         "@types/nodemailer": "^7.0.0",
         "@types/pg": "^8.6.6",
         "@types/sanitize-html": "^2.16.0",

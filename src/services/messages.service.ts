@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { Message, MessageType } from '../entities/message.entity';
 import { logger } from '../utils/logger';
 

@@ -1,7 +1,3 @@
-import * as entities from '../entities';
-import { DataSourceOptions } from 'typeorm';
-import { DatabaseFileLogger } from './database-logger';
-
 interface StartupTimer {
     start: number;
     name: string;
@@ -65,56 +61,3 @@ export class LazyLoader {
 // Environment-specific optimizations
 export const isProduction = process.env.NODE_ENV === 'production';
 export const isDevelopment = process.env.NODE_ENV === 'development';
-
-// Production-optimized database configuration
-export const getDatabaseConfig = (): DataSourceOptions => {
-    const baseConfig = {
-        type: "postgres" as const,
-        host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT || "5432"),
-        username: process.env.DB_USERNAME,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_DATABASE,
-        synchronize: false,
-        entities: Object.values(entities),
-        migrations: [__dirname + "/../database/migrations/**/*.{ts,js}"],
-        migrationsTableName: "migrations"
-    };
-
-    if (isProduction) {
-        return {
-            ...baseConfig,
-            // Production optimizations for free tier
-            logging: false,
-            cache: {
-                duration: 30000 // 30 second query cache
-            },
-            maxQueryExecutionTime: 5000,
-            // Optimized connection pooling for Render free tier
-            extra: {
-                max: 3, // Small pool for free tier
-                min: 1,
-                acquireTimeoutMillis: 8000,
-                createTimeoutMillis: 8000,
-                destroyTimeoutMillis: 3000,
-                idleTimeoutMillis: 30000,
-                reapIntervalMillis: 1000,
-                createRetryIntervalMillis: 200,
-                // Connection keep-alive for sleeping containers
-                keepAlive: true,
-                keepAliveInitialDelayMillis: 10000
-            }
-        };
-    }
-
-    // Development configuration
-    return {
-        ...baseConfig,
-        logging: ["error", "warn"],
-        logger: process.env.NODE_ENV === 'development' ? new DatabaseFileLogger() : undefined,
-        extra: {
-            max: 5,
-            min: 1
-        }
-    };
-};

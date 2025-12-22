@@ -222,6 +222,9 @@ export class RSSService {
                 };
             }
 
+            // Log all response headers
+            logger.info(`Response headers for ${url}:`, response.headers);
+
             // Extract caching headers from response
             const newEtag = response.headers['etag'];
             const newLastModified = response.headers['last-modified']

@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { AppDataSource } from '../app';
+import AppDataSource from '../config/database.config';
 import { Feed } from '../entities/feed.entity';
 import { UserFeed } from '../entities/user-feed.entity';
 import { HttpError } from '../middleware/error.middleware';
