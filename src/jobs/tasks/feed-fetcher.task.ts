@@ -124,5 +124,11 @@ export async function feedFetcherTask(): Promise<void> {
     } catch (error) {
         logger.error('Fatal error in feed fetcher task:', error);
         throw error;
+    } finally {
+        // Close database connection after task completion
+        if (AppDataSource.isInitialized) {
+            await AppDataSource.destroy();
+            logger.info('Database connection closed');
+        }
     }
 }
