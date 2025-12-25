@@ -95,10 +95,8 @@ export class PostsService {
                 .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
                 .leftJoinAndSelect('post.feed', 'feed')
                 .leftJoin('user_posts', 'up', 'up.post_id = post.id AND up.user_id = :userId', { userId })
-                .addSelect([
-                    'up.read_at as user_read_at',
-                    'up.bookmarked as user_bookmarked'
-                ]);
+                .addSelect('up.read_at', 'user_read_at')
+                .addSelect('up.bookmarked', 'user_bookmarked');
 
             // Handle sorting
             const sortBy = filters.sortBy || 'added_date';
@@ -120,21 +118,6 @@ export class PostsService {
                 query.andWhere('up.read_at IS ' + (filters.read ? 'NOT NULL' : 'NULL'));
             }
 
-            if (filters.link_id) {
-                // For backward compatibility - link to feed
-                const link = await AppDataSource.getRepository('Link').findOne({
-                    where: { id: filters.link_id }
-                });
-                if (link && (link as any).rss_url) {
-                    const feed = await this.feedRepository.findOne({
-                        where: { url: (link as any).rss_url }
-                    });
-                    if (feed) {
-                        query.andWhere('post.feed_id = :feedId', { feedId: feed.id });
-                    }
-                }
-            }
-
             if (filters.search) {
                 query.andWhere('(post.title ILIKE :search OR post.content ILIKE :search)', {
                     search: `%${filters.search}%`
@@ -153,7 +136,23 @@ export class PostsService {
                 query.skip(filters.offset);
             }
 
-            return await query.getManyAndCount();
+            // Use getRawAndEntities to get both entities and raw data with aliases
+            const [rawResults, total] = await Promise.all([
+                query.getRawAndEntities(),
+                query.getCount()
+            ]);
+
+            // Map user-specific fields to entities
+            const postsWithUserData = rawResults.entities.map((post, index) => {
+                const raw = rawResults.raw[index];
+                return {
+                    ...post,
+                    user_read_at: raw.user_read_at,
+                    user_bookmarked: raw.user_bookmarked
+                } as Post;
+            });
+
+            return [postsWithUserData, total];
         } catch (error) {
             logger.error('Error getting posts:', error);
             throw new HttpError(500, 'Failed to get posts');
@@ -163,20 +162,29 @@ export class PostsService {
     async getPost(id: string, userId: string): Promise<Post> {
         try {
             // Get post and check if user has access via user_feeds
-            const post = await this.postRepository
+            const result = await this.postRepository
                 .createQueryBuilder('post')
                 .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
                 .leftJoinAndSelect('post.feed', 'feed')
                 .leftJoin('user_posts', 'up', 'up.post_id = post.id AND up.user_id = :userId', { userId })
-                .addSelect(['up.read_at', 'up.bookmarked'])
+                .addSelect('up.read_at', 'user_read_at')
+                .addSelect('up.bookmarked', 'user_bookmarked')
                 .where('post.id = :id', { id })
-                .getOne();
+                .getRawAndEntities();
 
-            if (!post) {
+            if (!result.entities.length) {
                 throw new HttpError(404, 'Post not found or access denied');
             }
 
-            return post;
+            // Map user-specific fields to the entity
+            const post = result.entities[0];
+            const raw = result.raw[0];
+
+            return {
+                ...post,
+                user_read_at: raw.user_read_at,
+                user_bookmarked: raw.user_bookmarked
+            } as Post;
         } catch (error) {
             logger.error(`Error getting post ${id}:`, error);
             if (error instanceof HttpError) throw error;
@@ -202,36 +210,26 @@ export class PostsService {
         }
     }
 
-    async markAsRead(id: string, userId: string): Promise<Post> {
-        console.log(`Marking post ${id} as read...`);
+    async markAsRead(id: string, userId: string): Promise<void> {
         try {
-            // Get the post to ensure it exists and user has access
-            const post = await this.getPost(id, userId);
-
             // Check if user_post entry exists
-            let userPost = await this.userPostRepository.findOne({
+            const userPost = await this.userPostRepository.findOne({
                 where: { user_id: userId, post_id: id }
             });
 
-            if (userPost) {
-                // Update existing entry
-                userPost.read_at = new Date();
-                await this.userPostRepository.save(userPost);
-            } else {
-                // Create new user_post entry (on-demand)
-                userPost = this.userPostRepository.create({
+            // Only mark as read if not already read
+            if (!userPost || !userPost.read_at) {
+                const userPostData = userPost || this.userPostRepository.create({
                     user_id: userId,
                     post_id: id,
-                    read_at: new Date(),
                     bookmarked: false
                 });
-                await this.userPostRepository.save(userPost);
-            }
 
-            return post;
+                userPostData.read_at = new Date();
+                await this.userPostRepository.save(userPostData);
+            }
         } catch (error) {
             logger.error(`Error marking post ${id} as read:`, error);
-            if (error instanceof HttpError) throw error;
             throw new HttpError(500, 'Failed to mark post as read');
         }
     }

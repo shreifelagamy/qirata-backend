@@ -397,7 +397,8 @@ export class PostsController {
      * @swagger
      * /posts/{id}/read:
      *   patch:
-     *     summary: Mark a post as read
+     *     summary: Mark a post as read (only once)
+     *     description: Marks a post as read for the current user. If the post is already marked as read, no action is taken.
      *     tags: [Posts]
      *     parameters:
      *       - in: path
@@ -412,7 +413,17 @@ export class PostsController {
      *         content:
      *           application/json:
      *             schema:
-     *               $ref: '#/components/schemas/Post'
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     success:
+     *                       type: boolean
+     *                       example: true
+     *                 status:
+     *                   type: integer
+     *                   example: 200
      *       404:
      *         description: Post not found
      */
@@ -423,10 +434,13 @@ export class PostsController {
     ) {
         try {
             const id = req.params.id;
-            const post = await this.postsService.markAsRead(id, req.user!.id);
+            await this.postsService.markAsRead(id, req.user!.id);
 
-            logger.info('Post marked as read:', { id: post.id });
-            res.json(post);
+            logger.info('Post marked as read:', { id });
+            res.json({
+                data: { success: true },
+                status: 200
+            });
         } catch (error) {
             next(error);
         }
