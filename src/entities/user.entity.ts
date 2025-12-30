@@ -28,9 +28,6 @@ export class User extends BaseEntity {
     @OneToMany("ChatSession", "user")
     chat_sessions!: any[];
 
-    @OneToMany("Link", "user")
-    links!: any[];
-
     @OneToMany("Message", "user")
     messages!: any[];
 

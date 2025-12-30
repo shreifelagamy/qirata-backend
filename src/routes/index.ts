@@ -3,7 +3,6 @@ import { errorMiddleware } from '../middleware/error.middleware';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 import { createChatSessionRouter } from './chat-session.routes';
-import { createLinksRouter } from './links.routes';
 import { createPostsRouter } from './posts.routes';
 import { createSettingsRouter } from './settings.routes';
 import { createCategoryRouter } from './category.routes';
@@ -17,7 +16,6 @@ export function createRouter(): Router {
     router.use('/', authMiddleware);
 
     // Mount feature routers
-    router.use('/links', createLinksRouter());
     router.use('/posts', createPostsRouter());
     router.use('/settings', createSettingsRouter());
     router.use('/chat-sessions', createChatSessionRouter());

@@ -13,7 +13,7 @@ RESTful API for the Qirata platform providing content management,
 real-time communication, and social media integration capabilities.
 
 ## Features
-- Content management (links, posts)
+- Content management (feeds, posts)
 - Real-time chat functionality
 - Social media post management
 - User authentication and authorization
@@ -131,77 +131,6 @@ Authentication endpoints are available at \`/api/auth/*\`.
                             type: 'integer',
                             example: 200,
                             description: 'HTTP status code',
-                        },
-                    },
-                },
-                Link: {
-                    type: 'object',
-                    properties: {
-                        id: {
-                            type: 'string',
-                            format: 'uuid',
-                            description: 'Unique identifier',
-                        },
-                        url: {
-                            type: 'string',
-                            description: 'URL of the link',
-                        },
-                        name: {
-                            type: 'string',
-                            description: 'Name of the link',
-                        },
-                        rss_url: {
-                            type: 'string',
-                            description: 'RSS feed URL',
-                        },
-                        is_rss: {
-                            type: 'boolean',
-                            description: 'Whether this link is an RSS feed',
-                        },
-                        favicon_url: {
-                            type: 'string',
-                            nullable: true,
-                            description: 'URL of the site favicon',
-                        },
-                        last_fetch_at: {
-                            type: 'string',
-                            format: 'date-time',
-                            nullable: true,
-                            description: 'Timestamp of the last successful post fetch',
-                        },
-                        created_at: {
-                            type: 'string',
-                            format: 'date-time',
-                        },
-                        updated_at: {
-                            type: 'string',
-                            format: 'date-time',
-                        },
-                    },
-                },
-                CreateLinkDto: {
-                    type: 'object',
-                    required: ['url', 'rss_url'],
-                    properties: {
-                        url: {
-                            type: 'string',
-                            description: 'URL of the link to add',
-                        },
-                        rss_url: {
-                            type: 'string',
-                            description: 'RSS feed URL',
-                        },
-                        name: {
-                            type: 'string',
-                            description: 'Optional name for the link',
-                        },
-                        is_rss: {
-                            type: 'boolean',
-                            description: 'Whether this link is an RSS feed',
-                        },
-                        favicon_url: {
-                            type: 'string',
-                            description: 'Optional favicon URL (auto-detected if not provided)',
                         },
                     },
                 },
