@@ -282,61 +282,6 @@ Authentication endpoints are available at \`/api/auth/*\`.
                         },
                     ],
                 },
-                CreatePostDto: {
-                    type: 'object',
-                    required: ['title', 'external_link', 'source', 'linkId'],
-                    properties: {
-                        title: {
-                            type: 'string',
-                            description: 'Post title',
-                        },
-                        content: {
-                            type: 'string',
-                            description: 'Post content',
-                        },
-                        external_link: {
-                            type: 'string',
-                            description: 'Original link URL',
-                        },
-                        source: {
-                            type: 'string',
-                            description: 'Source name/RSS feed name',
-                        },
-                        image_url: {
-                            type: 'string',
-                            nullable: true,
-                            description: 'URL of the post image',
-                        },
-                        linkId: {
-                            type: 'string',
-                            format: 'uuid',
-                            description: 'Associated link ID',
-                        },
-                        published_date: {
-                            type: 'string',
-                            format: 'date-time',
-                            nullable: true,
-                            description: 'When the post was originally published',
-                        },
-                    },
-                },
-                UpdatePostDto: {
-                    type: 'object',
-                    properties: {
-                        title: {
-                            type: 'string',
-                            description: 'Post title',
-                        },
-                        content: {
-                            type: 'string',
-                            description: 'Post content',
-                        },
-                        read: {
-                            type: 'boolean',
-                            description: 'Mark as read/unread',
-                        },
-                    },
-                },
                 PostExpanded: {
                     type: 'object',
                     properties: {

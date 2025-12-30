@@ -1,20 +1,17 @@
-import { EntityManager, Repository, UpdateResult } from 'typeorm';
+import { Repository, UpdateResult } from 'typeorm';
 import AppDataSource from '../config/database.config';
-import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';
 import { UserPost } from '../entities/user-post.entity';
 import { UserFeed } from '../entities/user-feed.entity';
 import { Feed } from '../entities/feed.entity';
 import { HttpError } from '../middleware/error.middleware';
-import { PostModel } from '../models/post.model';
 import { PostFilters } from '../types/posts.types';
 import { logger } from '../utils/logger';
 import { ChatSessionService } from './chat-session.service';
 import contentAggregationService from './content/content-aggregation.service';
 
 export class PostsService {
-    private postModel: PostModel;
     private chatSessionService: ChatSessionService;
     private postExpandedRepository: Repository<PostExpanded>;
     private userPostRepository: Repository<UserPost>;
@@ -23,68 +20,12 @@ export class PostsService {
     private feedRepository: Repository<Feed>;
 
     constructor() {
-        this.postModel = new PostModel();
         this.chatSessionService = new ChatSessionService();
         this.postExpandedRepository = AppDataSource.getRepository(PostExpanded);
         this.userPostRepository = AppDataSource.getRepository(UserPost);
         this.userFeedRepository = AppDataSource.getRepository(UserFeed);
         this.postRepository = AppDataSource.getRepository(Post);
         this.feedRepository = AppDataSource.getRepository(Feed);
-    }
-
-    async createPost(data: CreatePostDto, userId: string, entityManager?: EntityManager): Promise<Post> {
-        try {
-            // Check for duplicate by external_link (global deduplication)
-            const existingPost = await this.postRepository.findOne({
-                where: { external_link: data.external_link }
-            });
-
-            if (existingPost) {
-                logger.info(`Post with external_link ${data.external_link} already exists globally`);
-                return existingPost;
-            }
-
-            // Create new global post (no user_id)
-            return await this.postModel.create(data, entityManager);
-        } catch (error) {
-            logger.error('Error creating post:', error);
-            throw new HttpError(500, 'Failed to create post');
-        }
-    }
-
-    async createMany(data: CreatePostDto[], userId: string, entityManager?: EntityManager): Promise<Post[] | undefined> {
-        try {
-            if (!data.length) return;
-
-            const manager = entityManager || AppDataSource.manager;
-
-            // Check for existing posts by external_link to prevent duplicates
-            const externalLinks = data.map(d => d.external_link);
-            const existingPosts = await manager.find(Post, {
-                where: externalLinks.map(link => ({ external_link: link }))
-            });
-
-            const existingLinks = new Set(existingPosts.map(p => p.external_link));
-
-            // Filter out posts that already exist
-            const newPosts = data.filter(d => !existingLinks.has(d.external_link));
-
-            if (!newPosts.length) {
-                logger.info('All posts already exist, skipping insert');
-                return existingPosts;
-            }
-
-            // Create new posts (without user_id)
-            const postEntities = newPosts.map((model: CreatePostDto) => manager.create(Post, model));
-
-            const insertedPosts = await manager.save(postEntities);
-
-            // Return both existing and newly inserted posts
-            return [...existingPosts, ...insertedPosts];
-        } catch (error) {
-            logger.error('Error creating multiple posts:', error);
-            throw new HttpError(500, 'Failed to create posts');
-        }
     }
 
     async getPosts(filters: PostFilters, userId: string): Promise<[Post[], number]> {
@@ -192,24 +133,6 @@ export class PostsService {
         }
     }
 
-    async updatePost(id: string, data: UpdatePostDto, userId: string): Promise<Post> {
-        try {
-            return await this.postModel.updateByUser(id, data, userId);
-        } catch (error) {
-            logger.error(`Error updating post ${id}:`, error);
-            throw new HttpError(500, 'Failed to update post');
-        }
-    }
-
-    async deletePost(id: string, userId: string): Promise<void> {
-        try {
-            await this.postModel.deleteByUser(id, userId);
-        } catch (error) {
-            logger.error(`Error deleting post ${id}:`, error);
-            throw new HttpError(500, 'Failed to delete post');
-        }
-    }
-
     async markAsRead(id: string, userId: string): Promise<void> {
         try {
             // Check if user_post entry exists
@@ -272,9 +195,21 @@ export class PostsService {
 
     async getExpanded(id: string, userId: string): Promise<PostExpanded> {
         try {
-            return await this.postModel.findExpandedByIdAndUser(id, userId);
+            // Verify user has access to this post first
+            await this.getPost(id, userId);
+
+            const expanded = await this.postExpandedRepository.findOne({
+                where: { post_id: id }
+            });
+
+            if (!expanded) {
+                throw new HttpError(404, 'Expanded post data not found');
+            }
+
+            return expanded;
         } catch (error) {
             logger.error(`Error getting expanded post ${id}:`, error);
+            if (error instanceof HttpError) throw error;
             throw new HttpError(500, 'Failed to get expanded post data');
         }
     }
@@ -295,7 +230,9 @@ export class PostsService {
             progressCallback?.('Setting up chat session...', 10);
             const chatSession = await this.ensureChatSession(post, userId);
 
-            const existingExpanded = await this.postModel.findExpandedById(id).catch(() => null);
+            const existingExpanded = await this.postExpandedRepository.findOne({
+                where: { post_id: id }
+            }).catch(() => null);
             if (!existingExpanded) {
                 await this.createExpandedContent(post, userId, progressCallback);
             }
@@ -362,7 +299,32 @@ export class PostsService {
 
     async getSources(includeCount: boolean = false, userId: string): Promise<string[] | { source: string; count: number }[]> {
         try {
-            return await this.postModel.getSourcesByUser(includeCount, userId);
+            if (includeCount) {
+                const result = await this.postRepository
+                    .createQueryBuilder('post')
+                    .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
+                    .select('post.source', 'source')
+                    .addSelect('COUNT(*)', 'count')
+                    .where('post.source IS NOT NULL AND post.source != \'\'')
+                    .groupBy('post.source')
+                    .orderBy('COUNT(*)', 'DESC')
+                    .getRawMany();
+
+                return result.map(row => ({
+                    source: row.source,
+                    count: parseInt(row.count)
+                }));
+            } else {
+                const result = await this.postRepository
+                    .createQueryBuilder('post')
+                    .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
+                    .select('DISTINCT post.source', 'source')
+                    .where('post.source IS NOT NULL AND post.source != \'\'')
+                    .orderBy('post.source', 'ASC')
+                    .getRawMany();
+
+                return result.map(row => row.source);
+            }
         } catch (error) {
             logger.error('Error getting sources:', error);
             throw new HttpError(500, 'Failed to get sources');

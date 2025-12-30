@@ -7,18 +7,6 @@ export function createPostsRouter(): Router {
   const router = Router();
   const postsController = new PostsController();
 
-  // REST API: POST /posts - Create a new post
-  router.post(
-    '/',
-    validate([
-      body('title').isString().trim().notEmpty(),
-      body('content').isString().trim().notEmpty(),
-      body('link_id').isUUID(),
-      body('summary').optional().isString().trim()
-    ]),
-    postsController.store.bind(postsController)
-  );
-
   // DEPRECATED: Sources endpoint has been deprecated in favor of feed subscriptions
   // Use /api/v1/feeds/subscriptions instead
   // router.get(
@@ -37,34 +25,6 @@ export function createPostsRouter(): Router {
       body('source').optional().isString().trim()
     ]),
     postsController.index.bind(postsController)
-  );
-
-  // REST API: GET /posts/:id - Get a specific post
-  router.get(
-    '/:id',
-    validate(commonValidation.id()),
-    postsController.show.bind(postsController)
-  );
-
-  // REST API: PATCH /posts/:id - Partially update a post
-  router.patch(
-    '/:id',
-    validate([
-      ...commonValidation.id(),
-      body('title').optional().isString().trim(),
-      body('content').optional().isString().trim(),
-      body('link_id').optional().isUUID(),
-      body('summary').optional().isString().trim(),
-      body('read').optional().isBoolean()
-    ]),
-    postsController.update.bind(postsController)
-  );
-
-  // REST API: DELETE /posts/:id - Delete a post
-  router.delete(
-    '/:id',
-    validate(commonValidation.id()),
-    postsController.destroy.bind(postsController)
   );
 
   // REST API: PATCH /posts/:id/read - Mark post as read (resource state change)

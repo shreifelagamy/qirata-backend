@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { PostsService } from '../services/posts.service';
 import { logger } from '../utils/logger';
 
@@ -8,42 +7,6 @@ export class PostsController {
 
     constructor() {
         this.postsService = new PostsService();
-    }
-
-    /**
-     * @swagger
-     * /posts:
-     *   post:
-     *     summary: Create a new post
-     *     tags: [Posts]
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             $ref: '#/components/schemas/CreatePostDto'
-     *     responses:
-     *       201:
-     *         description: Post created successfully
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Post'
-     */
-    async store(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const data: CreatePostDto = req.body;
-            const post = await this.postsService.createPost(data, req.user!.id);
-
-            logger.info('Post created:', { id: post.id, title: post.title });
-            res.status(201).json(post);
-        } catch (error) {
-            next(error);
-        }
     }
 
     /**
@@ -161,44 +124,6 @@ export class PostsController {
 
     /**
      * @swagger
-     * /posts/{id}:
-     *   get:
-     *     summary: Get a post by ID
-     *     tags: [Posts]
-     *     parameters:
-     *       - in: path
-     *         name: id
-     *         required: true
-     *         schema:
-     *           type: string
-     *           format: uuid
-     *     responses:
-     *       200:
-     *         description: Success
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Post'
-     *       404:
-     *         description: Post not found
-     */
-    async show(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const id = req.params.id;
-            const post = await this.postsService.getPost(id, req.user!.id);
-
-            res.json(post);
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    /**
-     * @swagger
      * /posts/{id}/expand:
      *   get:
      *     summary: Expand a post and get chat session with streaming progress
@@ -295,101 +220,6 @@ export class PostsController {
                 error: error instanceof Error ? error.message : 'Failed to expand post'
             })}\n\n`);
             res.end();
-        }
-    }
-
-    /**
-     * @swagger
-     * /posts/{id}:
-     *   patch:
-     *     summary: Update a post
-     *     tags: [Posts]
-     *     parameters:
-     *       - in: path
-     *         name: id
-     *         required: true
-     *         schema:
-     *           type: string
-     *           format: uuid
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             $ref: '#/components/schemas/UpdatePostDto'
-     *     responses:
-     *       200:
-     *         description: Success
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Post'
-     *       404:
-     *         description: Post not found
-     */
-    async update(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const id = req.params.id;
-            const data: UpdatePostDto = req.body;
-            const post = await this.postsService.updatePost(id, data, req.user!.id);
-
-            logger.info('Post updated:', { id: post.id, title: post.title });
-            res.json(post);
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    /**
-     * @swagger
-     * /posts/{id}:
-     *   delete:
-     *     summary: Delete a post
-     *     description: Permanently deletes a post and all associated data
-     *     tags: [Posts]
-     *     security:
-     *       - bearerAuth: []
-     *     parameters:
-     *       - in: path
-     *         name: id
-     *         required: true
-     *         schema:
-     *           type: string
-     *           format: uuid
-     *         description: Post ID
-     *     responses:
-     *       204:
-     *         description: Post deleted successfully
-     *       401:
-     *         description: Unauthorized
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
-     *       404:
-     *         description: Post not found
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
-     */
-    async destroy(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const id = req.params.id;
-            await this.postsService.deletePost(id, req.user!.id);
-
-            logger.info('Post deleted:', { id });
-            res.status(204).send();
-        } catch (error) {
-            next(error);
         }
     }
 
