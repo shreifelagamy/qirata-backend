@@ -27,8 +27,10 @@ export const getDatabaseConfig = (): DataSourceOptions => {
         database: process.env.DB_DATABASE,
         synchronize: false,
         entities: Object.values(entities),
+        // migrations
         migrations: [__dirname + "/../database/migrations/**/*.{ts,js}"],
-        migrationsTableName: "migrations"
+        migrationsTableName: "migrations",
+        migrationsRun: false
     };
 
     if (isProduction) {

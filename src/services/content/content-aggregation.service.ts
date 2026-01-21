@@ -8,47 +8,62 @@ interface ContentAggregationResult {
     summary: string;
 }
 
-export class ContentAggregationService {
-    async aggregateContent(
-        url: string,
-        progressCallback?: (step: string, progress: number) => void
-    ): Promise<ContentAggregationResult> {
-        try {
-            progressCallback?.('Extracting main content...', 20);
+export interface ContentAggregationProgress {
+    stage: 'scraping_main' | 'following_read_more' | 'optimizing_for_ai' | 'summarizing' | 'complete';
+    meta?: { current?: number; total?: number };
+}
 
-            // Try AgentQL direct URL extraction first
+export class ContentAggregationService {
+    /**
+     * Aggregate content from URL with progress tracking
+     * Returns async generator that yields progress updates
+     */
+    async *aggregateContentWithProgress(
+        url: string
+    ): AsyncGenerator<ContentAggregationProgress, ContentAggregationResult, undefined> {
+        try {
+            // Stage 1: Extract main content
+            yield { stage: 'scraping_main' };
+
             const extractedData = await this.extractContentWithFallback(url);
             console.log(`Extracted data for ${url}:`, extractedData);
             let aggregatedContent = extractedData.postContent;
 
-            progressCallback?.('Processing read more links...', 40);
-
-            // Process read more links in parallel (max 3) with same optimization strategy
+            // Stage 2: Process read more links
             if (extractedData.readMoreUrl && extractedData.readMoreUrl.length > 0) {
-                const additionalContent = await this.processReadMoreLinks(
-                    extractedData.readMoreUrl,
-                    progressCallback
-                );
+                const readMoreLinks = extractedData.readMoreUrl.slice(0, 3);
+                const total = readMoreLinks.length;
 
-                if (additionalContent) {
-                    aggregatedContent += '\n\n' + additionalContent;
+                for (let i = 0; i < total; i++) {
+                    yield {
+                        stage: 'following_read_more',
+                        meta: { current: i + 1, total }
+                    };
+
+                    try {
+                        const linkData = await this.extractContentWithFallback(readMoreLinks[i]);
+                        if (linkData.postContent && linkData.postContent.trim().length > 0) {
+                            aggregatedContent += '\n\n' + linkData.postContent;
+                        }
+                    } catch (error) {
+                        logger.warn(`Failed to extract content from read more link ${i + 1}: ${readMoreLinks[i]}`, error);
+                    }
                 }
             }
 
-            progressCallback?.('Optimizing content for AI...', 80);
-
-            // Optimize content for AI consumption
+            // Stage 3: Optimize for AI
+            yield { stage: 'optimizing_for_ai' };
             const optimizedContent = this.optimizeContentForAI(aggregatedContent);
 
-            progressCallback?.('Generating content summary...', 90);
-
-            // Generate summary
+            // Stage 4: Generate summary
+            yield { stage: 'summarizing' };
             const summary = await summarizePost({
                 postContent: optimizedContent,
             });
 
             logger.info(`Content aggregation completed for URL: ${url}`);
 
+            // Return final result
             return {
                 content: optimizedContent,
                 summary
@@ -109,42 +124,6 @@ export class ContentAggregationService {
         }
     }
 
-    private async processReadMoreLinks(
-        readMoreUrls: string[],
-        progressCallback?: (step: string, progress: number) => void
-    ): Promise<string> {
-        const readMoreLinks = readMoreUrls.slice(0, 3); // Limit to 3 links
-        const startTime = Date.now();
-        logger.info(`Starting parallel processing of ${readMoreLinks.length} read more links`);
-
-        // Process all read more links in parallel with same optimization strategy
-        const readMorePromises = readMoreLinks.map(async (link, index) => {
-            const linkStartTime = Date.now();
-            try {
-                progressCallback?.(`Following read more links (${index + 1}/${readMoreLinks.length})...`, 50 + (index * 10));
-                logger.info(`Started processing read more link ${index + 1}: ${link}`);
-
-                // Apply same optimization strategy: try direct URL first, fallback to HTML if needed
-                const linkData = await this.extractContentWithFallback(link);
-                const linkDuration = Date.now() - linkStartTime;
-                logger.info(`Completed read more link ${index + 1} in ${linkDuration}ms: ${link.substring(0, 50)}...`);
-
-                return linkData.postContent;
-            } catch (error) {
-                const linkDuration = Date.now() - linkStartTime;
-                logger.warn(`Failed to extract content from read more link ${index + 1} after ${linkDuration}ms: ${link}`, error);
-                return '';
-            }
-        });
-
-        const readMoreContents = await Promise.all(readMorePromises);
-        const totalDuration = Date.now() - startTime;
-        const validContents = readMoreContents.filter(content => content.trim().length > 0);
-
-        logger.info(`Parallel processing completed in ${totalDuration}ms. Valid content from ${validContents.length}/${readMoreLinks.length} links`);
-
-        return validContents.join('\n\n');
-    }
 
     private optimizeContentForAI(content: string): string {
         if (!content || content.trim().length === 0) {

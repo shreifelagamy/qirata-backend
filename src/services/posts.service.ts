@@ -1,18 +1,17 @@
 import { Repository, UpdateResult } from 'typeorm';
 import AppDataSource from '../config/database.config';
+import { Feed } from '../entities/feed.entity';
 import { PostExpanded } from '../entities/post-expanded.entity';
 import { Post } from '../entities/post.entity';
-import { UserPost } from '../entities/user-post.entity';
 import { UserFeed } from '../entities/user-feed.entity';
-import { Feed } from '../entities/feed.entity';
+import { UserPost } from '../entities/user-post.entity';
 import { HttpError } from '../middleware/error.middleware';
-import { PostFilters } from '../types/posts.types';
+import { ChatSessionRepository, PostExpandedRepository, PostRepository, UserPostRepository } from '../repositories';
+import { PostFilters, PrepareDiscussionResult, ProgressEvent } from '../types/posts.types';
 import { logger } from '../utils/logger';
-import { ChatSessionService } from './chat-session.service';
-import contentAggregationService from './content/content-aggregation.service';
+import ContentScrapper from './content/content-aggregation.service';
 
 export class PostsService {
-    private chatSessionService: ChatSessionService;
     private postExpandedRepository: Repository<PostExpanded>;
     private userPostRepository: Repository<UserPost>;
     private userFeedRepository: Repository<UserFeed>;
@@ -20,7 +19,6 @@ export class PostsService {
     private feedRepository: Repository<Feed>;
 
     constructor() {
-        this.chatSessionService = new ChatSessionService();
         this.postExpandedRepository = AppDataSource.getRepository(PostExpanded);
         this.userPostRepository = AppDataSource.getRepository(UserPost);
         this.userFeedRepository = AppDataSource.getRepository(UserFeed);
@@ -135,21 +133,18 @@ export class PostsService {
 
     async markAsRead(id: string, userId: string): Promise<void> {
         try {
-            // Check if user_post entry exists
-            const userPost = await this.userPostRepository.findOne({
-                where: { user_id: userId, post_id: id }
-            });
+            const userPost = await UserPostRepository.findByUserAndPost(userId, id);
 
             // Only mark as read if not already read
             if (!userPost || !userPost.read_at) {
-                const userPostData = userPost || this.userPostRepository.create({
+                const userPostData = userPost || UserPostRepository.create({
                     user_id: userId,
                     post_id: id,
                     bookmarked: false
                 });
 
                 userPostData.read_at = new Date();
-                await this.userPostRepository.save(userPostData);
+                await UserPostRepository.save(userPostData);
             }
         } catch (error) {
             logger.error(`Error marking post ${id} as read:`, error);
@@ -214,74 +209,232 @@ export class PostsService {
         }
     }
 
-    async expandPost(
-        id: string,
-        userId: string,
-        progressCallback?: (step: string, progress: number) => void
-    ): Promise<Post & { chat_session_id: string }> {
-        try {
-            progressCallback?.('Initializing post expansion...', 5);
-
-            const post = await this.getPost(id, userId);
-            if (!post) {
-                throw new HttpError(404, 'Post not found');
-            }
-
-            progressCallback?.('Setting up chat session...', 10);
-            const chatSession = await this.ensureChatSession(post, userId);
-
-            const existingExpanded = await this.postExpandedRepository.findOne({
-                where: { post_id: id }
-            }).catch(() => null);
-            if (!existingExpanded) {
-                await this.createExpandedContent(post, userId, progressCallback);
-            }
-
-            // Mark post as read after successful expansion (non-blocking)
-            this.markAsRead(id, userId);
-
-            progressCallback?.('Finalizing...', 100);
-
-            return {
-                ...post,
-                chat_session_id: chatSession.id
-            } as Post & { chat_session_id: string };
-        } catch (error) {
-            logger.error(`Error expanding post ${id}:`, error);
-            throw error instanceof HttpError ? error : new HttpError(500, 'Failed to expand post');
+    /**
+     * Prepare a post for AI discussion with early session emission and content-full heuristic
+     * Yields progress events during processing and returns the chat session ID
+     * @param id Post ID
+     * @param userId User ID
+     */
+    async *prepareForDiscussion(id: string, userId: string): AsyncGenerator<ProgressEvent, PrepareDiscussionResult, unknown> {
+        // Get post and verify access
+        const post = await PostRepository.findWithUserAccess(id, userId);
+        if (!post) {
+            throw new HttpError(404, 'Post not found');
         }
-    }
 
-    private async ensureChatSession(post: Post, userId: string) {
-        let chatSession = await this.chatSessionService.findByPostId(post.id, userId);
-        if (!chatSession) {
-            chatSession = await this.chatSessionService.create({
-                title: `Discussing: ${post.title}`,
-                postId: post.id
-            }, userId);
+        // Create/get chat session EARLY (before any content processing)
+        const chatSession = await this.findOrCreateChatSession(post, userId);
+
+        // Emit session ready event with chat_session_id in meta
+        yield { state: 'session_ready', step: 'Chat session created', progress: 0, meta: { chat_session_id: chatSession.id } };
+
+        // Check if PostExpanded already exists
+        const existingExpanded = await PostExpandedRepository.findByPostId(id).catch(() => null);
+
+        if (existingExpanded) {
+            // Fast path: already expanded
+            yield { state: 'ready', step: 'Content already prepared', progress: 100 };
+        } else {
+            // Decide if RSS content is full enough
+            yield { state: 'deciding_content', step: 'Analyzing RSS content completeness...', progress: 5 };
+            const isContentFull = this.isRssContentFull(post);
+
+            if (isContentFull) {
+                // Fast path: use RSS content directly
+                yield { state: 'using_rss_content', step: 'Using RSS content (sufficient quality)...', progress: 15 };
+                yield* this.createExpandedFromRss(post);
+            } else {
+                // Slow path: need to scrape
+                yield* this.createExpandedContent(post);
+            }
         }
-        return chatSession!;
-    }
 
-    private async createExpandedContent(
-        post: Post,
-        userId: string,
-        progressCallback?: (step: string, progress: number) => void
-    ): Promise<void> {
-        const { content, summary } = await contentAggregationService.aggregateContent(
-            post.external_link,
-            progressCallback
+        // Mark post as read after successful preparation (non-blocking)
+        this.markAsRead(id, userId).catch(err =>
+            logger.warn(`Failed to mark post ${id} as read:`, err)
         );
 
-        progressCallback?.('Saving expanded content...', 95);
+        return { chat_session_id: chatSession.id };
+    }
 
-        const expanded = new PostExpanded({
+    /**
+     * Determine if RSS content is full enough for AI discussion
+     * Uses multiple heuristics to decide
+     */
+    private isRssContentFull(post: Post): boolean {
+        if (!post.content || post.content.trim().length === 0) {
+            return false;
+        }
+
+        const content = post.content.trim();
+        const contentLength = content.length;
+
+        // Heuristic 1: Minimum length (at least 500 chars for meaningful discussion)
+        if (contentLength < 500) {
+            logger.info(`Post ${post.id}: Content too short (${contentLength} chars)`);
+            return false;
+        }
+
+        // Heuristic 2: Check for truncation markers
+        const truncationMarkers = [
+            '...',
+            '[...]',
+            '(more)',
+            'read more',
+            'continue reading',
+            '… ', // unicode ellipsis
+            'see more'
+        ];
+
+        const contentLower = content.toLowerCase();
+        const hasTruncationMarker = truncationMarkers.some(marker =>
+            contentLower.includes(marker.toLowerCase())
+        );
+
+        if (hasTruncationMarker) {
+            logger.info(`Post ${post.id}: Contains truncation markers`);
+            return false;
+        }
+
+        // Heuristic 3: Link density check
+        // Count links in content - high link density suggests incomplete content
+        const linkMatches = content.match(/<a\s+[^>]*href/gi) || [];
+        const linkDensity = linkMatches.length / (contentLength / 100); // links per 100 chars
+
+        if (linkDensity > 2) { // More than 2 links per 100 chars is suspicious
+            logger.info(`Post ${post.id}: High link density (${linkDensity.toFixed(2)} per 100 chars)`);
+            return false;
+        }
+
+        // All heuristics passed - content appears full
+        logger.info(`Post ${post.id}: RSS content appears full (${contentLength} chars)`);
+        return true;
+    }
+
+    /**
+     * Create PostExpanded from RSS content (fast path)
+     * Yields progress events during processing
+     */
+    private async *createExpandedFromRss(post: Post): AsyncGenerator<ProgressEvent, void, unknown> {
+        yield { state: 'optimizing_for_ai', step: 'Optimizing RSS content for AI...', progress: 40 };
+
+        const optimizedContent = this.optimizeContentForAI(post.content || '');
+
+        yield { state: 'summarizing', step: 'Generating content summary...', progress: 70 };
+
+        const { summarizePost } = await import('./ai/agents/post-summary.agent');
+        const summary = await summarizePost({
+            postContent: optimizedContent,
+        });
+
+        yield { state: 'saving_expanded', step: 'Saving prepared content...', progress: 90 };
+
+        await PostExpandedRepository.save({
+            post_id: post.id,
+            content: optimizedContent,
+            summary
+        });
+    }
+
+    /**
+     * Optimize content for AI (extracted from content-aggregation.service)
+     */
+    private optimizeContentForAI(content: string): string {
+        if (!content || content.trim().length === 0) {
+            return content;
+        }
+
+        try {
+            // Remove excessive whitespace and normalize line breaks
+            let optimized = content.replace(/\s+/g, ' ').trim();
+
+            // Remove duplicate sections (common in scraped content)
+            const sentences = optimized.split(/[.!?]+/).filter(s => s.trim().length > 10);
+            const uniqueSentences = [...new Set(sentences)];
+            optimized = uniqueSentences.join('. ').trim();
+
+            // Ensure proper sentence ending
+            if (optimized && !optimized.match(/[.!?]$/)) {
+                optimized += '.';
+            }
+
+            // Limit content length to prevent excessive token usage
+            const maxLength = 8000; // Reasonable limit for AI processing
+            if (optimized.length > maxLength) {
+                optimized = optimized.substring(0, maxLength);
+                // Try to end at a sentence boundary
+                const lastSentenceEnd = optimized.lastIndexOf('.');
+                if (lastSentenceEnd > maxLength * 0.8) {
+                    optimized = optimized.substring(0, lastSentenceEnd + 1);
+                }
+            }
+
+            logger.info(`Content optimized: ${content.length} -> ${optimized.length} characters`);
+            return optimized;
+        } catch (error) {
+            logger.warn('Content optimization failed, returning original content:', error);
+            return content;
+        }
+    }
+
+
+    private async findOrCreateChatSession(post: Post, userId: string) {
+        let chatSession = await ChatSessionRepository.findByPostId(post.id, userId);
+        if (!chatSession) {
+            chatSession = await ChatSessionRepository.save({
+                title: `Discussing: ${post.title}`,
+                post_id: post.id,
+                user_id: userId
+            });
+        }
+        return chatSession;
+    }
+
+    /**
+     * Create PostExpanded by scraping content (slow path)
+     * Yields progress events during processing
+     */
+    private async *createExpandedContent(post: Post): AsyncGenerator<ProgressEvent, void, unknown> {
+        const stageMessages: Record<string, string> = {
+            scraping_main: 'Extracting main content...',
+            following_read_more: 'Following read more links...',
+            optimizing_for_ai: 'Optimizing content for AI...',
+            summarizing: 'Generating content summary...',
+            complete: 'Complete'
+        };
+
+        const stageProgress: Record<string, number> = {
+            scraping_main: 20,
+            following_read_more: 50,
+            optimizing_for_ai: 80,
+            summarizing: 90,
+            complete: 100
+        };
+
+        const generator = ContentScrapper.aggregateContentWithProgress(post.external_link);
+
+        // Forward progress events from the content scraper
+        for await (const progress of generator) {
+            const message = stageMessages[progress.stage] || 'Processing...';
+            const progressValue = stageProgress[progress.stage] || 50;
+            yield { state: progress.stage, step: message, progress: progressValue, meta: progress.meta };
+        }
+
+        // Get the final result from the generator
+        const finalResult = await generator.next();
+        if (!finalResult.value || !('content' in finalResult.value) || !('summary' in finalResult.value)) {
+            throw new Error('Content aggregation returned no result');
+        }
+
+        const { content, summary } = finalResult.value;
+
+        yield { state: 'saving_expanded', step: 'Saving expanded content...', progress: 95 };
+
+        await PostExpandedRepository.save({
             post_id: post.id,
             content,
             summary
         });
-
-        await AppDataSource.manager.save(PostExpanded, expanded);
     }
 
     async updateExpandedSummary(postId: string, summary: string): Promise<UpdateResult> {
@@ -294,40 +447,6 @@ export class PostsService {
         } catch (error) {
             logger.error(`Error updating summary for post ${postId}:`, error);
             throw new HttpError(500, 'Failed to update post summary');
-        }
-    }
-
-    async getSources(includeCount: boolean = false, userId: string): Promise<string[] | { source: string; count: number }[]> {
-        try {
-            if (includeCount) {
-                const result = await this.postRepository
-                    .createQueryBuilder('post')
-                    .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
-                    .select('post.source', 'source')
-                    .addSelect('COUNT(*)', 'count')
-                    .where('post.source IS NOT NULL AND post.source != \'\'')
-                    .groupBy('post.source')
-                    .orderBy('COUNT(*)', 'DESC')
-                    .getRawMany();
-
-                return result.map(row => ({
-                    source: row.source,
-                    count: parseInt(row.count)
-                }));
-            } else {
-                const result = await this.postRepository
-                    .createQueryBuilder('post')
-                    .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
-                    .select('DISTINCT post.source', 'source')
-                    .where('post.source IS NOT NULL AND post.source != \'\'')
-                    .orderBy('post.source', 'ASC')
-                    .getRawMany();
-
-                return result.map(row => row.source);
-            }
-        } catch (error) {
-            logger.error('Error getting sources:', error);
-            throw new HttpError(500, 'Failed to get sources');
         }
     }
 }

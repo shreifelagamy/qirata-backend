@@ -84,11 +84,7 @@ export class PostsController {
      *                     totalPages:
      *                       type: integer
      */
-    async index(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
+    async index(req: Request, res: Response, next: NextFunction) {
         try {
             const page = req.query.page ? parseInt(req.query.page as string) : 1;
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 9;
@@ -124,10 +120,16 @@ export class PostsController {
 
     /**
      * @swagger
-     * /posts/{id}/expand:
+     * /posts/{id}/discuss:
      *   get:
-     *     summary: Expand a post and get chat session with streaming progress
-     *     description: Creates or retrieves chat session for the post, expands content using AgentQL with parallel read-more link processing, and streams progress updates via Server-Sent Events
+     *     summary: Start AI discussion for a post with streaming preparation progress
+     *     description: |
+     *       Creates/retrieves chat session immediately, then prepares AI-ready content in background.
+     *       Streams progress updates via Server-Sent Events:
+     *       - session event (early): Contains chat_session_id for immediate navigation
+     *       - progress events: Stateful progress with state machine (deciding_content, scraping_main, following_read_more, optimizing_for_ai, summarizing, saving_expanded)
+     *       - ready event (final): Content preparation complete
+     *       - error event: On failure
      *     tags: [Posts]
      *     security:
      *       - bearerAuth: []
@@ -146,79 +148,118 @@ export class PostsController {
      *           text/event-stream:
      *             schema:
      *               type: string
-     *               description: Server-Sent Events stream with progress updates and final result
+     *               description: Server-Sent Events stream with session, progress, and ready events
      *               example: |
-     *                 event: progress
-     *                 data: {"step": "Extracting main content...", "progress": 10}
+     *                 event: session
+     *                 data: {"chat_session_id": "uuid", "post_id": "uuid", "state": "session_ready"}
      *
      *                 event: progress
-     *                 data: {"step": "Following read more links (1/3)...", "progress": 40}
+     *                 data: {"state": "scraping_main", "step": "Extracting main content...", "progress": 20}
      *
-     *                 event: complete
-     *                 data: {"id": "123", "title": "Post Title", "chat_session_id": "456"}
+     *                 event: progress
+     *                 data: {"state": "following_read_more", "step": "Following read more links...", "progress": 40, "meta": {"current": 1, "total": 3}}
+     *
+     *                 event: ready
+     *                 data: {"chat_session_id": "uuid", "post_id": "uuid", "state": "ready"}
      *       401:
      *         description: Unauthorized
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
      *       404:
      *         description: Post not found
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
      *       500:
-     *         description: Failed to expand post content
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
+     *         description: Failed to prepare post content
      */
-    async expand(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
-        try {
-            const id = req.params.id;
+    async discuss(req: Request, res: Response, next: NextFunction) {
+        const id = req.params.id;
 
-            // Auth middleware has already validated the session and populated req.user
-            // If we reach this point, the user is authenticated
-            if (!req.user?.id) {
-                res.writeHead(401, { 'Content-Type': 'text/event-stream' });
-                res.write(`event: error\n`);
-                res.write(`data: ${JSON.stringify({ error: 'UNAUTHORIZED' })}\n\n`);
-                res.end();
-                return;
+        // Auth middleware has already validated the session and populated req.user
+        if (!req.user?.id) {
+            res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+            res.write(`event: error\n`);
+            res.write(`data: ${JSON.stringify({ error: 'UNAUTHORIZED' })}\n\n`);
+            res.end();
+            return;
+        }
+
+        // Set up SSE headers (CORS headers handled by middleware)
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+        });
+
+        // Track if client disconnected
+        let clientDisconnected = false;
+        req.on('close', () => {
+            clientDisconnected = true;
+        });
+
+        // Safe SSE writer that checks connection before writing
+        const safeWrite = (data: string): boolean => {
+            if (clientDisconnected || res.writableEnded) {
+                return false;
+            }
+            try {
+                res.write(data);
+                return true;
+            } catch (error) {
+                clientDisconnected = true;
+                return false;
+            }
+        };
+
+        try {
+            const generator = this.postsService.prepareForDiscussion(id, req.user.id);
+            let result: { chat_session_id: string } | undefined;
+
+            // Consume progress events from the generator
+            while (true) {
+                const { value, done } = await generator.next();
+
+                if (done) {
+                    // Generator returned the final result
+                    result = value;
+                    break;
+                }
+
+                // Emit progress event via SSE
+                const event = value;
+                if (event.state === 'session_ready') {
+                    // Special handling for session ready event
+                    safeWrite(`event: session\n`);
+                    safeWrite(`data: ${JSON.stringify({
+                        chat_session_id: event.meta?.chat_session_id,
+                        post_id: id,
+                        state: 'session_ready'
+                    })}\n\n`);
+                } else {
+                    // Regular progress event
+                    const payload: any = { state: event.state, step: event.step, progress: event.progress };
+                    if (event.meta) payload.meta = event.meta;
+                    safeWrite(`event: progress\n`);
+                    safeWrite(`data: ${JSON.stringify(payload)}\n\n`);
+                }
             }
 
-            // Set up SSE headers (CORS headers handled by middleware)
-            res.writeHead(200, {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            });
+            // Send ready event with final result
+            if (result && safeWrite(`event: ready\n`)) {
+                safeWrite(`data: ${JSON.stringify({
+                    chat_session_id: result.chat_session_id,
+                    post_id: id,
+                    state: 'ready'
+                })}\n\n`);
+            }
 
-            // Progress callback for streaming updates
-            const progressCallback = (step: string, progress: number) => {
-                res.write(`event: progress\n`);
-                res.write(`data: ${JSON.stringify({ step, progress })}\n\n`);
-            };
-
-            // Start expansion with streaming
-            const expanded = await this.postsService.expandPost(id, req.user!.id, progressCallback);
-
-            // Send final result
-            res.write(`event: complete\n`);
-            res.write(`data: ${JSON.stringify(expanded)}\n\n`);
             res.end();
         } catch (error) {
-            // Send error via SSE
-            res.write(`event: error\n`);
-            res.write(`data: ${JSON.stringify({
-                error: error instanceof Error ? error.message : 'Failed to expand post'
-            })}\n\n`);
+            // Send error via SSE if connection still open
+            try {
+                res.write(`event: error\n`);
+                res.write(`data: ${JSON.stringify({
+                    error: error instanceof Error ? error.message : 'Failed to prepare post for discussion'
+                })}\n\n`);
+            } catch (writeError) {
+                // Client disconnected, nothing to do
+            }
             res.end();
         }
     }
@@ -257,11 +298,7 @@ export class PostsController {
      *       404:
      *         description: Post not found
      */
-    async read(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
+    async read(req: Request, res: Response, next: NextFunction) {
         try {
             const id = req.params.id;
             await this.postsService.markAsRead(id, req.user!.id);
@@ -319,11 +356,7 @@ export class PostsController {
      *             schema:
      *               $ref: '#/components/schemas/Error'
      */
-    async bookmark(
-        req: Request,
-        res: Response,
-        next: NextFunction
-    ) {
+    async bookmark(req: Request, res: Response, next: NextFunction) {
         try {
             const id = req.params.id;
             const result = await this.postsService.toggleBookmark(id, req.user!.id);
@@ -375,64 +408,4 @@ export class PostsController {
             next(error);
         }
     }
-
-    /**
-     * DEPRECATED: This endpoint has been deprecated in favor of feed subscriptions
-     * Use GET /api/v1/feeds/subscriptions instead
-     *
-     * @swagger
-     * /posts/sources:
-     *   get:
-     *     deprecated: true
-     *     summary: Get unique sources list (DEPRECATED)
-     *     description: Returns all unique RSS sources that have posts in the database with optional post counts. DEPRECATED - Use /api/v1/feeds/subscriptions instead.
-     *     tags: [Posts]
-     *     parameters:
-     *       - in: query
-     *         name: includeCount
-     *         schema:
-     *           type: boolean
-     *           default: false
-     *         description: Include post count for each source
-     *     responses:
-     *       200:
-     *         description: Success
-     *         content:
-     *           application/json:
-     *             schema:
-     *               type: object
-     *               properties:
-     *                 data:
-     *                   type: array
-     *                   items:
-     *                     oneOf:
-     *                       - type: string
-     *                         description: Source name (when includeCount=false)
-     *                       - type: object
-     *                         properties:
-     *                           source:
-     *                             type: string
-     *                           count:
-     *                             type: integer
-     *                         description: Source with post count (when includeCount=true)
-     *                 status:
-     *                   type: integer
-     */
-    // async sources(
-    //     req: Request,
-    //     res: Response,
-    //     next: NextFunction
-    // ) {
-    //     try {
-    //         const includeCount = req.query.includeCount === 'true';
-    //         const sources = await this.postsService.getSources(includeCount, req.user!.id);
-
-    //         res.json({
-    //             data: sources,
-    //             status: 200
-    //         });
-    //     } catch (error) {
-    //         next(error);
-    //     }
-    // }
 }

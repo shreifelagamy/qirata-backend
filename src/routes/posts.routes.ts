@@ -48,11 +48,11 @@ export function createPostsRouter(): Router {
     postsController.expanded.bind(postsController)
   );
 
-  // REST API: GET /posts/:id/expand - Trigger expansion (action on resource)
+  // REST API: GET /posts/:id/discuss - Start discussion with AI (triggers content prep + chat session)
   router.get(
-    '/:id/expand',
+    '/:id/discuss',
     validate(commonValidation.id()),
-    postsController.expand.bind(postsController)
+    postsController.discuss.bind(postsController)
   );
 
   return router;

@@ -9,3 +9,14 @@ export interface PostFilters {
     sortBy?: string;
     sortOrder?: 'ASC' | 'DESC';
 }
+
+export interface ProgressEvent {
+    state: string;
+    step: string;
+    progress: number;
+    meta?: any;
+}
+
+export interface PrepareDiscussionResult {
+    chat_session_id: string;
+}
