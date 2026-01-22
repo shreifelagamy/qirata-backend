@@ -1,14 +1,11 @@
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from "@langchain/ollama";
-import { DEFAULT_MODEL_CONFIGS, createModelFromConfig } from '../../../types/model-config.types';
+import { ChatOpenAI } from '@langchain/openai';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
-import { ChatOpenAI } from '@langchain/openai';
 
 type SummarizeOptions = {
-    model?: ChatOllama;
     postContent: string;
 }
 
@@ -40,11 +37,10 @@ const SYSTEM_MESSAGE = `You are an expert content analyst specialized in summari
 - Avoid unnecessary detail while preserving key insights
 - Structure information for easy AI comprehension`;
 
-export async function summarizePost(options: SummarizeOptions): Promise<string> {
-    const {
-        model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.7, openAIApiKey: process.env.OPENAI_API_KEY }),
-        postContent
-    } = options;
+async function summarizePostAgent(options: SummarizeOptions): Promise<string> {
+    const model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.7, openAIApiKey: process.env.OPENAI_API_KEY })
+
+    const { postContent } = options;
 
     if (!postContent || postContent.trim().length === 0) {
         logger.warn('Empty post content provided for summarization');
@@ -94,3 +90,5 @@ Provide a concise 3-4 sentence summary following the analysis framework outlined
 
     return messages;
 }
+
+export default summarizePostAgent

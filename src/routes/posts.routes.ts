@@ -41,13 +41,6 @@ export function createPostsRouter(): Router {
     postsController.bookmark.bind(postsController)
   );
 
-  // REST API: GET /posts/:id/expanded - Get expanded content (sub-resource)
-  router.get(
-    '/:id/expanded',
-    validate(commonValidation.id()),
-    postsController.expanded.bind(postsController)
-  );
-
   // REST API: GET /posts/:id/discuss - Start discussion with AI (triggers content prep + chat session)
   router.get(
     '/:id/discuss',

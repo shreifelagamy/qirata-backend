@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { PostsService } from '../services/posts.service';
 import { logger } from '../utils/logger';
+import { SSEResponse } from '../utils/sse';
 
 export class PostsController {
     private postsService: PostsService;
@@ -171,96 +172,55 @@ export class PostsController {
     async discuss(req: Request, res: Response, next: NextFunction) {
         const id = req.params.id;
 
-        // Auth middleware has already validated the session and populated req.user
         if (!req.user?.id) {
             res.writeHead(401, { 'Content-Type': 'text/event-stream' });
-            res.write(`event: error\n`);
-            res.write(`data: ${JSON.stringify({ error: 'UNAUTHORIZED' })}\n\n`);
+            res.write(`event: error\ndata: ${JSON.stringify({ error: 'UNAUTHORIZED' })}\n\n`);
             res.end();
             return;
         }
 
-        // Set up SSE headers (CORS headers handled by middleware)
-        res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive'
-        });
-
-        // Track if client disconnected
-        let clientDisconnected = false;
-        req.on('close', () => {
-            clientDisconnected = true;
-        });
-
-        // Safe SSE writer that checks connection before writing
-        const safeWrite = (data: string): boolean => {
-            if (clientDisconnected || res.writableEnded) {
-                return false;
-            }
-            try {
-                res.write(data);
-                return true;
-            } catch (error) {
-                clientDisconnected = true;
-                return false;
-            }
-        };
+        const sse = new SSEResponse(res, req);
 
         try {
             const generator = this.postsService.prepareForDiscussion(id, req.user.id);
             let result: { chat_session_id: string } | undefined;
 
-            // Consume progress events from the generator
             while (true) {
                 const { value, done } = await generator.next();
 
                 if (done) {
-                    // Generator returned the final result
                     result = value;
                     break;
                 }
 
-                // Emit progress event via SSE
                 const event = value;
                 if (event.state === 'session_ready') {
-                    // Special handling for session ready event
-                    safeWrite(`event: session\n`);
-                    safeWrite(`data: ${JSON.stringify({
+                    sse.send('session', {
                         chat_session_id: event.meta?.chat_session_id,
                         post_id: id,
                         state: 'session_ready'
-                    })}\n\n`);
+                    });
                 } else {
-                    // Regular progress event
-                    const payload: any = { state: event.state, step: event.step, progress: event.progress };
-                    if (event.meta) payload.meta = event.meta;
-                    safeWrite(`event: progress\n`);
-                    safeWrite(`data: ${JSON.stringify(payload)}\n\n`);
+                    sse.send('progress', {
+                        state: event.state,
+                        step: event.step,
+                        progress: event.progress,
+                        ...(event.meta && { meta: event.meta })
+                    });
                 }
             }
 
-            // Send ready event with final result
-            if (result && safeWrite(`event: ready\n`)) {
-                safeWrite(`data: ${JSON.stringify({
+            if (result) {
+                sse.send('ready', {
                     chat_session_id: result.chat_session_id,
                     post_id: id,
                     state: 'ready'
-                })}\n\n`);
+                });
             }
 
-            res.end();
+            sse.end();
         } catch (error) {
-            // Send error via SSE if connection still open
-            try {
-                res.write(`event: error\n`);
-                res.write(`data: ${JSON.stringify({
-                    error: error instanceof Error ? error.message : 'Failed to prepare post for discussion'
-                })}\n\n`);
-            } catch (writeError) {
-                // Client disconnected, nothing to do
-            }
-            res.end();
+            sse.sendError(error instanceof Error ? error.message : 'Failed to prepare post for discussion');
         }
     }
 

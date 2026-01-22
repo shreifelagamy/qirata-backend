@@ -9,6 +9,7 @@ import { HttpError } from '../middleware/error.middleware';
 import { ChatSessionRepository, PostExpandedRepository, PostRepository, UserPostRepository } from '../repositories';
 import { PostFilters, PrepareDiscussionResult, ProgressEvent } from '../types/posts.types';
 import { logger } from '../utils/logger';
+import { isFullContentAgent } from './ai/agents';
 import ContentScrapper from './content/content-aggregation.service';
 
 export class PostsService {
@@ -235,18 +236,48 @@ export class PostsService {
             // Fast path: already expanded
             yield { state: 'ready', step: 'Content already prepared', progress: 100 };
         } else {
-            // Decide if RSS content is full enough
+            // Use AI agent to decide if RSS content is full enough
             yield { state: 'deciding_content', step: 'Analyzing RSS content completeness...', progress: 5 };
-            const isContentFull = this.isRssContentFull(post);
+            const contentCheck = await isFullContentAgent({ title: post.title, content: post.content || '' });
 
-            if (isContentFull) {
+            logger.info(`Post ${post.id}: AI content check - isFull=${contentCheck.isFull}, confidence=${contentCheck.confidence}, reason=${contentCheck.reason}`);
+
+            let content: string;
+
+            if (contentCheck.isFull) {
                 // Fast path: use RSS content directly
-                yield { state: 'using_rss_content', step: 'Using RSS content (sufficient quality)...', progress: 15 };
-                yield* this.createExpandedFromRss(post);
+                logger.info(`Post ${post.id}: Using RSS content for discussion (fast path)`);
+                content = post.content || '';
             } else {
+                logger.info(`Post ${post.id}: Scraping content for discussion (slow path)`);
                 // Slow path: need to scrape
-                yield* this.createExpandedContent(post);
+                const generator = this.getExternalPostContent(post);
+                while (true) {
+                    const { value, done } = await generator.next();
+                    if (done) {
+                        content = value;
+                        break;
+                    }
+                    const progress = value;
+                    yield progress;
+                }
+
             }
+
+            // if content is empty return error
+            if (!content || content.trim().length === 0) {
+                throw new HttpError(500, 'Failed to prepare content for discussion');
+            }
+
+            // save post expanded
+            yield { state: 'saving_expanded', step: 'Saving prepared content...', progress: 95 };
+
+            await PostExpandedRepository.save({
+                post_id: post.id,
+                content: content,
+            });
+
+            yield { state: 'ready', step: 'Content prepared for discussion', progress: 100 };
         }
 
         // Mark post as read after successful preparation (non-blocking)
@@ -255,126 +286,6 @@ export class PostsService {
         );
 
         return { chat_session_id: chatSession.id };
-    }
-
-    /**
-     * Determine if RSS content is full enough for AI discussion
-     * Uses multiple heuristics to decide
-     */
-    private isRssContentFull(post: Post): boolean {
-        if (!post.content || post.content.trim().length === 0) {
-            return false;
-        }
-
-        const content = post.content.trim();
-        const contentLength = content.length;
-
-        // Heuristic 1: Minimum length (at least 500 chars for meaningful discussion)
-        if (contentLength < 500) {
-            logger.info(`Post ${post.id}: Content too short (${contentLength} chars)`);
-            return false;
-        }
-
-        // Heuristic 2: Check for truncation markers
-        const truncationMarkers = [
-            '...',
-            '[...]',
-            '(more)',
-            'read more',
-            'continue reading',
-            '… ', // unicode ellipsis
-            'see more'
-        ];
-
-        const contentLower = content.toLowerCase();
-        const hasTruncationMarker = truncationMarkers.some(marker =>
-            contentLower.includes(marker.toLowerCase())
-        );
-
-        if (hasTruncationMarker) {
-            logger.info(`Post ${post.id}: Contains truncation markers`);
-            return false;
-        }
-
-        // Heuristic 3: Link density check
-        // Count links in content - high link density suggests incomplete content
-        const linkMatches = content.match(/<a\s+[^>]*href/gi) || [];
-        const linkDensity = linkMatches.length / (contentLength / 100); // links per 100 chars
-
-        if (linkDensity > 2) { // More than 2 links per 100 chars is suspicious
-            logger.info(`Post ${post.id}: High link density (${linkDensity.toFixed(2)} per 100 chars)`);
-            return false;
-        }
-
-        // All heuristics passed - content appears full
-        logger.info(`Post ${post.id}: RSS content appears full (${contentLength} chars)`);
-        return true;
-    }
-
-    /**
-     * Create PostExpanded from RSS content (fast path)
-     * Yields progress events during processing
-     */
-    private async *createExpandedFromRss(post: Post): AsyncGenerator<ProgressEvent, void, unknown> {
-        yield { state: 'optimizing_for_ai', step: 'Optimizing RSS content for AI...', progress: 40 };
-
-        const optimizedContent = this.optimizeContentForAI(post.content || '');
-
-        yield { state: 'summarizing', step: 'Generating content summary...', progress: 70 };
-
-        const { summarizePost } = await import('./ai/agents/post-summary.agent');
-        const summary = await summarizePost({
-            postContent: optimizedContent,
-        });
-
-        yield { state: 'saving_expanded', step: 'Saving prepared content...', progress: 90 };
-
-        await PostExpandedRepository.save({
-            post_id: post.id,
-            content: optimizedContent,
-            summary
-        });
-    }
-
-    /**
-     * Optimize content for AI (extracted from content-aggregation.service)
-     */
-    private optimizeContentForAI(content: string): string {
-        if (!content || content.trim().length === 0) {
-            return content;
-        }
-
-        try {
-            // Remove excessive whitespace and normalize line breaks
-            let optimized = content.replace(/\s+/g, ' ').trim();
-
-            // Remove duplicate sections (common in scraped content)
-            const sentences = optimized.split(/[.!?]+/).filter(s => s.trim().length > 10);
-            const uniqueSentences = [...new Set(sentences)];
-            optimized = uniqueSentences.join('. ').trim();
-
-            // Ensure proper sentence ending
-            if (optimized && !optimized.match(/[.!?]$/)) {
-                optimized += '.';
-            }
-
-            // Limit content length to prevent excessive token usage
-            const maxLength = 8000; // Reasonable limit for AI processing
-            if (optimized.length > maxLength) {
-                optimized = optimized.substring(0, maxLength);
-                // Try to end at a sentence boundary
-                const lastSentenceEnd = optimized.lastIndexOf('.');
-                if (lastSentenceEnd > maxLength * 0.8) {
-                    optimized = optimized.substring(0, lastSentenceEnd + 1);
-                }
-            }
-
-            logger.info(`Content optimized: ${content.length} -> ${optimized.length} characters`);
-            return optimized;
-        } catch (error) {
-            logger.warn('Content optimization failed, returning original content:', error);
-            return content;
-        }
     }
 
 
@@ -394,7 +305,7 @@ export class PostsService {
      * Create PostExpanded by scraping content (slow path)
      * Yields progress events during processing
      */
-    private async *createExpandedContent(post: Post): AsyncGenerator<ProgressEvent, void, unknown> {
+    private async *getExternalPostContent(post: Post): AsyncGenerator<ProgressEvent, string, unknown> {
         const stageMessages: Record<string, string> = {
             scraping_main: 'Extracting main content...',
             following_read_more: 'Following read more links...',
@@ -412,29 +323,23 @@ export class PostsService {
         };
 
         const generator = ContentScrapper.aggregateContentWithProgress(post.external_link);
+        let content: string = '';
 
-        // Forward progress events from the content scraper
-        for await (const progress of generator) {
+        while (true) {
+            const { value, done } = await generator.next();
+            if (done) {
+                content = value.content;
+                break;
+            }
+
+            const progress = value;
             const message = stageMessages[progress.stage] || 'Processing...';
             const progressValue = stageProgress[progress.stage] || 50;
+
             yield { state: progress.stage, step: message, progress: progressValue, meta: progress.meta };
         }
 
-        // Get the final result from the generator
-        const finalResult = await generator.next();
-        if (!finalResult.value || !('content' in finalResult.value) || !('summary' in finalResult.value)) {
-            throw new Error('Content aggregation returned no result');
-        }
-
-        const { content, summary } = finalResult.value;
-
-        yield { state: 'saving_expanded', step: 'Saving expanded content...', progress: 95 };
-
-        await PostExpandedRepository.save({
-            post_id: post.id,
-            content,
-            summary
-        });
+        return content;
     }
 
     async updateExpandedSummary(postId: string, summary: string): Promise<UpdateResult> {

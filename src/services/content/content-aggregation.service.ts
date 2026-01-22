@@ -1,11 +1,9 @@
 import { logger } from '../../utils/logger';
-import { summarizePost } from '../ai/agents/post-summary.agent';
 import agentqlService from './agentql.service';
 import scraper from './scraper.service';
 
 interface ContentAggregationResult {
     content: string;
-    summary: string;
 }
 
 export interface ContentAggregationProgress {
@@ -18,15 +16,12 @@ export class ContentAggregationService {
      * Aggregate content from URL with progress tracking
      * Returns async generator that yields progress updates
      */
-    async *aggregateContentWithProgress(
-        url: string
-    ): AsyncGenerator<ContentAggregationProgress, ContentAggregationResult, undefined> {
+    async *aggregateContentWithProgress(url: string): AsyncGenerator<ContentAggregationProgress, ContentAggregationResult, undefined> {
         try {
             // Stage 1: Extract main content
             yield { stage: 'scraping_main' };
 
             const extractedData = await this.extractContentWithFallback(url);
-            console.log(`Extracted data for ${url}:`, extractedData);
             let aggregatedContent = extractedData.postContent;
 
             // Stage 2: Process read more links
@@ -51,22 +46,12 @@ export class ContentAggregationService {
                 }
             }
 
-            // Stage 3: Optimize for AI
-            yield { stage: 'optimizing_for_ai' };
-            const optimizedContent = this.optimizeContentForAI(aggregatedContent);
-
-            // Stage 4: Generate summary
-            yield { stage: 'summarizing' };
-            const summary = await summarizePost({
-                postContent: optimizedContent,
-            });
-
             logger.info(`Content aggregation completed for URL: ${url}`);
 
             // Return final result
+            logger.info(aggregatedContent);
             return {
-                content: optimizedContent,
-                summary
+                content: aggregatedContent,
             };
         } catch (error) {
             logger.error(`Content aggregation failed for URL: ${url}`, error);
@@ -87,7 +72,7 @@ export class ContentAggregationService {
                     logger.warn(`Human verification detected for ${url}, falling back to HTML scraping`);
                     return await this.fallbackToHtmlExtraction(url);
                 }
-                
+
                 logger.info(`Direct AgentQL extraction successful for: ${url}`);
                 return extractedData;
             } else {
@@ -105,11 +90,11 @@ export class ContentAggregationService {
         try {
             logger.info(`Starting HTML fallback extraction for: ${url}`);
             const html = await scraper.scrapeHtml(url);
-            
+
             if (!html || html.trim().length === 0) {
                 throw new Error('Failed to scrape HTML content');
             }
-            
+
             const result = await agentqlService.extractFromHtml(html);
             logger.info(`HTML fallback extraction completed for: ${url}`);
             return result;
@@ -121,45 +106,6 @@ export class ContentAggregationService {
                 readMoreUrl: [],
                 isHumanVerificationRequired: false
             };
-        }
-    }
-
-
-    private optimizeContentForAI(content: string): string {
-        if (!content || content.trim().length === 0) {
-            return content;
-        }
-
-        try {
-            // Remove excessive whitespace and normalize line breaks
-            let optimized = content.replace(/\s+/g, ' ').trim();
-
-            // Remove duplicate sections (common in scraped content)
-            const sentences = optimized.split(/[.!?]+/).filter(s => s.trim().length > 10);
-            const uniqueSentences = [...new Set(sentences)];
-            optimized = uniqueSentences.join('. ').trim();
-
-            // Ensure proper sentence ending
-            if (optimized && !optimized.match(/[.!?]$/)) {
-                optimized += '.';
-            }
-
-            // Limit content length to prevent excessive token usage
-            const maxLength = 8000; // Reasonable limit for AI processing
-            if (optimized.length > maxLength) {
-                optimized = optimized.substring(0, maxLength);
-                // Try to end at a sentence boundary
-                const lastSentenceEnd = optimized.lastIndexOf('.');
-                if (lastSentenceEnd > maxLength * 0.8) {
-                    optimized = optimized.substring(0, lastSentenceEnd + 1);
-                }
-            }
-
-            logger.info(`Content optimized: ${content.length} -> ${optimized.length} characters`);
-            return optimized;
-        } catch (error) {
-            logger.warn('Content optimization failed, returning original content:', error);
-            return content;
         }
     }
 }
