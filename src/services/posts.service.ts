@@ -153,42 +153,6 @@ export class PostsService {
         }
     }
 
-    async toggleBookmark(id: string, userId: string): Promise<{ post: Post; bookmarked: boolean }> {
-        try {
-            // Get the post to ensure it exists and user has access
-            const post = await this.getPost(id, userId);
-
-            // Check if user_post entry exists
-            let userPost = await this.userPostRepository.findOne({
-                where: { user_id: userId, post_id: id }
-            });
-
-            let bookmarked: boolean;
-
-            if (userPost) {
-                // Toggle existing bookmark
-                userPost.bookmarked = !userPost.bookmarked;
-                bookmarked = userPost.bookmarked;
-                await this.userPostRepository.save(userPost);
-            } else {
-                // Create new user_post entry (on-demand) with bookmark
-                userPost = this.userPostRepository.create({
-                    user_id: userId,
-                    post_id: id,
-                    bookmarked: true
-                });
-                await this.userPostRepository.save(userPost);
-                bookmarked = true;
-            }
-
-            return { post, bookmarked };
-        } catch (error) {
-            logger.error(`Error toggling bookmark for post ${id}:`, error);
-            if (error instanceof HttpError) throw error;
-            throw new HttpError(500, 'Failed to toggle bookmark');
-        }
-    }
-
     async getExpanded(id: string, userId: string): Promise<PostExpanded> {
         try {
             // Verify user has access to this post first
