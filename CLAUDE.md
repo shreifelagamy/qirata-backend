@@ -38,6 +38,8 @@
 - `SocialPost` - Platform-specific social media content with structured data
 - `Settings` - Key-value configuration storage
 
+**Repositories** (`/src/repositories/`):
+
 **Key Relationships**:
 - ChatSession → Messages (one-to-many)
 - ChatSession → SocialPosts (one-to-many)

@@ -27,6 +27,13 @@ export function createPostsRouter(): Router {
     postsController.index.bind(postsController)
   );
 
+  // REST API: GET /posts/:id - Get a specific post with expanded content
+  router.get(
+    '/:id',
+    validate(commonValidation.id()),
+    postsController.show.bind(postsController)
+  );
+
   // REST API: PATCH /posts/:id/read - Mark post as read (resource state change)
   router.patch(
     '/:id/read',

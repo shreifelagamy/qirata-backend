@@ -5,6 +5,7 @@ import { PostFilters } from '../types/posts.types';
 
 export interface PostRepository extends Repository<Post> {
     findWithUserAccess(id: string, userId: string): Promise<Post | null>;
+    findWithExpandedAndUserAccess(id: string, userId: string): Promise<Post | null>;
     findAllWithUserAccess(filters: PostFilters, userId: string): Promise<{ posts: Post[]; total: number }>;
     findDistinctSources(userId: string): Promise<string[]>;
     findSourcesWithCount(userId: string): Promise<{ source: string; count: number }[]>;
@@ -19,6 +20,35 @@ export const PostRepository = AppDataSource.getRepository(Post).extend({
         const result = await this.createQueryBuilder('post')
             .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
             .leftJoinAndSelect('post.feed', 'feed')
+            .leftJoin('user_posts', 'up', 'up.post_id = post.id AND up.user_id = :userId', { userId })
+            .addSelect('up.read_at', 'user_read_at')
+            .addSelect('up.bookmarked', 'user_bookmarked')
+            .where('post.id = :id', { id })
+            .getRawAndEntities();
+
+        if (!result.entities.length) {
+            return null;
+        }
+
+        const post = result.entities[0];
+        const raw = result.raw[0];
+
+        return {
+            ...post,
+            user_read_at: raw.user_read_at,
+            user_bookmarked: raw.user_bookmarked
+        } as Post;
+    },
+
+    /**
+     * Find a single post with expanded content and user access verification via user_feeds
+     * Returns post with expanded relation and user-specific fields mapped
+     */
+    async findWithExpandedAndUserAccess(id: string, userId: string): Promise<Post | null> {
+        const result = await this.createQueryBuilder('post')
+            .innerJoin('user_feeds', 'uf', 'uf.feed_id = post.feed_id AND uf.user_id = :userId', { userId })
+            .leftJoinAndSelect('post.feed', 'feed')
+            .leftJoinAndSelect('post.expanded', 'expanded')
             .leftJoin('user_posts', 'up', 'up.post_id = post.id AND up.user_id = :userId', { userId })
             .addSelect('up.read_at', 'user_read_at')
             .addSelect('up.bookmarked', 'user_bookmarked')

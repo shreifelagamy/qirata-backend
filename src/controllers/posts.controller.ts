@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { HttpError } from '../middleware/error.middleware';
 import { PostsService } from '../services/posts.service';
 import { logger } from '../utils/logger';
 import { SSEResponse } from '../utils/sse';
@@ -221,6 +222,97 @@ export class PostsController {
             sse.end();
         } catch (error) {
             sse.sendError(error instanceof Error ? error.message : 'Failed to prepare post for discussion');
+        }
+    }
+
+    /**
+     * @swagger
+     * /posts/{id}:
+     *   get:
+     *     summary: Get a specific post with its expanded content
+     *     description: Returns a single post with its full expanded content (if available), feed information, and user-specific data
+     *     tags: [Posts]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Post ID
+     *     responses:
+     *       200:
+     *         description: Success
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     id:
+     *                       type: string
+     *                       format: uuid
+     *                     title:
+     *                       type: string
+     *                     content:
+     *                       type: string
+     *                     image_url:
+     *                       type: string
+     *                     external_link:
+     *                       type: string
+     *                     published_date:
+     *                       type: string
+     *                       format: date-time
+     *                     feed:
+     *                       type: object
+     *                       properties:
+     *                         id:
+     *                           type: string
+     *                         title:
+     *                           type: string
+     *                     expanded:
+     *                       type: object
+     *                       nullable: true
+     *                       properties:
+     *                         id:
+     *                           type: string
+     *                         content:
+     *                           type: string
+     *                         summary:
+     *                           type: string
+     *                     user_read_at:
+     *                       type: string
+     *                       format: date-time
+     *                       nullable: true
+     *                     user_bookmarked:
+     *                       type: boolean
+     *                 status:
+     *                   type: integer
+     *                   example: 200
+     *       401:
+     *         description: Unauthorized
+     *       404:
+     *         description: Post not found or access denied
+     */
+    async show(req: Request, res: Response, next: NextFunction) {
+        try {
+            const id = req.params.id;
+            const post = await this.postsService.getPostWithExpanded(id, req.user!.id);
+
+            if (!post) {
+                throw new HttpError(404, 'Post not found or access denied');
+            }
+
+            res.json({
+                data: post,
+                status: 200
+            });
+        } catch (error) {
+            next(error);
         }
     }
 

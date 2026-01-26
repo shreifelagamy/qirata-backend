@@ -132,6 +132,10 @@ export class PostsService {
         }
     }
 
+    async getPostWithExpanded(id: string, userId: string): Promise<Post | null> {
+        return PostRepository.findWithExpandedAndUserAccess(id, userId);
+    }
+
     async markAsRead(id: string, userId: string): Promise<void> {
         try {
             const userPost = await UserPostRepository.findByUserAndPost(userId, id);
