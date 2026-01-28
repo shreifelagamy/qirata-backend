@@ -1,6 +1,6 @@
 import { task } from '@langchain/langgraph';
 import { z } from 'zod';
-import { intentAgent, IntentRouterOutput } from '../agents/intent.agent';
+import { intentAgent } from '../agents';
 import { MemoryStateType, TaskOutput } from './types';
 
 export const intentTask = task("intentRouter", async (

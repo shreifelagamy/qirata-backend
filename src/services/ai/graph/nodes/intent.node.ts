@@ -2,6 +2,7 @@ import { RunnableConfig } from '@langchain/core/runnables';
 import { intentAgent } from '../../agents';
 import { ChatGraphState, ChatGraphUpdateType } from '../state';
 import { logger } from '../../../../utils/logger';
+import { ChatGraphConfigurable } from '../configurable';
 
 /**
  * Intent Detection Node
@@ -11,6 +12,14 @@ import { logger } from '../../../../utils/logger';
  */
 export async function intentNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
     logger.info("[NODE: IntentNode] Starting intent detection");
+
+    const configurable = config.configurable as ChatGraphConfigurable | undefined;
+
+    // Emit a progress event
+    configurable?.emit('chat:stream:token', {
+        sessionId: configurable?.session_id,
+        token: 'Detecting your intent...'
+    });
 
     // Extract context from state
     const { message, lastMessages, lastIntent } = state;
