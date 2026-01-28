@@ -61,13 +61,6 @@ export class QirataChatWorkflow {
     private messagesService = new MessagesService();
     private workflow: any;
 
-    constructor() {
-        // Initialize the LangGraph workflow
-        this.workflow = entrypoint({
-            name: "QirataFlow"
-        }, this.executeWorkflow.bind(this));
-    }
-
     /**
      * Start the workflow - main entry point
      */

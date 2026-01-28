@@ -256,7 +256,7 @@ export class SocketMemoryService {
         userId: string
     ): Promise<MemoryStateType> {
         // Get session and message data
-        const session = await this.chatSessionService.findOne(sessionId, userId);
+        const session = await this.chatSessionService.getById(sessionId, userId);
         const rawMessages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
         const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
 

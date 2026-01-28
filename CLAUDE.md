@@ -39,6 +39,19 @@
 - `Settings` - Key-value configuration storage
 
 **Repositories** (`/src/repositories/`):
+- Extended TypeORM repositories with custom methods
+- Use repositories directly (e.g., `ChatSessionRepository.findById()`) instead of class properties
+
+**Repository vs Service Naming Convention**:
+| Layer | Pattern | Examples |
+|-------|---------|----------|
+| **Repository** | `find*` (data access verbs) | `findById`, `findByPostId`, `findWithPost`, `findByUserId` |
+| **Service** | `get*` (business verbs) | `getById`, `getByPostId`, `list`, `search` |
+| **Both** | Action verbs remain same | `create`, `update`, `delete`, `exists`, `toggleFavorite` |
+
+- **Repository methods** focus on data access patterns (how to query the database)
+- **Service methods** focus on business operations (what the application needs)
+- Services should delegate database logic to repositories and use `ChatSessionRepository` directly
 
 **Key Relationships**:
 - ChatSession → Messages (one-to-many)

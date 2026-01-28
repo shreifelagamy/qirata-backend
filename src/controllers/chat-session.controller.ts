@@ -105,7 +105,7 @@ export class ChatSessionController {
      * /chat-sessions/{id}:
      *   get:
      *     summary: Get a chat session by ID
-     *     description: Retrieves a specific chat session with its details
+     *     description: Retrieves a specific chat session's basic details (without related post data)
      *     tags: [Chat Sessions]
      *     security:
      *       - bearerAuth: []
@@ -119,14 +119,45 @@ export class ChatSessionController {
      *         description: Chat session ID
      *     responses:
      *       200:
-     *         description: Chat session details
+     *         description: Chat session basic details (without post relation)
      *         content:
      *           application/json:
      *             schema:
      *               type: object
      *               properties:
      *                 data:
-     *                   $ref: '#/components/schemas/ChatSession'
+     *                   type: object
+     *                   description: Chat session without related post data
+     *                   properties:
+     *                     id:
+     *                       type: string
+     *                       format: uuid
+     *                       description: Unique identifier for the chat session
+     *                     title:
+     *                       type: string
+     *                       description: Chat session title
+     *                     post_id:
+     *                       type: string
+     *                       format: uuid
+     *                       nullable: true
+     *                       description: Associated post ID
+     *                     summary:
+     *                       type: string
+     *                       nullable: true
+     *                       description: AI-generated summary of the chat session
+     *                     last_summary_at:
+     *                       type: string
+     *                       format: date-time
+     *                       nullable: true
+     *                       description: Timestamp when the summary was last updated
+     *                     is_favorite:
+     *                       type: boolean
+     *                       description: Whether the chat session is marked as favorite
+     *                       default: false
+     *                     created_at:
+     *                       type: string
+     *                       format: date-time
+     *                       description: When the chat session was created
      *                 status:
      *                   type: integer
      *                   example: 200
@@ -145,7 +176,7 @@ export class ChatSessionController {
      */
     async show(req: Request, res: Response, next: NextFunction) {
         try {
-            const session = await this.service.findOne(req.params.id, req.user!.id);
+            const session = await this.service.getById(req.params.id, req.user!.id);
             if (!session) return res.status(404).json({ error: { code: '404', message: 'Chat session not found' } });
             res.json({ data: session, status: 200 });
         } catch (err) {

@@ -3,13 +3,13 @@ import AppDataSource from '../config/database.config';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
 import { ChatSession } from '../entities/chat-session.entity';
 import { Post } from '../entities/post.entity';
+import { ChatSessionRepository } from '../repositories';
 import { AIContext } from '../types/ai.types';
 import { logger } from '../utils/logger';
 import { MessagesService } from './messages.service';
 import { SocialPostsService } from './social-posts.service';
 
 export class ChatSessionService {
-    private readonly chatSessionRepository: Repository<ChatSession>;
     private readonly postRepository: Repository<Post>;
     private readonly messagesService: MessagesService;
     private readonly socialPostsService: SocialPostsService;
@@ -19,7 +19,6 @@ export class ChatSessionService {
     }>();
 
     constructor() {
-        this.chatSessionRepository = AppDataSource.getRepository(ChatSession);
         this.postRepository = AppDataSource.getRepository(Post);
         this.messagesService = new MessagesService();
         this.socialPostsService = new SocialPostsService();
@@ -28,7 +27,7 @@ export class ChatSessionService {
     async find(userId: string, page = 1, pageSize = 10, query?: string, favoriteFilter?: 'all' | 'favorites' | 'regular') {
         const offset = (page - 1) * pageSize;
 
-        let queryBuilder = this.chatSessionRepository
+        let queryBuilder = ChatSessionRepository
             .createQueryBuilder('session')
             .leftJoinAndSelect('session.post', 'post')
             .where('session.user_id = :userId', { userId })
@@ -76,11 +75,8 @@ export class ChatSessionService {
         };
     }
 
-    async findOne(id: string, userId: string) {
-        return this.chatSessionRepository.findOne({
-            where: { id, user_id: userId },
-            relations: ['post', 'post.expanded'],
-        });
+    async getById(id: string, userId: string) {
+        return ChatSessionRepository.findById(id, userId);
     }
 
     /**
@@ -90,21 +86,15 @@ export class ChatSessionService {
      */
     async exists(id: string, userId: string): Promise<boolean> {
         try {
-            const count = await this.chatSessionRepository.count({
-                where: { id, user_id: userId }
-            });
-            return count > 0;
+            return ChatSessionRepository.existsForUser(id, userId);
         } catch (error) {
             logger.error(`Error checking if session ${id} exists:`, error);
             return false;
         }
     }
 
-    async findByPostId(postId: string, userId: string) {
-        return this.chatSessionRepository.findOne({
-            where: { post_id: postId, user_id: userId },
-            relations: ['post'],
-        });
+    async getByPostId(postId: string, userId: string) {
+        return ChatSessionRepository.findByPostId(postId, userId);
     }
 
     async create(dto: CreateChatSessionDto, userId: string) {
@@ -115,13 +105,13 @@ export class ChatSessionService {
             post = await this.postRepository.findOne({ where: { id: dto.postId } });
             if (!post) throw new Error('Post not found');
         }
-        const session = this.chatSessionRepository.create({
+        const session = ChatSessionRepository.create({
             title: dto.title,
             user_id: userId,
             post,
         });
-        await this.chatSessionRepository.save(session);
-        return this.findOne(session.id, userId);
+        await ChatSessionRepository.save(session);
+        return this.getById(session.id, userId);
     }
 
     private isCacheValid(cacheAt: Date): boolean {
@@ -129,7 +119,7 @@ export class ChatSessionService {
         return (new Date().getTime() - cacheAt.getTime()) < CACHE_TTL_MS;
     }
 
-    private async getCachedSession(sessionId: string): Promise<ChatSession | null> {
+    private async getCachedSession(sessionId: string, userId: string): Promise<ChatSession | null> {
         const cached = this.sessionCache.get(sessionId);
 
         // Check if cached session is still valid (1 hour TTL)
@@ -138,10 +128,7 @@ export class ChatSessionService {
             return cached.chatSession;
         }
 
-        const session = await this.chatSessionRepository.findOne({
-            where: { id: sessionId },
-            relations: ['post', 'post.expanded'],
-        });
+        const session = await ChatSessionRepository.findWithPost(sessionId, userId);
 
         if (session) {
             this.sessionCache.set(sessionId, {
@@ -162,7 +149,7 @@ export class ChatSessionService {
      * @returns Promise<AIContext> - Context for AI processing
      */
     async buildAIContext(sessionId: string, userId: string): Promise<AIContext> {
-        const session = await this.getCachedSession(sessionId);
+        const session = await this.getCachedSession(sessionId, userId);
         const messages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
         const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
         const socialPosts = await this.socialPostsService.findByChatSession(sessionId, userId);
@@ -189,13 +176,7 @@ export class ChatSessionService {
      */
     async updateSessionSummary(sessionId: string, summary: string): Promise<void> {
         try {
-            await this.chatSessionRepository.update(
-                { id: sessionId },
-                {
-                    summary: summary,
-                    last_summary_at: new Date()
-                }
-            );
+            await ChatSessionRepository.updateSummary(sessionId, summary);
 
             // Update cache for this session if it exists
             const cached = this.sessionCache.get(sessionId);
@@ -253,34 +234,19 @@ export class ChatSessionService {
      */
     async toggleFavorite(id: string, userId: string): Promise<ChatSession | null> {
         try {
-            // Get the current session
-            const session = await this.chatSessionRepository.findOne({
-                where: { id, user_id: userId },
-                relations: ['post']
-            });
+            const session = await ChatSessionRepository.toggleFavorite(id, userId);
 
             if (!session) {
                 return null;
             }
 
-            // Toggle the favorite status
-            const updatedIsFavorite = !session.is_favorite;
-
-            // Update in database
-            await this.chatSessionRepository.update(
-                { id, user_id: userId },
-                { is_favorite: updatedIsFavorite }
-            );
-
             // Update cache if it exists
             const cached = this.sessionCache.get(id);
             if (cached) {
-                cached.chatSession.is_favorite = updatedIsFavorite;
+                cached.chatSession.is_favorite = session.is_favorite;
                 cached.cacheAt = new Date(); // Refresh cache timestamp
             }
 
-            // Return the updated session
-            session.is_favorite = updatedIsFavorite;
             return session;
         } catch (error) {
             logger.error(`Error toggling favorite status for session ${id}:`, error);
@@ -290,11 +256,7 @@ export class ChatSessionService {
 
     async isOwner(id: string, userId: string): Promise<boolean> {
         try {
-            const isOwner = await this.chatSessionRepository.exists({
-                where: { id, user_id: userId }
-            });
-
-            return isOwner;
+            return ChatSessionRepository.existsForUser(id, userId);
         } catch (error) {
             return false;
         }

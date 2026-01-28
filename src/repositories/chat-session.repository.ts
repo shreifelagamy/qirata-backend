@@ -5,6 +5,7 @@ import { ChatSession } from '../entities/chat-session.entity';
 export interface ChatSessionRepository extends Repository<ChatSession> {
     findByUserId(userId: string, page?: number, pageSize?: number): Promise<{ items: ChatSession[]; total: number }>;
     findByPostId(postId: string, userId: string): Promise<ChatSession | null>;
+    findById(id: string, userId: string): Promise<ChatSession | null>;
     findWithPost(id: string, userId: string): Promise<ChatSession | null>;
     existsForUser(id: string, userId: string): Promise<boolean>;
     toggleFavorite(id: string, userId: string): Promise<ChatSession | null>;
@@ -40,6 +41,15 @@ export const ChatSessionRepository = AppDataSource.getRepository(ChatSession).ex
         return this.findOne({
             where: { post_id: postId, user_id: userId },
             relations: ['post'],
+        });
+    },
+
+    /**
+     * Find a chat session by ID and user ID (no relations)
+     */
+    async findById(id: string, userId: string): Promise<ChatSession | null> {
+        return this.findOne({
+            where: { id, user_id: userId },
         });
     },
 
