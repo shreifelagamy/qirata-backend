@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for platform detection
@@ -49,7 +49,7 @@ export async function platformAgent(options: z.infer<typeof PlatformInput>): Pro
     const platformTool = {
         name: "platformResponse",
         description: "Detect social media platform from user message",
-        schema: zodToJsonSchema(PlatformOutput)
+        schema: z.toJSONSchema(PlatformOutput)
     };
 
     const model = new ChatOpenAI({

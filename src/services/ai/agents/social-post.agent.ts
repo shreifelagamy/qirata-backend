@@ -1,7 +1,7 @@
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Input schema for social post generation and editing
@@ -141,7 +141,7 @@ export async function socialPostAgent(options: z.infer<typeof SocialPostInput>):
     const socialPostTool = {
         name: "socialPostResponse",
         description: "Generate or edit social media post content with code examples and structured elements",
-        schema: zodToJsonSchema(SocialPostOutput)
+        schema: z.toJSONSchema(SocialPostOutput)
     };
 
     const model = new ChatOpenAI({
@@ -152,7 +152,7 @@ export async function socialPostAgent(options: z.infer<typeof SocialPostInput>):
     }).bindTools([socialPostTool]);
 
     // Build messages array with XML tags
-    const messages = [new SystemMessage(SYSTEM_PROMPT)];
+    const messages: BaseMessage[] = [new SystemMessage(SYSTEM_PROMPT)];
 
     // Add platform context
     const platformRules = {

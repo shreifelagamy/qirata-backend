@@ -73,7 +73,7 @@ async function isFullContentAgent(options: IsFullContentOptions): Promise<IsFull
     }
 
     try {
-        logger.info('Evaluating content completeness with AI');
+        logger.info('[AI: FullContentAgent] Evaluating content completeness with AI');
 
         const model = new ChatOpenAI({
             model: 'gpt-5-mini',
@@ -97,11 +97,11 @@ async function isFullContentAgent(options: IsFullContentOptions): Promise<IsFull
         const parsed = JSON.parse(responseText);
         const result = responseSchema.parse(parsed);
 
-        logger.info(`Content completeness: isFull=${result.isFull}, confidence=${result.confidence}, reason=${result.reason}`);
+        logger.info(`[AI: FullContentAgent] Content completeness: isFull=${result.isFull}, confidence=${result.confidence}, reason=${result.reason}`);
 
         return result;
     } catch (error) {
-        logger.error('Failed to evaluate content completeness:', error);
+        logger.error('[AI: FullContentAgent] Failed to evaluate content completeness:', error);
         // Default to false (fetch full content) on error - safer option
         return {
             isFull: false,

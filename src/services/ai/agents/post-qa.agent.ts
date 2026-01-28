@@ -1,6 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
@@ -97,7 +97,7 @@ export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise
     const postQATool = {
         name: "postQAResponse",
         description: "Provide an answer to a post-related question with code blocks allowed",
-        schema: zodToJsonSchema(PostQAOutput)
+        schema: z.toJSONSchema(PostQAOutput)
     };
 
     const model = new ChatOpenAI({

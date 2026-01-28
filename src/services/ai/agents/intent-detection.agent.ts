@@ -1,7 +1,6 @@
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from '@langchain/ollama';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { Message } from '../../../entities';
@@ -37,18 +36,18 @@ CLASSIFICATION RULES:
 CRITICAL: Do NOT generate any content. Only classify intent and provide reasoning. Be concise and accurate.`;
 
 interface IntentDetectionOptions {
-    model?: ChatOllama | ChatOpenAI; // Allow both Ollama and OpenAI models
+    model?: ChatOpenAI; // Allow both Ollama and OpenAI models
     message: string;
     conversationHistory?: Message[];
 }
 
 export async function detectIntent(options: IntentDetectionOptions): Promise<IntentDetectionResponse> {
     const {
-        model = new ChatOpenAI({ 
-            model: 'gpt-4.1-mini', 
-            temperature: 0, 
+        model = new ChatOpenAI({
+            model: 'gpt-4.1-mini',
+            temperature: 0,
             maxTokens: 150,
-            openAIApiKey: process.env.OPENAI_API_KEY 
+            openAIApiKey: process.env.OPENAI_API_KEY
         }),
         message,
         conversationHistory

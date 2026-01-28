@@ -1,4 +1,4 @@
-import { QirataChatWorkflow } from '../../services/ai/workflows/qirata-chat.workflow';
+import { ChatGraphService } from '../../services/ai/graph/chat-graph.service';
 import { ChatSessionService } from '../../services/chat-session.service';
 import { MessagesService } from '../../services/messages.service';
 import { PostsService } from '../../services/posts.service';
@@ -18,7 +18,7 @@ export class ChatController {
     private postService = new PostsService();
     private socialPostsService = new SocialPostsService();
     private settingsService = new SettingsService();
-    private qirataChatWorkflow = new QirataChatWorkflow();
+    private chatGraphService = new ChatGraphService();
 
     /**
      * Main method - handles both Q&A and social generation
@@ -35,8 +35,8 @@ export class ChatController {
         this.handleActiveStream(sessionId, socket)
 
         try {
-            // Delegate to the workflow class - much cleaner!
-            await this.qirataChatWorkflow.start({
+            // Delegate to the new ChatGraphService (StateGraph implementation)
+            await this.chatGraphService.run({
                 message: data.content,
                 socket,
                 sessionId,

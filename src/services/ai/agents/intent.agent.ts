@@ -1,7 +1,7 @@
-import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema with better context
@@ -59,11 +59,11 @@ You must respond with a JSON object containing:
 - clarifyingQuestion: required when intent is CLARIFY_INTENT, optional otherwise
 - suggestedOptions: array of up to 3 context-aware options (required for CLARIFY_INTENT, optional for others)`;
 
-export async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
+export default async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
     const intentTool = {
         name: "intentResponse",
         description: "Classify user intent and provide analysis",
-        schema: zodToJsonSchema(IntentRouterOutput)
+        schema: z.toJSONSchema(IntentRouterOutput)
     };
 
     const model = new ChatOpenAI({
@@ -73,7 +73,7 @@ export async function intentAgent(options: z.infer<typeof IntentRouterInput>): P
         openAIApiKey: process.env.OPENAI_API_KEY
     }).bindTools([intentTool]);
 
-    const messages = []
+    const messages: BaseMessage[] = [];
     messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT))
 
     messages.push(new AIMessage("My Last intent was: " + (options.lastIntent || "None")))

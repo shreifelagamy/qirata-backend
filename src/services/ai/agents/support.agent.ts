@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema for general support with post context
@@ -47,7 +47,7 @@ export async function supportAgent(options: z.infer<typeof GeneralSupportInput>)
     const supportTool = {
         name: "supportResponse",
         description: "Provide general support and assistance",
-        schema: zodToJsonSchema(GeneralSupportOutput)
+        schema: z.toJSONSchema(GeneralSupportOutput)
     };
 
     const model = new ChatOpenAI({

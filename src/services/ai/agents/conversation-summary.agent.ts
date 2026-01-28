@@ -1,7 +1,7 @@
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from "@langchain/ollama";
+import { ChatOpenAI } from '@langchain/openai';
 import { Message } from "../../../entities";
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { logger } from "../../../utils/logger";
@@ -36,7 +36,7 @@ const SYSTEM_MESSAGE = `You are an expert conversation analyst specialized in cr
 - Focus on actionable insights for future interactions`;
 
 interface ConversationSummaryOptions {
-    model?: ChatOllama;
+    model?: ChatOpenAI;
     messages: Message[];
     existingSummary: string;
     postSummary?: string;
@@ -44,7 +44,7 @@ interface ConversationSummaryOptions {
 
 export async function generateConversationSummary(options: ConversationSummaryOptions): Promise<string> {
     const {
-        model = new ChatOllama({ baseUrl: 'http://localhost:11434', model: 'mistral:7b', temperature: 0.5 }),
+        model = new ChatOpenAI({ model: 'mistral:7b', temperature: 0.5 }),
         messages,
         existingSummary,
         postSummary

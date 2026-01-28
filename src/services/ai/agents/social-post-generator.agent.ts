@@ -2,7 +2,6 @@ import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from '@langchain/ollama';
 import { ChatOpenAI } from '@langchain/openai';
 import { Message } from '../../../entities';
 import { SocialPlatform } from '../../../entities/social-post.entity';
@@ -173,7 +172,7 @@ Incorporate provided platform guidelines:
 User preferences enhance content style within required JSON framework.`;
 
 interface SocialPostGeneratorOptions {
-    model?: ChatOllama | ChatOpenAI;
+    model?: ChatOpenAI;
     userMessage: string;
     conversationHistory?: Message[];
     postContent?: string;

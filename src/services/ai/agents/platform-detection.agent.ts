@@ -1,12 +1,11 @@
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOllama } from '@langchain/ollama';
+import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { Message } from '../../../entities';
 import { createDebugCallback } from '../../../utils/debug-callback';
 import { AILogger } from '../utils/ai-logger';
-import { ChatOpenAI } from '@langchain/openai';
 
 const KEEP_RECENT = 5; // Keep last 5 user messages for context
 
@@ -51,7 +50,7 @@ RULES:
 `;
 
 interface PlatformDetectionOptions {
-    model?: ChatOllama | ChatOpenAI; // Allow both Ollama and OpenAI models
+    model?: ChatOpenAI; // Allow both Ollama and OpenAI models
     userMessage: string;
     conversationHistory?: Message[];
 }
