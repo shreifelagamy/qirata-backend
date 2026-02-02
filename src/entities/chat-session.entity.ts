@@ -39,6 +39,9 @@ export class ChatSession extends BaseEntity {
     @Column({ type: "boolean", default: false })
     is_favorite: boolean = false;
 
+    @Column({ type: "text", nullable: true })
+    last_intent?: string;
+
     @CreateDateColumn({ name: "created_at" })
     created_at: Date = new Date();
 

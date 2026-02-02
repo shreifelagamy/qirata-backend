@@ -10,6 +10,7 @@ export interface ChatSessionRepository extends Repository<ChatSession> {
     existsForUser(id: string, userId: string): Promise<boolean>;
     toggleFavorite(id: string, userId: string): Promise<ChatSession | null>;
     updateSummary(id: string, summary: string): Promise<void>;
+    updateLastIntent(id: string, intent: string): Promise<void>;
 }
 
 export const ChatSessionRepository = AppDataSource.getRepository(ChatSession).extend({
@@ -106,6 +107,18 @@ export const ChatSessionRepository = AppDataSource.getRepository(ChatSession).ex
             {
                 summary: summary,
                 last_summary_at: new Date()
+            }
+        );
+    },
+
+    /**
+     * Update the last intent of the chat session
+     */
+    async updateLastIntent(id: string, intent: string): Promise<void> {
+        await this.update(
+            { id },
+            {
+                last_intent: intent
             }
         );
     }

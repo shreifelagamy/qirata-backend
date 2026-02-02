@@ -14,13 +14,5 @@ export type ChatGraphConfigurable = {
     thread_id: string;
     session_id: string;
 
-    // WebSocket communication
-    socket: AuthenticatedSocket;
     emit: (event: string, data: any) => void;
-
-    // Services (Dependency Injection)
-    socketMemoryService: SocketMemoryService;
-    socialPostsService: SocialPostsService;
-    messagesService: MessagesService;
-    postsService: PostsService;
 };

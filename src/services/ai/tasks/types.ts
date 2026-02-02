@@ -20,6 +20,7 @@ export const MemoryState = z.object({
     userId: z.string(),
     // post related state
     currentPostId: z.string().optional(),
+    postTitle: z.string().optional(),
     postSummary: z.string().optional(),
     postContent: z.string().optional(),
     // platform related state

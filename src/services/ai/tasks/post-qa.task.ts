@@ -18,7 +18,8 @@ export const postQATask = task('postQA', async (
         message: params.message,
         lastMessages,
         postSummary: memory.postSummary!,
-        conversationSummary: memory.conversationSummary
+        conversationSummary: memory.conversationSummary,
+        postContent: 'undefined'
     });
 
     // If agent needs full content, fetch it and try again
@@ -39,7 +40,7 @@ export const postQATask = task('postQA', async (
             lastMessages,
             postSummary: memory.postSummary!,
             conversationSummary: memory.conversationSummary,
-            fullPostContent: fullContent
+            postContent: fullContent
         });
     }
 

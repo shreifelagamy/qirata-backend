@@ -1,5 +1,6 @@
 import { StateSchema } from '@langchain/langgraph';
 import { z } from 'zod';
+import { MessageType } from '../../../entities/message.entity';
 
 // Simplified message schema for memory storage
 export const SimplifiedMessageSchema = z.object({
@@ -22,17 +23,24 @@ export const IntentResultSchema = z.object({
         .describe('Question to ask when intent needs clarification'),
 });
 
+// Post schema for lightweight context
+export const PostSchema = z.object({
+    title: z.string().describe('Title of the post'),
+    summary: z.string().optional().describe('Summary of the post'),
+    content: z.string().optional().describe('Full content of the post'),
+});
+
 /**
  * Chat Graph State - Minimal version for intent detection
- * 
+ *
  * This state schema uses the new StateSchema + Zod API recommended in LangGraph 1.x
  * for full type safety across the graph.
  */
 export const ChatGraphState = new StateSchema({
     // ===== Input (set before graph.invoke) =====
-    message:    z.string().describe('Current user message'),
-    sessionId:  z.string().describe('Chat session identifier'),
-    userId:     z.string().describe('User identifier'),
+    message: z.string().describe('Current user message'),
+    sessionId: z.string().describe('Chat session identifier'),
+    userId: z.string().describe('User identifier'),
 
     // ===== Memory (loaded before invoke, read-only during graph) =====
     lastMessages: z.array(SimplifiedMessageSchema)
@@ -42,6 +50,10 @@ export const ChatGraphState = new StateSchema({
     lastIntent: z.string()
         .optional()
         .describe('Previously detected intent for context continuity'),
+    post: PostSchema
+        .optional()
+        .describe('Current post context'),
+
 
     // ===== Processing (written by nodes) =====
     intentResult: IntentResultSchema
@@ -55,6 +67,9 @@ export const ChatGraphState = new StateSchema({
     suggestedOptions: z.array(z.string())
         .optional()
         .describe('Suggested action options for the user'),
+    messageType: z.nativeEnum(MessageType)
+        .optional()
+        .describe('Type of message being returned'),
     error: z.string()
         .optional()
         .describe('Error message if something goes wrong'),

@@ -10,7 +10,7 @@ export const supportTask = task('support', async (
     const agent = await supportAgent({
         message: params.message,
         lastMessages: memory.lastMessages.map(msg => msg.user_message) || [],
-        postTitle: memory.currentPostId ? 'Post Available' : undefined,
+        postTitle: memory.currentPostId ? 'Post Available' : 'No Post',
         postSummary: memory.postSummary
     });
 

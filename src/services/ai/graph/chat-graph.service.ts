@@ -1,11 +1,12 @@
+import { MessageType } from '../../../entities/message.entity';
 import { AuthenticatedSocket } from '../../../types/socket.types';
+import { ChatSessionService } from '../../chat-session.service';
 import { MessagesService } from '../../messages.service';
-import { SocialPostsService } from '../../social-posts.service';
 import { PostsService } from '../../posts.service';
+import { SocialPostsService } from '../../social-posts.service';
 import { SocketMemoryService } from '../../websocket/socket-memory.service';
 import { chatGraph } from './chat.graph';
 import { ChatGraphConfigurable } from './configurable';
-import { MessageType } from '../../../entities/message.entity';
 
 /**
  * Service to orchestrate the Chat StateGraph execution.
@@ -17,6 +18,7 @@ export class ChatGraphService {
     private messagesService = new MessagesService();
     private socialPostsService = new SocialPostsService();
     private postsService = new PostsService();
+    private chatSessionService = new ChatSessionService();
 
     /**
      * Main entry point to run the chat graph
@@ -32,9 +34,10 @@ export class ChatGraphService {
 
         console.log(`🚀 [ChatGraph] Starting workflow for session ${sessionId}`);
 
-        // 1. Ensure memory is loaded
-        // We use the existing socket memory service to get the context
-        const memory = await this.socketMemoryService.ensureMemory({ socket, sessionId, userId });
+        // 1. load the data from the DB
+        const chatSession = await this.chatSessionService.getById(sessionId, userId);
+        const post = await this.postsService.getPostWithExpanded(chatSession!.post_id!, userId)
+        const lastMessages = await this.messagesService.getRecentMessages(sessionId, userId, 5);
 
         // 2. Prepare the initial state
         // Map the existing memory structure to our new Zod-based state
@@ -42,14 +45,21 @@ export class ChatGraphService {
             message,
             sessionId,
             userId,
-            
+
             // Map memory fields
-            lastMessages: memory.lastMessages.map(m => ({
+            lastMessages: lastMessages.map(m => ({
                 user_message: m.user_message,
                 ai_response: m.ai_response
             })),
-            lastIntent: memory.lastIntent,
-            
+            lastIntent: chatSession!.last_intent ?? undefined,
+
+            // post data
+            post: {
+                title: post!.title || '',
+                summary: post!.expanded!.summary || '',
+                content: post!.expanded!.content || ''
+            },
+
             // Default empty values for outputs
             response: undefined,
             suggestedOptions: undefined
@@ -60,12 +70,7 @@ export class ChatGraphService {
             configurable: {
                 thread_id: sessionId,
                 session_id: sessionId,
-                socket,
-                emit,
-                socketMemoryService: this.socketMemoryService,
-                messagesService: this.messagesService,
-                socialPostsService: this.socialPostsService,
-                postsService: this.postsService
+                emit
             }
         };
 
@@ -79,38 +84,30 @@ export class ChatGraphService {
             // 4. Invoke the Graph
             const result = await chatGraph.invoke(initialState, config);
 
-            // 5. Handle Result (Temporary for Intent Detection Phase)
-            const intentResult = result.intentResult;
+            // 5. Handle Result
+            console.log(`✅ [ChatGraph] Finished. Intent: ${result.intentResult?.type}`);
 
-            if (intentResult) {
-                console.log(`✅ [ChatGraph] Finished. Intent: ${intentResult.type} (${intentResult.confidence})`);
-                
-                // For now, return a debug response to the user
-                const debugResponse = `[DEBUG] Intent Detected: **${intentResult.type}**\nConfidence: ${intentResult.confidence}\nReasoning: ${intentResult.reasoning}`;
-                
-                emit('chat:stream:end', {
-                    sessionId,
-                    message: 'Process completed',
-                    response: debugResponse,
-                    suggestedOptions: [],
-                    messageType: MessageType.MESSAGE,
-                    structuredPost: null
-                });
-            } else {
-                console.warn('⚠️ [ChatGraph] Finished but no intent result found.');
-                emit('chat:stream:end', {
-                    sessionId,
-                    message: 'Process completed',
-                    response: "Error: No intent detected.",
-                    suggestedOptions: [],
-                    messageType: MessageType.MESSAGE,
-                    structuredPost: null
-                });
-            }
+            // Extract the response from the graph result
+            const response = result.response || "I'm not sure how to help with that.";
+            const suggestedOptions = result.suggestedOptions || [];
+            const messageType = result.messageType || MessageType.MESSAGE;
+
+            emit('chat:stream:end', {
+                sessionId,
+                message: 'Process completed',
+                response,
+                suggestedOptions,
+                messageType,
+                structuredPost: null // TODO: Handle structured posts when we add social post nodes
+            });
+
+            // 6. Side Effects: Save message and update session intent
+            this.messagesService.saveMessage(sessionId, userId, message, response, messageType);
+            this.chatSessionService.updateLastIntent(sessionId, result.intentResult?.type || 'unknown');
 
         } catch (error) {
             console.error('❌ [ChatGraph] Execution failed:', error);
-            
+
             emit('chat:stream:error', {
                 sessionId,
                 error: 'An error occurred while processing your request.'

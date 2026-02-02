@@ -1,8 +1,8 @@
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
-import { z } from 'zod';
-
+import { createAgent, toolStrategy } from 'langchain';
+import * as z from 'zod';
 import { createDebugCallback } from '../../../utils/debug-callback';
-import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
 
 // Input schema for post Q&A
@@ -12,9 +12,9 @@ const PostQAInput = z.object({
         user_message: z.string(),
         ai_response: z.string()
     })).max(5).describe('Last 5 conversation message pairs (10 total messages) for context'),
-    postSummary: z.string().describe('Summary of the post content'),
     conversationSummary: z.string().optional().describe('Summary of previous conversation if available'),
-    fullPostContent: z.string().optional().describe('Full post content if needed for detailed answers')
+    postSummary: z.string().describe('Summary of the post content'),
+    postContent: z.string().describe('Full post content if needed for detailed answers')
 });
 
 // Simple output schema matching other agents
@@ -34,8 +34,7 @@ const CACHED_SYSTEM_PROMPT = `You are Qirata's AI assistant with a **teaching-fo
 - **Connect ideas**: Link concepts within the post to broader understanding
 
 ## CONTENT USAGE STRATEGY:
-- **Post summary**: Use for general questions and overviews
-- **Full content**: Request when user asks for specific details, examples, or technical explanations
+- **Post content**: Use to provide detailed answers from
 - **Previous context**: Reference past conversation to build understanding progressively
 
 ## FORMATTING FOR LEARNING:
@@ -93,42 +92,54 @@ Visual formatting is crucial for learning retention and readability. Apply these
 - Keep the other 2 options as regular follow-up questions`;
 
 export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise<z.infer<typeof PostQAOutput>> {
-    // Create tool from Zod schema
-    const postQATool = {
-        name: "postQAResponse",
-        description: "Provide an answer to a post-related question with code blocks allowed",
-        schema: z.toJSONSchema(PostQAOutput)
-    };
-
+    // Define the chat model
     const model = new ChatOpenAI({
-        model: 'gpt-4.1-mini',
-        temperature: 0.2,
+        model: 'gpt-5.2',
         maxTokens: 1500,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).bindTools([postQATool]);
+    });
 
-    // Build context from conversation history
+    const agent = createAgent({
+        model,
+        tools: [],
+        responseFormat: toolStrategy(PostQAOutput)
+    })
+
+    const result = await agent.invoke({
+        messages: buildMessagesArray(options)
+    }, {
+        callbacks: [
+            createDebugCallback('post-qa')
+        ]
+    });
+
+    // Validate with Zod and return
+    return result.structuredResponse;
+}
+
+function buildMessagesArray(options: z.infer<typeof PostQAInput>): BaseMessage[] {
     const messages = []
+
     messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT))
 
-    // push the post summary
-    messages.push(new HumanMessage(`<POST_SUMMARY>${options.postSummary}</POST_SUMMARY>`))
-    messages.push(new AIMessage("Recived the post summary"))
+    // // push the post summary
+    // messages.push(new HumanMessage(`<POST_SUMMARY>${options.postSummary}</POST_SUMMARY>`))
+    // messages.push(new AIMessage("Recived the post summary"))
 
     // push old converstaion summary
-    if( options.conversationSummary) {
+    if (options.conversationSummary) {
         messages.push(new HumanMessage(`<CONVERSATION_SUMMARY>${options.conversationSummary}</CONVERSATION_SUMMARY>`))
         messages.push(new AIMessage("Recived the conversation summary"))
     }
 
     // push post content
-    if(options.fullPostContent) {
-        messages.push(new HumanMessage(`<FULL_POST_CONTENT>${options.fullPostContent}</FULL_POST_CONTENT>`))
-        messages.push(new AIMessage("Recived the full post content"))
+    if (options.postContent) {
+        messages.push(new HumanMessage(`<POST_CONTENT>${options.postContent}</POST_CONTENT>`))
+        messages.push(new AIMessage("Received the post content"))
     }
 
     // push old conversation messages (interleaved user and AI messages)
-    if ( options.lastMessages.length > 0) {
+    if (options.lastMessages.length > 0) {
         options.lastMessages.forEach((msg) => {
             messages.push(new HumanMessage(msg.user_message))
             messages.push(new AIMessage(msg.ai_response))
@@ -137,18 +148,5 @@ export async function postQAAgent(options: z.infer<typeof PostQAInput>): Promise
 
     messages.push(new HumanMessage(options.message))
 
-    const result = await model.invoke(messages, {
-        callbacks: [
-            createDebugCallback('post-qa')
-        ]
-    });
-
-    // Extract tool call result
-    const toolCall = result.tool_calls?.[0];
-    if (!toolCall) {
-        throw new Error('No tool call found in response');
-    }
-
-    // Validate with Zod and return
-    return PostQAOutput.parse(toolCall.args);
+    return messages;
 }

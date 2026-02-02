@@ -1,8 +1,9 @@
-import { HumanMessage, SystemMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
 import { createDebugCallback } from '../../../utils/debug-callback';
+import { createAgent, toolStrategy } from 'langchain';
 
 // Enhanced input schema with better context
 const IntentRouterInput = z.object({
@@ -60,19 +61,35 @@ You must respond with a JSON object containing:
 - suggestedOptions: array of up to 3 context-aware options (required for CLARIFY_INTENT, optional for others)`;
 
 export default async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
-    const intentTool = {
-        name: "intentResponse",
-        description: "Classify user intent and provide analysis",
-        schema: z.toJSONSchema(IntentRouterOutput)
-    };
-
+    // Initialize model
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0,
         maxTokens: 200,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).bindTools([intentTool]);
+    });
 
+    // Create agent
+    const agent = createAgent({
+        model,
+        tools: [],
+        responseFormat: toolStrategy(IntentRouterOutput)
+    });
+
+    const result = await agent.invoke({
+        messages: buildMessagesArray(options)
+    }, {
+        callbacks: [
+            createDebugCallback('intent-router')
+        ]
+    });
+
+
+    // Validate with Zod and return
+    return result.structuredResponse;
+}
+
+function buildMessagesArray(options: z.infer<typeof IntentRouterInput>): BaseMessage[] {
     const messages: BaseMessage[] = [];
     messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT))
 
@@ -89,18 +106,5 @@ export default async function intentAgent(options: z.infer<typeof IntentRouterIn
 
     messages.push(new HumanMessage(options.message))
 
-    const result = await model.invoke(messages, {
-        callbacks: [
-            createDebugCallback('intent-router')
-        ]
-    });
-
-    // Extract tool call result
-    const toolCall = result.tool_calls?.[0];
-    if (!toolCall) {
-        throw new Error('No tool call found in response');
-    }
-
-    // Validate with Zod and return
-    return IntentRouterOutput.parse(toolCall.args);
+    return messages;
 }

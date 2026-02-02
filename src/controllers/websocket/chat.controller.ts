@@ -1,9 +1,4 @@
 import { ChatGraphService } from '../../services/ai/graph/chat-graph.service';
-import { ChatSessionService } from '../../services/chat-session.service';
-import { MessagesService } from '../../services/messages.service';
-import { PostsService } from '../../services/posts.service';
-import { SettingsService } from '../../services/settings.service';
-import { SocialPostsService } from '../../services/social-posts.service';
 import { AuthenticatedSocket, ChatMessageData, StreamInterruptData } from '../../types/socket.types';
 import { logger } from '../../utils/logger';
 
@@ -13,11 +8,6 @@ import { logger } from '../../utils/logger';
  * Based on AI intent detection, responds with either answers or social posts
  */
 export class ChatController {
-    private chatSessionService = new ChatSessionService();
-    private messagesService = new MessagesService();
-    private postService = new PostsService();
-    private socialPostsService = new SocialPostsService();
-    private settingsService = new SettingsService();
     private chatGraphService = new ChatGraphService();
 
     /**

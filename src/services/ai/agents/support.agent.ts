@@ -1,14 +1,15 @@
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
+import { createAgent, toolStrategy } from 'langchain';
 import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema for general support with post context
 const GeneralSupportInput = z.object({
     message: z.string().describe('The current user message requesting general support'),
     lastMessages: z.array(z.string()).max(5).describe('Previous conversation messages for context'),
-    postTitle: z.string().optional().describe('Title of the current post for context'),
+    postTitle: z.string().describe('Title of the current post for context'),
     postSummary: z.string().optional().describe('Summary of the current post for context'),
 });
 
@@ -27,73 +28,71 @@ QIRATA CAN HELP WITH:
 - Editing posts: Refine and improve existing social media content
 
 CURRENT POST CONTEXT:
-When a post is available, use the title and summary to provide more relevant suggestions.
+Use the title to provide more relevant suggestions.
 Tailor your suggested options to match the post's topic and potential social media opportunities.
 
 YOUR ROLE:
 - Be warm and friendly
 - If it's their first message (no previous context), welcome them and explain capabilities
 - If mid-conversation, build on context and avoid repetition
-- Provide helpful responses and 3 short, direct suggested options TAILORED TO THE POST CONTENT
-- When post context is available, suggest actions like:
-  * "Ask questions about [specific post topic]"
-  * "Create a LinkedIn post about [post theme]"
-  * "Generate Twitter threads on [post insights]"
+- Provide helpful responses and 3 short, direct suggested options TAILORED TO THE POST
+- Use the post title to suggest actions related
 - Ask clarifying questions when needed
 
 Keep responses concise and actionable for MVP.`;
 
 export async function supportAgent(options: z.infer<typeof GeneralSupportInput>): Promise<z.infer<typeof GeneralSupportOutput>> {
-    const supportTool = {
-        name: "supportResponse",
-        description: "Provide general support and assistance",
-        schema: z.toJSONSchema(GeneralSupportOutput)
-    };
-
+    // Define the llm model
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
         temperature: 0.3,
         maxTokens: 350,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).bindTools([supportTool]);
+    });
 
-    const isFirstMessage = options.lastMessages.length === 0;
+    // Create the agent
+    const agent = createAgent({
+        model,
+        tools: [],
+        responseFormat: toolStrategy(GeneralSupportOutput)
+    })
 
-    // Build post context information for tailored suggestions
-    const postContext = options.postTitle || options.postSummary
-        ? `\nCURRENT POST CONTEXT:
-Title: ${options.postTitle || 'Not provided'}
-Summary: ${options.postSummary || 'Not provided'}
-
-Use this context to provide more relevant suggestions tailored to the post content.`
-        : '';
-
-    // Build conversation context from user messages only
-    const conversationContext = isFirstMessage
-        ? '\nThis is the user\'s first interaction. Welcome them and explain what Qirata can help with.'
-        : `\nPrevious user messages: ${options.lastMessages.join(' → ')}
-Build on their interests and avoid repetition.`;
-
-    // Create message chain using proper LangChain message templates
-    const messages = [
-        new SystemMessage(ENHANCED_SYSTEM_PROMPT + postContext),
-        new HumanMessage(`${conversationContext}
-
-Current message: "${options.message}"
-
-Provide helpful support as Qirata's AI assistant with suggestions tailored to the post context.`)
-    ];
-
-    const result = await model.invoke(messages, {
+    const result = await agent.invoke({
+        messages: buildMessagesArray(options)
+    }, {
         callbacks: [createDebugCallback('general-support')]
     });
 
-    // Extract tool call result
-    const toolCall = result.tool_calls?.[0];
-    if (!toolCall) {
-        throw new Error('No tool call found in response');
-    }
 
     // Validate with Zod and return
-    return GeneralSupportOutput.parse(toolCall.args);
+    return result.structuredResponse;
+}
+
+function buildMessagesArray(options: z.infer<typeof GeneralSupportInput>): BaseMessage[] {
+    const messages: BaseMessage[] = [];
+
+    messages.push(new SystemMessage(ENHANCED_SYSTEM_PROMPT));
+
+    // push post title
+    messages.push(new HumanMessage(`Post Title: "${options.postTitle}"`));
+    messages.push(new AIMessage("Received the post title"));
+
+    // push post summary if available
+    if (options.postSummary) {
+        messages.push(new HumanMessage(`Post Summary: "${options.postSummary}"`));
+        messages.push(new AIMessage("Received the post summary"));
+    }
+
+    // push old converstaion messages (interleaved user and AI messages)
+    if (options.lastMessages.length > 0) {
+        options.lastMessages.forEach((msg, index) => {
+            messages.push(new HumanMessage(msg))
+        })
+    }
+    messages.push(new AIMessage('I have the old messages and will maintain context.'))
+
+    // push current user message
+    messages.push(new HumanMessage(options.message))
+
+    return messages;
 }

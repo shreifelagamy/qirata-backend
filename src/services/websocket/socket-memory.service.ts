@@ -1,9 +1,10 @@
+import { AuthenticatedSocket } from '../../types/socket.types';
+import { MemoryStateType, SimplifiedMessage } from '../ai/tasks/types';
 import { ChatSessionService } from '../chat-session.service';
 import { MessagesService } from '../messages.service';
+import { PostsService } from '../posts.service';
 import { SettingsService } from '../settings.service';
 import { SocialPostsService } from '../social-posts.service';
-import { MemoryStateType, SimplifiedMessage } from '../ai/tasks/types';
-import { AuthenticatedSocket } from '../../types/socket.types';
 
 // Method parameter interfaces
 interface EnsureMemoryParams {
@@ -75,6 +76,7 @@ export class SocketMemoryService {
     private messagesService = new MessagesService();
     private settingsService = new SettingsService();
     private socialPostsService = new SocialPostsService();
+    private postService = new PostsService();
 
     /**
      * Get or build memory for a session, automatically caching in socket
@@ -257,6 +259,7 @@ export class SocketMemoryService {
     ): Promise<MemoryStateType> {
         // Get session and message data
         const session = await this.chatSessionService.getById(sessionId, userId);
+        const post = await this.postService.getPostWithExpanded(session?.post_id || '', userId);
         const rawMessages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
         const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
 
@@ -275,8 +278,9 @@ export class SocketMemoryService {
             userId: userId,
             // post related
             currentPostId: session?.post_id,
-            postSummary: session?.post?.expanded?.summary,
-            postContent: session?.post?.expanded?.content,
+            postTitle: post?.title,
+            postSummary: post?.expanded?.summary,
+            postContent: post?.expanded?.content,
             // user preferences
             socialMediaContentPreferences: socialMediaContentPreferences || undefined,
             // conversation related

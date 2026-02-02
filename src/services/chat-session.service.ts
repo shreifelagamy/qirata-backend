@@ -261,4 +261,12 @@ export class ChatSessionService {
             return false;
         }
     }
+
+    async updateLastIntent(sessionId: string, intent: string): Promise<void> {
+        try {
+            await ChatSessionRepository.updateLastIntent(sessionId, intent);
+        } catch (error) {
+            logger.error(`Error updating last intent for session ${sessionId}:`, error);
+        }
+    }
 }
