@@ -868,16 +868,21 @@ Authentication endpoints are available at \`/api/auth/*\`.
                                     description: 'Array of suggested follow-up options',
                                     example: ['Edit this post', 'Create another post', 'Ask a question']
                                 },
-                                messageType: {
+                                isSocialPost: {
+                                    type: 'boolean',
+                                    description: 'Whether this message is a social post generation/edit result',
+                                    example: true
+                                },
+                                socialPostId: {
                                     type: 'string',
-                                    enum: ['message', 'social_post'],
-                                    description: 'Type of message - determines how frontend should handle the response',
-                                    example: 'social_post'
+                                    nullable: true,
+                                    description: 'ID of the associated social post (only present when isSocialPost is true)',
+                                    example: '550e8400-e29b-41d4-a716-446655440000'
                                 },
                                 structuredPost: {
                                     type: 'object',
                                     nullable: true,
-                                    description: 'Structured social post data (only present when messageType is social_post)',
+                                    description: 'Structured social post data (only present when isSocialPost is true)',
                                     properties: {
                                         postContent: {
                                             type: 'string',
@@ -960,7 +965,7 @@ Authentication endpoints are available at \`/api/auth/*\`.
                                     }
                                 }
                             },
-                            required: ['sessionId', 'message', 'response', 'suggestedOptions', 'messageType']
+                            required: ['sessionId', 'message', 'response', 'suggestedOptions', 'isSocialPost']
                         },
                         'chat:stream:interrupted': {
                             type: 'object',

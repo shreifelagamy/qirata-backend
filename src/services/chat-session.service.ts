@@ -207,27 +207,6 @@ export class ChatSessionService {
     }
 
     /**
-     * Asynchronously extract patterns (fire and forget)
-     */
-    private async extractPatternsAsync(
-        userId: string,
-        context: {
-            userMessage: string;
-            aiResponse: string;
-            sessionId: string;
-            platform?: string;
-            timestamp: Date;
-        }
-    ): Promise<void> {
-        try {
-            // await patternExtractionService.analyzeMessage(userId, context);
-        } catch (error) {
-            // Log but don't throw - this is a background task
-            logger.error(`Error extracting patterns for user ${userId}:`, error);
-        }
-    }
-
-    /**
      * Toggle the favorite status of a chat session
      * @param id - The session ID to toggle
      * @returns Promise<ChatSession | null> - The updated session or null if not found

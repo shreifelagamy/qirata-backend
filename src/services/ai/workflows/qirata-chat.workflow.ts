@@ -1,5 +1,4 @@
 import { entrypoint } from '@langchain/langgraph';
-import { MessageType } from '../../../entities/message.entity';
 import { AuthenticatedSocket } from '../../../types/socket.types';
 import { MessagesService } from '../../messages.service';
 import { SocialPostsService } from '../../social-posts.service';
@@ -25,7 +24,8 @@ interface WorkflowParams {
 interface WorkflowResult {
     response: string;
     suggestedOptions: string[];
-    messageType?: MessageType;
+    isSocialPost: boolean;
+    socialPostId?: string;
     structuredPost: {
         postContent: string;
         codeExamples: Array<{
@@ -187,7 +187,7 @@ export class QirataChatWorkflow {
         const result = {
             response: supportResponse.message!,
             suggestedOptions: supportResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE,
+            isSocialPost: false,
             structuredPost: null
         };
 
@@ -238,7 +238,7 @@ export class QirataChatWorkflow {
         const result = {
             response: qaResponse.message!,
             suggestedOptions: qaResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE,
+            isSocialPost: false,
             structuredPost: null
         };
 
@@ -319,7 +319,8 @@ export class QirataChatWorkflow {
         // Generate social post
         const { response: socialPostResponse, contextUpdates: socialPostContextUpdates } = await socialPostTask({ message }, updatedMemory);
 
-        // Save generated social post to database
+        // Save generated social post to database first to get the ID
+        let socialPostId: string | undefined;
         if (socialPostResponse.structuredPost) {
             try {
                 const savedPost = await this.socialPostsService.upsert(sessionId, memory.userId, {
@@ -330,6 +331,7 @@ export class QirataChatWorkflow {
                     visual_elements: socialPostResponse.structuredPost.visualElements || []
                 });
 
+                socialPostId = savedPost.id;
                 console.log(`💾 [Workflow] Saved social post ${savedPost.id} to database`);
 
                 // Invalidate cache after successful save
@@ -350,21 +352,22 @@ export class QirataChatWorkflow {
             });
         }
 
-        // Save social post message as JSON with correct message type
-        this.saveSocialPostMessage({
+        // Save message with social post reference
+        this.saveMessage({
             socket,
             sessionId,
             userId: memory.userId,
             userMessage: message,
             aiResponse: socialPostResponse.message!,
-            structuredPost: socialPostResponse.structuredPost
+            socialPostId
         });
 
         // Return result
-        const result = {
+        const result: WorkflowResult = {
             response: socialPostResponse.message!,
             suggestedOptions: socialPostResponse.suggestedOptions || [],
-            messageType: MessageType.SOCIAL_POST,
+            isSocialPost: true,
+            socialPostId,
             structuredPost: socialPostResponse.structuredPost ? {
                 postContent: socialPostResponse.structuredPost.postContent,
                 codeExamples: socialPostResponse.structuredPost.codeExamples || null,
@@ -402,7 +405,7 @@ export class QirataChatWorkflow {
         const result = {
             response: platformResponse.message!,
             suggestedOptions: platformResponse.suggestedOptions || [],
-            messageType: MessageType.MESSAGE,
+            isSocialPost: false,
             structuredPost: null
         };
 
@@ -436,7 +439,7 @@ export class QirataChatWorkflow {
             const result = {
                 response: "I couldn't find any social posts to edit in this session. Would you like to create a new social media post instead?",
                 suggestedOptions: ['Create a new social media post', 'Ask about content'],
-                messageType: MessageType.MESSAGE,
+                isSocialPost: false,
                 structuredPost: null
             };
 
@@ -462,7 +465,8 @@ export class QirataChatWorkflow {
             memory
         );
 
-        // Save edited social post to database
+        // Save edited social post to database first to capture the ID
+        let socialPostId: string | undefined = socialPostResponse.socialPostId;
         if (socialPostResponse.structuredPost && socialPostResponse.socialPostId) {
             try {
                 const updatedPost = await this.socialPostsService.update(
@@ -476,6 +480,7 @@ export class QirataChatWorkflow {
                         visual_elements: socialPostResponse.structuredPost.visualElements || []
                     }
                 );
+                socialPostId = updatedPost.id;
                 console.log(`💾 [Workflow] Updated social post ${updatedPost.id} in database`);
 
                 // Invalidate cache after successful save
@@ -496,21 +501,22 @@ export class QirataChatWorkflow {
             });
         }
 
-        // Save social post edit message as JSON with correct message type
-        this.saveSocialPostMessage({
+        // Save message with social post reference
+        this.saveMessage({
             socket,
             sessionId,
             userId: memory.userId,
             userMessage: message,
             aiResponse: socialPostResponse.message!,
-            structuredPost: socialPostResponse.structuredPost
+            socialPostId
         });
 
         // Return result
-        const result = {
+        const result: WorkflowResult = {
             response: socialPostResponse.message!,
             suggestedOptions: socialPostResponse.suggestedOptions || [],
-            messageType: MessageType.SOCIAL_POST,
+            isSocialPost: true,
+            socialPostId,
             structuredPost: socialPostResponse.structuredPost ? {
                 postContent: socialPostResponse.structuredPost.postContent,
                 codeExamples: socialPostResponse.structuredPost.codeExamples || null,
@@ -565,7 +571,7 @@ export class QirataChatWorkflow {
         const result = {
             response: clarifyingQuestion,
             suggestedOptions,
-            messageType: MessageType.MESSAGE,
+            isSocialPost: false,
             structuredPost: null
         };
 
@@ -588,7 +594,7 @@ export class QirataChatWorkflow {
         const result = {
             response: "I'm not sure how to help with that. Could you please clarify your request?",
             suggestedOptions: ['Ask a question about the post', 'Create social media content'],
-            messageType: MessageType.MESSAGE,
+            isSocialPost: false,
             structuredPost: null
         };
 
@@ -605,8 +611,9 @@ export class QirataChatWorkflow {
         userId: string;
         userMessage: string;
         aiResponse: string;
+        socialPostId?: string;
     }): Promise<void> {
-        const { socket, sessionId, userId, userMessage, aiResponse } = params;
+        const { socket, sessionId, userId, userMessage, aiResponse, socialPostId } = params;
 
         try {
             // Update memory cache
@@ -617,49 +624,13 @@ export class QirataChatWorkflow {
                 aiResponse
             });
 
-            // Save to database immediately (non-blocking)
-            this.messagesService.saveMessage(sessionId, userId, userMessage, aiResponse, MessageType.MESSAGE);
+            // Save to database with optional social post reference
+            this.messagesService.saveMessage(sessionId, userId, userMessage, aiResponse, socialPostId);
 
-            console.log(`💾 [Workflow] Saved message to database for session ${sessionId}`);
+            console.log(`💾 [Workflow] Saved message to database for session ${sessionId}${socialPostId ? ` (social_post: ${socialPostId})` : ''}`);
 
         } catch (error) {
             console.error('❌ [Workflow] Error saving message to database:', error);
-            // Continue execution - don't block user experience
-        }
-    }
-
-    /**
-     * Save social post message as JSON with correct message type (fire-and-forget)
-     */
-    private async saveSocialPostMessage(params: {
-        socket: AuthenticatedSocket;
-        sessionId: string;
-        userId: string;
-        userMessage: string;
-        aiResponse: string;
-        structuredPost: any;
-    }): Promise<void> {
-        const { socket, sessionId, userId, userMessage, aiResponse, structuredPost } = params;
-
-        try {
-            // Create structured JSON response for social posts
-            const structuredAiResponse = JSON.stringify(structuredPost);
-
-            // Update memory cache with structured response
-            this.socketMemoryService.addMessage({
-                socket,
-                sessionId,
-                userMessage,
-                aiResponse: structuredAiResponse
-            });
-
-            // Save to database with SOCIAL_POST message type
-            this.messagesService.saveMessage(sessionId, userId, userMessage, structuredAiResponse, MessageType.SOCIAL_POST);
-
-            console.log(`💾 [Workflow] Saved social post message to database for session ${sessionId}`);
-
-        } catch (error) {
-            console.error('❌ [Workflow] Error saving social post message to database:', error);
             // Continue execution - don't block user experience
         }
     }
@@ -673,7 +644,8 @@ export class QirataChatWorkflow {
             message: 'Process completed',
             response: result.response,
             suggestedOptions: result.suggestedOptions,
-            messageType: result.messageType || MessageType.MESSAGE,
+            isSocialPost: result.isSocialPost,
+            socialPostId: result.socialPostId,
             structuredPost: result.structuredPost || null
         });
     }

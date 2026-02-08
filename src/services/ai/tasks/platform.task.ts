@@ -1,6 +1,6 @@
 import { task } from '@langchain/langgraph';
 import { z } from 'zod';
-import { platformAgent } from '../agents/platform.agent';
+import platformAgent from '../agents/platform.agent';
 import { MemoryStateType, TaskOutput } from './types';
 
 export const platformTask = task('platform', async (

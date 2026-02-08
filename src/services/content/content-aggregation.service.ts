@@ -46,10 +46,6 @@ export class ContentAggregationService {
                 }
             }
 
-            logger.info(`Content aggregation completed for URL: ${url}`);
-
-            // Return final result
-            logger.info(aggregatedContent);
             return {
                 content: aggregatedContent,
             };

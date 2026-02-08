@@ -49,7 +49,7 @@ export class SocialPostsService {
     async findOne(sessionId: string, postId: string, userId: string): Promise<SocialPost | null> {
         try {
             const post = await this.socialPostRepository.findOne({
-                where: { 
+                where: {
                     id: postId,
                     chat_session_id: sessionId,
                     user_id: userId
@@ -70,7 +70,7 @@ export class SocialPostsService {
         try {
             // Find the post first
             const post = await this.socialPostRepository.findOne({
-                where: { 
+                where: {
                     id: postId,
                     chat_session_id: sessionId,
                     user_id: userId
@@ -132,11 +132,8 @@ export class SocialPostsService {
     /**
      * Create a new social post - accepts either session ID or session entity
      */
-    async create(sessionOrId: string | ChatSession, userId: string, data: CreateSocialPostData): Promise<SocialPost> {
+    async create(sessionId: string, userId: string, postId: string, data: CreateSocialPostData): Promise<SocialPost> {
         try {
-            const sessionId = typeof sessionOrId === 'string' ? sessionOrId : sessionOrId.id;
-            const postId = typeof sessionOrId === 'string' ? undefined : sessionOrId.post_id;
-
             // Create the post
             const post = this.socialPostRepository.create({
                 chat_session_id: sessionId,
@@ -151,10 +148,8 @@ export class SocialPostsService {
 
             const savedPost = await this.socialPostRepository.save(post);
 
-            logger.info(`Created social post ${savedPost.id} for session ${sessionId}`);
             return savedPost;
         } catch (error) {
-            logger.error(`Error creating social post for session:`, error);
             throw error;
         }
     }

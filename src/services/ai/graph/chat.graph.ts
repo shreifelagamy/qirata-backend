@@ -1,9 +1,7 @@
 import { StateGraph, START, END } from '@langchain/langgraph';
 import { ChatGraphState } from './state';
-import { intentNode } from './nodes/intent.node';
-import { supportNode } from './nodes/support.node';
-import { postQANode } from './nodes/post-qa.node';
-import { intentRouter } from './routers/intent.router';
+import { intentNode, supportNode, postQANode, platformNode, platformClarificationNode, socialPostNode, socialPostEditNode } from './nodes';
+import { intentRouter, platformRouter } from './routers';
 
 // Define the graph workflow
 const workflow = new StateGraph(ChatGraphState)
@@ -11,6 +9,10 @@ const workflow = new StateGraph(ChatGraphState)
     .addNode('intent', intentNode)
     .addNode('support', supportNode)
     .addNode('postQA', postQANode)
+    .addNode('platform', platformNode)
+    .addNode('platformClarification', platformClarificationNode)
+    .addNode('socialPost', socialPostNode)
+    .addNode('socialPostEdit', socialPostEditNode)
     
     // Define edges
     .addEdge(START, 'intent')
@@ -20,13 +22,23 @@ const workflow = new StateGraph(ChatGraphState)
         'intent',
         intentRouter,
         // Map of possible destinations
-        ['support', 'postQA', END]
+        ['support', 'postQA', 'platform', 'socialPostEdit', END]
     )
     
-    // Support node goes to END
+    // Conditional routing based on platform detection
+    .addConditionalEdges(
+        'platform',
+        platformRouter,
+        // Map of possible destinations
+        ['socialPost', 'platformClarification', END]
+    )
+    
+    // Terminal nodes
     .addEdge('support', END)
-    // PostQA node goes to END
-    .addEdge('postQA', END);
+    .addEdge('postQA', END)
+    .addEdge('platformClarification', END)
+    .addEdge('socialPost', END)
+    .addEdge('socialPostEdit', END);
 
 // Compile the graph
 export const chatGraph = workflow.compile();

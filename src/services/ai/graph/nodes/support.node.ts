@@ -1,7 +1,6 @@
 import { RunnableConfig } from '@langchain/core/runnables';
 import { supportAgent } from '../../agents/support.agent';
 import { ChatGraphState, ChatGraphUpdateType } from '../state';
-import { MessageType } from '../../../../entities/message.entity';
 import { logger } from '../../../../utils/logger';
 import { ChatGraphConfigurable } from '../configurable';
 
@@ -38,6 +37,6 @@ export async function supportNode(state: typeof ChatGraphState.State, config: Ru
     return {
         response: result.response,
         suggestedOptions: result.suggestedOptions,
-        messageType: MessageType.MESSAGE,
+        isSocialPost: false,
     };
 }

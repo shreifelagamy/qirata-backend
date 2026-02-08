@@ -1,6 +1,5 @@
 import { StateSchema } from '@langchain/langgraph';
 import { z } from 'zod';
-import { MessageType } from '../../../entities/message.entity';
 
 // Simplified message schema for memory storage
 export const SimplifiedMessageSchema = z.object({
@@ -30,6 +29,41 @@ export const PostSchema = z.object({
     content: z.string().optional().describe('Full content of the post'),
 });
 
+// Grouped schema for platform detection results
+export const PlatformResultSchema = z.object({
+    platform: z.enum(['twitter', 'linkedin'])
+        .nullable()
+        .describe('Detected platform (null if unclear)'),
+    confidence: z.number()
+        .min(0)
+        .max(1)
+        .describe('Confidence score for platform detection'),
+    needsClarification: z.boolean()
+        .describe('Whether clarification is needed'),
+    clarificationMessage: z.string()
+        .optional()
+        .describe('Message explaining detection or asking for clarification'),
+});
+
+// Structured social post schema
+export const StructuredPostSchema = z.object({
+    postContent: z.string()
+        .describe('Main text content for the social media post'),
+    codeExamples: z.array(z.object({
+        language: z.string().describe('Programming language'),
+        code: z.string().describe('The actual code content'),
+        description: z.string().nullable().describe('Optional explanation of the code')
+    })).nullable()
+        .describe('Optional array of code snippets'),
+    visualElements: z.array(z.object({
+        type: z.string().describe('Type of visual'),
+        description: z.string().describe('Detailed description of the visual to create'),
+        content: z.string().describe('Text content or data for the visual'),
+        style: z.string().describe('Visual style preferences')
+    })).nullable()
+        .describe('Optional array of visual elements to create')
+});
+
 /**
  * Chat Graph State - Minimal version for intent detection
  *
@@ -53,12 +87,18 @@ export const ChatGraphState = new StateSchema({
     post: PostSchema
         .optional()
         .describe('Current post context'),
+    socialMediaContentPreferences: z.string()
+        .optional()
+        .describe('User preferences for social media content style'),
 
 
     // ===== Processing (written by nodes) =====
     intentResult: IntentResultSchema
         .optional()
         .describe('Result of the intent detection process'),
+    platformResult: PlatformResultSchema
+        .optional()
+        .describe('Result of the platform detection process'),
 
     // ===== Output (read after graph.invoke returns) =====
     response: z.string()
@@ -67,9 +107,13 @@ export const ChatGraphState = new StateSchema({
     suggestedOptions: z.array(z.string())
         .optional()
         .describe('Suggested action options for the user'),
-    messageType: z.nativeEnum(MessageType)
+    isSocialPost: z.boolean()
+        .default(false)
+        .describe('Whether this message is a social post generation/edit result'),
+    structuredPost: StructuredPostSchema
+        .nullable()
         .optional()
-        .describe('Type of message being returned'),
+        .describe('Structured social post content with code and visual elements'),
     error: z.string()
         .optional()
         .describe('Error message if something goes wrong'),

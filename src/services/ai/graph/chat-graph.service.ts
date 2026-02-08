@@ -1,4 +1,3 @@
-import { MessageType } from '../../../entities/message.entity';
 import { AuthenticatedSocket } from '../../../types/socket.types';
 import { ChatSessionService } from '../../chat-session.service';
 import { MessagesService } from '../../messages.service';
@@ -7,6 +6,7 @@ import { SocialPostsService } from '../../social-posts.service';
 import { SocketMemoryService } from '../../websocket/socket-memory.service';
 import { chatGraph } from './chat.graph';
 import { ChatGraphConfigurable } from './configurable';
+import { SocialPlatform } from '../../../entities/social-post.entity';
 
 /**
  * Service to orchestrate the Chat StateGraph execution.
@@ -47,7 +47,7 @@ export class ChatGraphService {
             userId,
 
             // Map memory fields
-            lastMessages: lastMessages.map(m => ({
+            lastMessages: lastMessages.reverse().map(m => ({
                 user_message: m.user_message,
                 ai_response: m.ai_response
             })),
@@ -90,19 +90,42 @@ export class ChatGraphService {
             // Extract the response from the graph result
             const response = result.response || "I'm not sure how to help with that.";
             const suggestedOptions = result.suggestedOptions || [];
-            const messageType = result.messageType || MessageType.MESSAGE;
+            const isSocialPost = result.isSocialPost || false;
+
+            // 6. Side Effects: Save social post first (if applicable) to get the ID for the message reference
+            let socialPostId: string | undefined;
+
+            if (isSocialPost && result.structuredPost && result.platformResult?.platform) {
+                // Convert lowercase platform to SocialPlatform enum
+                const platformEnum = result.platformResult.platform === 'twitter'
+                    ? SocialPlatform.TWITTER
+                    : SocialPlatform.LINKEDIN;
+
+                // Transform structured post to match service interface
+                const socialPostData = {
+                    content: result.structuredPost.postContent,
+                    platform: platformEnum,
+                    code_examples: result.structuredPost.codeExamples || [],
+                    visual_elements: result.structuredPost.visualElements || []
+                };
+
+                // Create a social post entry and capture its ID
+                const savedSocialPost = await this.socialPostsService.create(sessionId, userId, post!.id, socialPostData);
+                socialPostId = savedSocialPost.id;
+            }
 
             emit('chat:stream:end', {
                 sessionId,
                 message: 'Process completed',
                 response,
                 suggestedOptions,
-                messageType,
-                structuredPost: null // TODO: Handle structured posts when we add social post nodes
+                isSocialPost,
+                socialPostId,
+                structuredPost: result.structuredPost || null
             });
 
-            // 6. Side Effects: Save message and update session intent
-            this.messagesService.saveMessage(sessionId, userId, message, response, messageType);
+            // Save message with social post reference (if applicable) and update session intent
+            this.messagesService.saveMessage(sessionId, userId, message, response, socialPostId);
             this.chatSessionService.updateLastIntent(sessionId, result.intentResult?.type || 'unknown');
 
         } catch (error) {

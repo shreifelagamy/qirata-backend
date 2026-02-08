@@ -1,6 +1,5 @@
 import { RunnableConfig } from '@langchain/core/runnables';
 import { postQAAgent } from '../../agents/post-qa.agent';
-import { MessageType } from '../../../../entities/message.entity';
 import { ChatGraphConfigurable } from '../configurable';
 import { ChatGraphState, ChatGraphUpdateType } from '../state';
 import { logger } from '../../../../utils/logger';
@@ -37,6 +36,6 @@ export async function postQANode(
     return {
         response: qaResult.response,
         suggestedOptions: qaResult.suggestedOptions,
-        messageType: MessageType.MESSAGE
+        isSocialPost: false
     };
 }

@@ -5,7 +5,6 @@ import { ChatGraphState } from '../state';
  * Intent Router
  * 
  * Routes to the appropriate node based on detected intent.
- * For now, we only handle GENERAL intent.
  */
 export function intentRouter(state: typeof ChatGraphState.State): string {
     const intentResult = state.intentResult;
@@ -23,11 +22,14 @@ export function intentRouter(state: typeof ChatGraphState.State): string {
 
         case 'ASK_POST':
             return 'postQA';
-        // TODO: Add other intents as we implement them
-        // case 'REQ_SOCIAL_POST':
-        //     return 'platform';
-        // case 'EDIT_SOCIAL_POST':
-        //     return 'socialPostEdit';
+
+        case 'REQ_SOCIAL_POST':
+            return 'platform';
+
+        case 'EDIT_SOCIAL_POST':
+            return 'socialPostEdit';
+
+        // TODO: Add CLARIFY_INTENT once clarify node is implemented
         // case 'CLARIFY_INTENT':
         //     return 'clarify';
 

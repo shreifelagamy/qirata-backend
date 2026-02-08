@@ -1,8 +1,9 @@
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
 import { createDebugCallback } from '../../../utils/debug-callback';
+import { createAgent, toolStrategy } from 'langchain';
 
 // Input schema for platform detection
 const PlatformInput = z.object({
@@ -28,7 +29,7 @@ export const PlatformOutput = z.object({
         .describe('Short, direct platform options when clarification is needed')
 });
 
-const SYSTEM_PROMPT = `You are Qirata's platform detection AI. Analyze user messages to detect whether they want to create content for Twitter (X) or LinkedIn.
+const CACHED_SYSTEM_PROMPT = `You are Qirata's platform detection AI. Analyze user messages to detect whether they want to create content for Twitter (X) or LinkedIn.
 
 PLATFORM DETECTION RULES:
 - Look for explicit mentions: Twitter, X, LinkedIn
@@ -38,53 +39,63 @@ PLATFORM DETECTION RULES:
 - Ask for clarification when uncertain
 
 RESPONSE GUIDELINES:
-- If platform is clear (confidence > 0.7): Confirm the detected platform
-- If unclear (confidence < 0.7): Ask for clarification with both options
-- Provide short, direct Twitter and LinkedIn options when clarification is needed
+- If platform is clear (confidence > 0.7): Set platform and needsClarification=false
+- If unclear (confidence < 0.7): Set platform=null, needsClarification=true, and provide clarifying message
+- Provide short, direct Twitter and LinkedIn options when clarification is needed (max 2 options)
 - Keep responses concise and helpful
 
-SUPPORTED PLATFORMS: Twitter (X), LinkedIn`;
+SUPPORTED PLATFORMS: Twitter (X), LinkedIn
 
-export async function platformAgent(options: z.infer<typeof PlatformInput>): Promise<z.infer<typeof PlatformOutput>> {
-    const platformTool = {
-        name: "platformResponse",
-        description: "Detect social media platform from user message",
-        schema: z.toJSONSchema(PlatformOutput)
-    };
+You must respond with a JSON object containing:
+- platform: "twitter" or "linkedin" if detected, null if unclear
+- confidence: a number between 0.0 and 1.0
+- needsClarification: true if platform is unclear, false otherwise
+- message: response message explaining detection or asking for clarification
+- suggestedOptions: array of up to 2 platform options when clarification is needed`;
 
+export default async function platformAgent(options: z.infer<typeof PlatformInput>): Promise<z.infer<typeof PlatformOutput>> {
+    // Initialize model
     const model = new ChatOpenAI({
         model: 'gpt-4.1-mini',
-        temperature: 0.1,
-        maxTokens: 300,
+        temperature: 0,
+        maxTokens: 250,
         openAIApiKey: process.env.OPENAI_API_KEY
-    }).bindTools([platformTool]);
+    });
 
-    // Build conversation context
-    const conversationContext = options.lastMessages.length > 0
-        ? `\nPrevious user messages: ${options.lastMessages.join(' → ')}`
-        : '\nThis is a new platform detection request.';
+    // Create agent
+    const agent = createAgent({
+        model,
+        tools: [],
+        responseFormat: toolStrategy(PlatformOutput)
+    });
 
-    const messages = [
-        new SystemMessage(SYSTEM_PROMPT),
-        new HumanMessage(`${conversationContext}
-
-Current message: "${options.message}"
-
-Analyze this message to detect whether the user wants Twitter (X) or LinkedIn, and respond accordingly.`)
-    ];
-
-    const result = await model.invoke(messages, {
+    const result = await agent.invoke({
+        messages: buildMessagesArray(options)
+    }, {
         callbacks: [
             createDebugCallback('platform')
         ]
     });
 
-    // Extract tool call result
-    const toolCall = result.tool_calls?.[0];
-    if (!toolCall) {
-        throw new Error('No tool call found in response');
+    // Validate with Zod and return
+    return result.structuredResponse;
+}
+
+function buildMessagesArray(options: z.infer<typeof PlatformInput>): BaseMessage[] {
+    const messages: BaseMessage[] = [];
+    messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT));
+
+    if (options.lastMessages.length > 0) {
+        messages.push(new AIMessage('Previous conversation messages for context:'));
+        options.lastMessages.forEach((msg) => {
+            messages.push(new HumanMessage(msg));
+        });
     }
 
-    // Validate with Zod and return
-    return PlatformOutput.parse(toolCall.args);
+    // Confirm receiving the old messages
+    messages.push(new AIMessage('I have the context and will detect the platform.'));
+
+    messages.push(new HumanMessage(options.message));
+
+    return messages;
 }
