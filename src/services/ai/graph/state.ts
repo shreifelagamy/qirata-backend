@@ -99,6 +99,9 @@ export const ChatGraphState = new StateSchema({
     platformResult: PlatformResultSchema
         .optional()
         .describe('Result of the platform detection process'),
+    editingSocialPostId: z.string()
+        .optional()
+        .describe('If editing an existing social post, the ID of that post'),
 
     // ===== Output (read after graph.invoke returns) =====
     response: z.string()

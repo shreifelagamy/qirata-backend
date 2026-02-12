@@ -2,23 +2,23 @@ import { AuthenticatedSocket } from '../../../types/socket.types';
 import { ChatSessionService } from '../../chat-session.service';
 import { MessagesService } from '../../messages.service';
 import { PostsService } from '../../posts.service';
-import { SocialPostsService } from '../../social-posts.service';
 import { SocketMemoryService } from '../../websocket/socket-memory.service';
 import { chatGraph } from './chat.graph';
 import { ChatGraphConfigurable } from './configurable';
-import { SocialPlatform } from '../../../entities/social-post.entity';
+import { PostProcessorManager } from './post-processors';
+import { logger } from '../../../utils/logger';
 
 /**
  * Service to orchestrate the Chat StateGraph execution.
- * Handles memory loading, graph invocation, and side effects.
+ * Handles memory loading, graph invocation, and delegates post-processing to specialized handlers.
  */
 export class ChatGraphService {
     // Instantiate services
     private socketMemoryService = new SocketMemoryService();
     private messagesService = new MessagesService();
-    private socialPostsService = new SocialPostsService();
     private postsService = new PostsService();
     private chatSessionService = new ChatSessionService();
+    private postProcessorManager = new PostProcessorManager();
 
     /**
      * Main entry point to run the chat graph
@@ -84,52 +84,44 @@ export class ChatGraphService {
             // 4. Invoke the Graph
             const result = await chatGraph.invoke(initialState, config);
 
-            // 5. Handle Result
-            console.log(`✅ [ChatGraph] Finished. Intent: ${result.intentResult?.type}`);
+            // 5. Process Result using Post-Processor Manager
+            logger.info(`✅ [ChatGraph] Finished. Intent: ${result.intentResult?.type}`);
 
-            // Extract the response from the graph result
-            const response = result.response || "I'm not sure how to help with that.";
-            const suggestedOptions = result.suggestedOptions || [];
-            const isSocialPost = result.isSocialPost || false;
+            const processedResult = await this.postProcessorManager.process({
+                result,
+                sessionId,
+                userId,
+                postId: post?.id,
+                message,
+                emit
+            });
 
-            // 6. Side Effects: Save social post first (if applicable) to get the ID for the message reference
-            let socialPostId: string | undefined;
-
-            if (isSocialPost && result.structuredPost && result.platformResult?.platform) {
-                // Convert lowercase platform to SocialPlatform enum
-                const platformEnum = result.platformResult.platform === 'twitter'
-                    ? SocialPlatform.TWITTER
-                    : SocialPlatform.LINKEDIN;
-
-                // Transform structured post to match service interface
-                const socialPostData = {
-                    content: result.structuredPost.postContent,
-                    platform: platformEnum,
-                    code_examples: result.structuredPost.codeExamples || [],
-                    visual_elements: result.structuredPost.visualElements || []
-                };
-
-                // Create a social post entry and capture its ID
-                const savedSocialPost = await this.socialPostsService.create(sessionId, userId, post!.id, socialPostData);
-                socialPostId = savedSocialPost.id;
-            }
-
+            // 6. Emit completion event
             emit('chat:stream:end', {
                 sessionId,
                 message: 'Process completed',
-                response,
-                suggestedOptions,
-                isSocialPost,
-                socialPostId,
-                structuredPost: result.structuredPost || null
+                response: processedResult.response,
+                suggestedOptions: processedResult.suggestedOptions,
+                isSocialPost: processedResult.isSocialPost,
+                socialPostId: processedResult.socialPostId,
+                structuredPost: processedResult.structuredPost || null
             });
 
-            // Save message with social post reference (if applicable) and update session intent
-            this.messagesService.saveMessage(sessionId, userId, message, response, socialPostId);
-            this.chatSessionService.updateLastIntent(sessionId, result.intentResult?.type || 'unknown');
+            // 7. Save message and update session intent
+            await this.messagesService.saveMessage(
+                sessionId,
+                userId,
+                message,
+                processedResult.response,
+                processedResult.socialPostId
+            );
+            await this.chatSessionService.updateLastIntent(
+                sessionId,
+                result.intentResult?.type || 'unknown'
+            );
 
         } catch (error) {
-            console.error('❌ [ChatGraph] Execution failed:', error);
+            logger.error('❌ [ChatGraph] Execution failed:', error);
 
             emit('chat:stream:error', {
                 sessionId,

@@ -24,25 +24,6 @@ export const postQATask = task('postQA', async (
 
     // If agent needs full content, fetch it and try again
     let fullContent = undefined;
-    console.log("Needs Clarification : " + qaResult.needsFullContent)
-    if (qaResult.needsFullContent) {
-        console.log("should load from memory : " + memory.postContent)
-        if (memory.postContent) {
-            fullContent = memory.postContent;
-        } else {
-            console.log("Load from DB")
-            const expandedPost = await postService.getExpanded(memory.currentPostId!, memory.userId);
-            fullContent = expandedPost.content || '';
-        }
-
-        qaResult = await postQAAgent({
-            message: params.message,
-            lastMessages,
-            postSummary: memory.postSummary!,
-            conversationSummary: memory.conversationSummary,
-            postContent: fullContent
-        });
-    }
 
     return {
         response: {
