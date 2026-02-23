@@ -1,44 +1,65 @@
-import { StateGraph, START, END } from '@langchain/langgraph';
+import { END, START, StateGraph } from '@langchain/langgraph';
+import { detectIntentNode, postQANode, socialPlatformNode, socialPostCreateNode, socialPostEditNode, socialPostSelectorNode, supportNode } from './nodes';
+import { socialIntentNode } from './nodes/social-intent.node';
+import { intentRouter, socialIntentRouter, socialPlatformRouter, socialPostSelectorRouter } from './routers';
 import { ChatGraphState } from './state';
-import { intentNode, supportNode, postQANode, platformNode, platformClarificationNode, socialPostNode, socialPostEditNode } from './nodes';
-import { intentRouter, platformRouter } from './routers';
 
 // Define the graph workflow
 const workflow = new StateGraph(ChatGraphState)
     // Add nodes
-    .addNode('intent', intentNode)
-    .addNode('support', supportNode)
-    .addNode('postQA', postQANode)
-    .addNode('platform', platformNode)
-    .addNode('platformClarification', platformClarificationNode)
-    .addNode('socialPost', socialPostNode)
-    .addNode('socialPostEdit', socialPostEditNode)
-    
+    .addNode('DetectIntent', detectIntentNode)
+    .addNode('Support', supportNode)
+    .addNode('PostQA', postQANode)
+    .addNode('SocialIntent', socialIntentNode)
+
+    // Social flow
+    .addNode('SocialPlatformClarification', socialPlatformNode)
+    .addNode('SocialPostCreate', socialPostCreateNode)
+    .addNode('SocialPostSelector', socialPostSelectorNode)
+    .addNode('SocialPostEdit', socialPostEditNode)
+
     // Define edges
-    .addEdge(START, 'intent')
-    
+    .addEdge(START, 'DetectIntent')
+
     // Conditional routing based on intent
     .addConditionalEdges(
-        'intent',
+        'DetectIntent',
         intentRouter,
         // Map of possible destinations
-        ['support', 'postQA', 'platform', 'socialPostEdit', END]
+        ['Support', 'PostQA', 'SocialIntent', END]
     )
-    
-    // Conditional routing based on platform detection
+
+    // Conditional routing based on social intent
     .addConditionalEdges(
-        'platform',
-        platformRouter,
+        'SocialIntent',
+        socialIntentRouter,
         // Map of possible destinations
-        ['socialPost', 'platformClarification', END]
+        ['SocialPostSelector', 'SocialPlatformClarification', END]
     )
-    
+
+    // Conditional routing based on social platform detection
+    .addConditionalEdges(
+        'SocialPlatformClarification',
+        socialPlatformRouter,
+        // Map of possible destinations
+        ['SocialPostCreate', END]
+    )
+
+    // Conditional routing based on post selection
+    .addConditionalEdges(
+        'SocialPostSelector',
+        socialPostSelectorRouter,
+        // Map of possible destinations
+        ['SocialPostEdit', END]
+    )
+
     // Terminal nodes
-    .addEdge('support', END)
-    .addEdge('postQA', END)
-    .addEdge('platformClarification', END)
-    .addEdge('socialPost', END)
-    .addEdge('socialPostEdit', END);
+    .addEdge('Support', END)
+    .addEdge('PostQA', END)
+    .addEdge('SocialPlatformClarification', END)
+    .addEdge('SocialPostCreate', END)
+    .addEdge('SocialPostEdit', END);
 
 // Compile the graph
 export const chatGraph = workflow.compile();
+                        

@@ -37,7 +37,7 @@ const SYSTEM_MESSAGE = `You are an expert content analyst specialized in summari
 - Avoid unnecessary detail while preserving key insights
 - Structure information for easy AI comprehension`;
 
-async function summarizePostAgent(options: SummarizeOptions): Promise<string> {
+async function postSummaryAgent(options: SummarizeOptions): Promise<string> {
     const model = new ChatOpenAI({ model: 'gpt-4.1-mini', temperature: 0.7, openAIApiKey: process.env.OPENAI_API_KEY })
 
     const { postContent } = options;
@@ -91,4 +91,4 @@ Provide a concise 3-4 sentence summary following the analysis framework outlined
     return messages;
 }
 
-export default summarizePostAgent
+export default postSummaryAgent

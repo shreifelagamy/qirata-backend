@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { CreateChatSessionDto } from '../dtos/chat-session.dto';
-import { ChatSessionService } from '../services/chat-session.service';
+import { ChatSessionService } from '../services/domain';
 
 export class ChatSessionController {
     private service: ChatSessionService;

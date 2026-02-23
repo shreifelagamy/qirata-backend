@@ -1,19 +1,15 @@
 import { RunnableConfig } from '@langchain/core/runnables';
-import { socialPostEditAgent } from '../../agents';
-import { ChatGraphState, ChatGraphUpdateType } from '../state';
 import { logger } from '../../../../utils/logger';
+import { socialPostEditAgent } from '../../agents';
 import { ChatGraphConfigurable } from '../configurable';
+import { ChatGraphState, ChatGraphUpdateType } from '../state';
 
 /**
  * Social Post Edit Node
  *
- * Edits existing social media posts using the social post edit agent.
- * This node needs to:
- * 1. Fetch existing social posts for the session
- * 2. Determine which post to edit (most recent, by platform, by reference)
- * 3. Pass the target post to the edit agent
- * 
- * TODO: Add socialPostsService to ChatGraphConfigurable to fetch posts
+ * Edits an existing social media post using the social post edit agent.
+ * Expects `editingSocialPostId` to be set by the SocialPostSelector node.
+ * Finds the target post from `socialPostsHistory` in state and passes it to the edit agent.
  */
 export async function socialPostEditNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
     logger.info("[NODE: SocialPostEditNode] Starting social post edit");
@@ -26,56 +22,40 @@ export async function socialPostEditNode(state: typeof ChatGraphState.State, con
         token: 'Editing social media post...'
     });
 
-    // Extract context from state
-    const { message, lastMessages, post, socialMediaContentPreferences } = state;
+    const {
+        message,
+        lastMessages,
+        post,
+        socialMediaContentPreferences,
+        socialPostsHistory,
+        editingSocialPostId
+    } = state;
 
-    // TODO: Fetch social posts from database using socialPostsService
-    // For now, return an error indicating this feature is not yet implemented
-    logger.error('[NODE: SocialPostEditNode] Social post fetching not yet implemented');
-    
-    return {
-        response: 'Social post editing is not yet fully implemented. This feature will fetch your existing posts and apply the requested changes.',
-        isSocialPost: false,
-        error: 'Feature not implemented - needs socialPostsService in configurable'
-    };
-
-    /*
-    // Future implementation:
-    
-    // 1. Fetch social posts for this session
-    const sessionId = configurable?.session_id;
-    if (!sessionId) {
+    // editingSocialPostId should be set by the SocialPostSelector node
+    if (!editingSocialPostId) {
+        logger.error('[NODE: SocialPostEditNode] No editingSocialPostId set');
         return {
-            response: 'Unable to fetch social posts - session not found.',
+            response: 'Could not determine which post to edit. Please try again.',
             isSocialPost: false,
-            error: 'No session ID'
         };
     }
 
-    // Use socialPostsService from configurable to fetch posts
-    const socialPostsService = configurable.socialPostsService;
-    const existingPosts = await socialPostsService.getSocialPostsBySessionId(sessionId);
-
-    if (!existingPosts || existingPosts.length === 0) {
+    // Find the target post from state's socialPostsHistory
+    const targetPost = socialPostsHistory?.find(sp => sp.id === editingSocialPostId);
+    if (!targetPost) {
+        logger.error('[NODE: SocialPostEditNode] Post not found in socialPostsHistory:', { editingSocialPostId });
         return {
-            response: 'No social posts found in this session. Create a post first before trying to edit.',
+            response: 'The selected post could not be found. It may have been deleted.',
             isSocialPost: false,
-            error: 'No social posts found'
         };
     }
 
-    // 2. Determine which post to edit
-    // Simple strategy: use the most recent post
-    // TODO: Add smarter detection based on user message (platform mention, content reference, etc.)
-    const targetPost = existingPosts[0]; // Most recent
-
-    logger.info('[NODE: SocialPostEditNode] Target post selected:', {
+    logger.info('[NODE: SocialPostEditNode] Target post found:', {
         postId: targetPost.id,
         platform: targetPost.platform,
-        created: targetPost.createdAt
     });
 
-    // 3. Call the social post edit agent
+    // Call the social post edit agent
     const result = await socialPostEditAgent({
         message,
         lastMessages,
@@ -83,7 +63,7 @@ export async function socialPostEditNode(state: typeof ChatGraphState.State, con
             id: targetPost.id,
             platform: targetPost.platform,
             content: targetPost.content,
-            createdAt: targetPost.createdAt
+            codeExamples: targetPost.codeExamples || null,
         },
         postContent: post?.content || null,
         socialMediaContentPreferences: socialMediaContentPreferences || null
@@ -97,15 +77,11 @@ export async function socialPostEditNode(state: typeof ChatGraphState.State, con
         postLength: result.structuredPost.postContent.length
     });
 
-    // Return state update with the edited post
-    // TODO: Need to also return the post ID so the service layer can update the right post in DB
     return {
         response: result.message,
         suggestedOptions: result.suggestedOptions,
         isSocialPost: true,
         structuredPost: result.structuredPost,
-        // editedSocialPostId: targetPost.id, // TODO: Add this field to state
-        error: undefined
+        editingSocialPostId,
     };
-    */
 }

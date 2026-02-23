@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { FeedsService } from '../services/feeds.service';
+import { FeedsService } from '../services/domain';
 import { logger } from '../utils/logger';
 
 export class FeedsController {

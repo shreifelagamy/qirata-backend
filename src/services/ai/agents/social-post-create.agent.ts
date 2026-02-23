@@ -2,8 +2,9 @@ import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
-import { createDebugCallback } from '../../../utils/debug-callback';
 import { createAgent, toolStrategy } from 'langchain';
+import { createDebugCallback } from '../../../utils/debug-callback';
+import { SocialPlatformList } from './social-platform.agent';
 
 // Input schema for social post creation
 const SocialPostCreateInput = z.object({
@@ -13,14 +14,13 @@ const SocialPostCreateInput = z.object({
         ai_response: z.string()
     })).max(10).describe('Previous conversation messages for context'),
     postContent: z.string().describe('Full content of the article/post to create social media content from'),
-    platform: z.enum(['twitter', 'linkedin']).describe('Target social media platform'),
+    platform: SocialPlatformList.describe('Target social media platform'),
     socialMediaContentPreferences: z.string().nullable().describe('User preferences for social media content style')
 });
 
 // Output schema for social post creation
 export const SocialPostCreateOutput = z.object({
     message: z.string().describe('Response message to the user about the generated post'),
-    suggestedOptions: z.array(z.string()).max(3).describe('3 short, direct actions relevant to the social post'),
     structuredPost: z.object({
         postContent: z.string().describe('Main text content for the social media post'),
         codeExamples: z.array(z.object({
@@ -37,65 +37,38 @@ export const SocialPostCreateOutput = z.object({
     }).describe('Structured social post content with code examples and visual elements')
 });
 
-const CACHED_SYSTEM_PROMPT = `You are Qirata's social media content creator. Generate engaging, platform-optimized posts based on article content and user preferences.
+const CACHED_SYSTEM_PROMPT = `You are Qirata's expert Social Media Content Creator.
+Your goal is to craft high-engagement posts from the provided article content and context.
 
-YOUR ROLE:
-- Create compelling social media content for Twitter or LinkedIn
-- Transform article content into shareable, engaging posts
-- Leverage conversation context to highlight points the user found interesting
-- Follow platform-specific guidelines for length, tone, and engagement
-- Incorporate user's social media content preferences and style
-- Include relevant hashtags and call-to-actions when appropriate
+### RULES
+- Always follow the platform-specific rules for Twitter and LinkedIn.
+- Extract any code snippets from the article and place them in the 'codeExamples' section. Do not include code in the main post content.
+- If a visual element (like a diagram) would enhance the post, describe it in the 'visualElements' section with clear instructions for creation.
+- Use the conversation history to identify which specific points interested the user and highlight those in the post.
+- Only create one post per request, even if multiple platforms are mentioned. Focus on the most recently requested platform.
 
-CONTENT STRATEGY:
-- Use the article content as the foundation for the post
-- Incorporate discussion points from conversation history (both user questions and AI explanations)
-- Apply user's content preferences to match their desired style
-- Make it engaging and shareable for the target platform
-- Add value to the user's professional or personal brand
+### PLATFORM RULES (Apply Strict Adherence)
+1. **Twitter:** - Style: Thread-style or punchy single tweet.
+   - Constraints: <280 characters per tweet. 1-3 tags.
+   - Tone: Concise, engaging, hashtag-friendly.
+2. **LinkedIn:** - Style: Professional, spaced for readability.
+   - Constraints: 1300-1600 characters. 3-5 tags.
+   - Tone: Professional, thoughtful, industry insights.
+   - **The Hook:** The first sentence MUST be a "scroll-stopper" (provocative question, surprising stat, or bold claim).
 
-STRUCTURED CONTENT CREATION:
-When the content includes technical topics, programming concepts, or educational content:
-
-**Code Examples - CRITICAL RULES**:
-- **ALWAYS generate code examples for technical posts** - code makes technical content more valuable and shareable
-- **NEVER include code in postContent** - ALL code MUST go in structuredPost.codeExamples array
-- **Exception**: Only include code in postContent if the user EXPLICITLY requests it (e.g., "include the code in the post", "put the code snippet in the text")
-- Identify programming languages, code snippets, or technical examples from the article or conversation
-- Extract code into separate objects with language, code, and description fields
-- Support languages: javascript, python, sql, html, css, typescript, go, rust, java, etc.
-- Provide helpful descriptions that explain what the code does and why it's useful
-
-**Visual Elements**: When content would benefit from visual representation
-- Identify opportunities for diagrams, charts, infographics, or screenshots
-- Create detailed descriptions for visual elements that enhance understanding
-- Include content and style preferences for visual creation
-
-**Content Separation Rules**:
-- Main social media text goes in structuredPost.postContent only
-- All code examples go in structuredPost.codeExamples array (UNLESS user explicitly requested inline code)
-- All visual descriptions go in structuredPost.visualElements array
-- Keep postContent clean, readable, and focused on the message
-- Technical posts should ALWAYS have codeExamples populated with relevant code snippets
-
-PLATFORM OPTIMIZATION:
-- Twitter: Concise, engaging, hashtag-friendly, under 280 characters, use 1-3 relevant hashtags
-- LinkedIn: Professional, thoughtful, industry insights, 1300-1600 characters, use 3-5 hashtags
-
-STRUCTURED OUTPUT REQUIREMENTS:
-Always provide the structuredPost object with:
-- postContent: Platform-optimized main text (required)
-- codeExamples: Array of code snippets if technical content is present (optional)
-- visualElements: Array of visual element descriptions if applicable (optional)
-
-Keep responses focused and provide 3 short, direct, actionable next steps relevant to the social post context.`;
+### CONTENT HANDLING
+- **Text:** Place the main narrative in the 'postContent' field.
+- **Code Extraction (CRITICAL):** If the article contains code, YOU MUST EXTRACT IT. Do not leave code in the body text. Move it to the 'codeExamples' array.
+- **Visuals:** If a diagram would help, describe it in 'visualElements'.
+`;
 
 export default async function socialPostCreateAgent(options: z.infer<typeof SocialPostCreateInput>): Promise<z.infer<typeof SocialPostCreateOutput>> {
     // Initialize model
     const model = new ChatOpenAI({
         model: 'gpt-5.2',
-        temperature: 0.7,
-        maxTokens: 1000,
+        reasoning: {
+            effort: "medium"
+        },
         openAIApiKey: process.env.OPENAI_API_KEY
     });
 
@@ -120,51 +93,32 @@ export default async function socialPostCreateAgent(options: z.infer<typeof Soci
 
 function buildMessagesArray(options: z.infer<typeof SocialPostCreateInput>): BaseMessage[] {
     const messages: BaseMessage[] = [];
+
+    // 1. Static System Instructions
     messages.push(new SystemMessage(CACHED_SYSTEM_PROMPT));
 
-    // Add platform-specific guidelines
-    const platformRules = {
-        twitter: {
-            maxLength: 280,
-            tone: 'concise and engaging',
-            guidelines: 'Keep under 280 characters, use 1-3 relevant hashtags, write a compelling hook'
-        },
-        linkedin: {
-            maxLength: 3000,
-            tone: 'professional and thoughtful',
-            guidelines: 'Professional tone, aim for 1300-1600 characters, start with compelling hook, use 3-5 hashtags'
-        }
-    };
+    // 2. The Context Block (User Prefs + Article)
+    let contextBlock = `Target Platform: ${options.platform.toUpperCase()}\n\n`;
 
-    messages.push(new AIMessage(`Platform: ${options.platform.toUpperCase()}
-Max Length: ${platformRules[options.platform].maxLength} characters
-Tone: ${platformRules[options.platform].tone}
-Guidelines: ${platformRules[options.platform].guidelines}`));
-
-    // Add user preferences if available
     if (options.socialMediaContentPreferences?.trim()) {
-        messages.push(new AIMessage('User content preferences:'));
-        messages.push(new HumanMessage(options.socialMediaContentPreferences));
+        contextBlock += `User Content Preferences: "${options.socialMediaContentPreferences}"\n\n`;
     }
 
-    // Add article content
-    messages.push(new AIMessage('Article content to create social post from:'));
-    messages.push(new HumanMessage(options.postContent));
+    contextBlock += `Article Content:\n${options.postContent}`;
 
-    // Add conversation context if available
+    messages.push(new HumanMessage(contextBlock));
+
+    // 3. Conversation History (Only if relevant)
     if (options.lastMessages.length > 0) {
-        messages.push(new AIMessage('Conversation context - use this to understand what topics the user found interesting:'));
+        messages.push(new SystemMessage("Below is the recent Q&A history. Use this to identify which specific points interested the user."));
         options.lastMessages.forEach((msg) => {
-            messages.push(new HumanMessage(`User: ${msg.user_message}`));
-            messages.push(new AIMessage(`AI: ${msg.ai_response}`));
+            messages.push(new HumanMessage(msg.user_message));
+            messages.push(new AIMessage(msg.ai_response));
         });
     }
 
-    // Confirm context received
-    messages.push(new AIMessage('I have all the context and will create an engaging social post.'));
-
-    // Current user message
-    messages.push(new HumanMessage(options.message));
+    // 4. Final Trigger
+    messages.push(new HumanMessage(`Create the ${options.platform} post now. ${options.message}`));
 
     return messages;
 }

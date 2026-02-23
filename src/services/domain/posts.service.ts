@@ -1,16 +1,16 @@
 import { Repository, UpdateResult } from 'typeorm';
-import AppDataSource from '../config/database.config';
-import { Feed } from '../entities/feed.entity';
-import { PostExpanded } from '../entities/post-expanded.entity';
-import { Post } from '../entities/post.entity';
-import { UserFeed } from '../entities/user-feed.entity';
-import { UserPost } from '../entities/user-post.entity';
-import { HttpError } from '../middleware/error.middleware';
-import { ChatSessionRepository, PostExpandedRepository, PostRepository, UserPostRepository } from '../repositories';
-import { PostFilters, PrepareDiscussionResult, ProgressEvent } from '../types/posts.types';
-import { logger } from '../utils/logger';
-import { isFullContentAgent } from './ai/agents';
-import ContentScrapper from './content/content-aggregation.service';
+import AppDataSource from '../../config/database.config';
+import { Feed } from '../../entities/feed.entity';
+import { PostExpanded } from '../../entities/post-expanded.entity';
+import { Post } from '../../entities/post.entity';
+import { UserFeed } from '../../entities/user-feed.entity';
+import { UserPost } from '../../entities/user-post.entity';
+import { HttpError } from '../../middleware/error.middleware';
+import { ChatSessionRepository, PostExpandedRepository, PostRepository, UserPostRepository } from '../../repositories';
+import { PostFilters, PrepareDiscussionResult, ProgressEvent } from '../../types/posts.types';
+import { logger } from '../../utils/logger';
+import { fullContentCheckAgent } from '../ai/agents';
+import ContentScrapper from '../content/content-aggregation.service';
 
 export class PostsService {
     private postExpandedRepository: Repository<PostExpanded>;
@@ -206,7 +206,7 @@ export class PostsService {
         } else {
             // Use AI agent to decide if RSS content is full enough
             yield { state: 'deciding_content', step: 'Analyzing RSS content completeness...', progress: 5 };
-            const contentCheck = await isFullContentAgent({ title: post.title, content: post.content || '' });
+            const contentCheck = await fullContentCheckAgent({ title: post.title, content: post.content || '' });
 
             logger.info(`Post ${post.id}: AI content check - isFull=${contentCheck.isFull}, confidence=${contentCheck.confidence}, reason=${contentCheck.reason}`);
 

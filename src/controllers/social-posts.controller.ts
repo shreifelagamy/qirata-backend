@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { SocialPostsService } from '../services/social-posts.service';
+import { SocialPostsService } from '../services/domain';
 
 export class SocialPostsController {
     private socialPostsService: SocialPostsService;

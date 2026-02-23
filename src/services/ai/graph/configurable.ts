@@ -1,8 +1,7 @@
 import { AuthenticatedSocket } from '../../../types/socket.types';
-import { SocketMemoryService } from '../../websocket/socket-memory.service';
-import { SocialPostsService } from '../../social-posts.service';
-import { MessagesService } from '../../messages.service';
-import { PostsService } from '../../posts.service';
+import { SocialPostsService } from '../../domain/social-posts.service';
+import { MessagesService } from '../../domain/messages.service';
+import { PostsService } from '../../domain/posts.service';
 
 /**
  * Type for services and external dependencies passed to graph nodes

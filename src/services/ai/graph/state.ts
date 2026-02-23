@@ -1,5 +1,8 @@
 import { StateSchema } from '@langchain/langgraph';
 import { z } from 'zod';
+import { IntentRouterOutput } from '../agents/intent.agent';
+import { SocialIntentActionList } from '../agents/social-intent.agent';
+import { SocialPlatformList } from '../agents/social-platform.agent';
 
 // Simplified message schema for memory storage
 export const SimplifiedMessageSchema = z.object({
@@ -7,42 +10,12 @@ export const SimplifiedMessageSchema = z.object({
     ai_response: z.string()
 });
 
-// Grouped schema for intent detection results
-export const IntentResultSchema = z.object({
-    type: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_SOCIAL_POST', 'CLARIFY_INTENT'])
-        .describe('Detected user intent'),
-    confidence: z.number()
-        .min(0)
-        .max(1)
-        .describe('Confidence score for intent detection'),
-    reasoning: z.string()
-        .describe('Reasoning behind intent classification'),
-    clarifyingQuestion: z.string()
-        .optional()
-        .describe('Question to ask when intent needs clarification'),
-});
-
 // Post schema for lightweight context
 export const PostSchema = z.object({
+    id: z.string().describe('Post identifier'),
     title: z.string().describe('Title of the post'),
     summary: z.string().optional().describe('Summary of the post'),
     content: z.string().optional().describe('Full content of the post'),
-});
-
-// Grouped schema for platform detection results
-export const PlatformResultSchema = z.object({
-    platform: z.enum(['twitter', 'linkedin'])
-        .nullable()
-        .describe('Detected platform (null if unclear)'),
-    confidence: z.number()
-        .min(0)
-        .max(1)
-        .describe('Confidence score for platform detection'),
-    needsClarification: z.boolean()
-        .describe('Whether clarification is needed'),
-    clarificationMessage: z.string()
-        .optional()
-        .describe('Message explaining detection or asking for clarification'),
 });
 
 // Structured social post schema
@@ -62,6 +35,19 @@ export const StructuredPostSchema = z.object({
         style: z.string().describe('Visual style preferences')
     })).nullable()
         .describe('Optional array of visual elements to create')
+});
+
+// social post schema for social posts history in state
+export const SocialPostSchema = z.object({
+    id: z.string().describe('Social post identifier'),
+    platform: z.enum(['twitter', 'linkedin']).describe('Social media platform'),
+    content: z.string().describe('Content of the social post'),
+    codeExamples: z.array(z.object({
+        language: z.string().describe('Programming language'),
+        code: z.string().describe('The actual code content'),
+        description: z.string().nullable().describe('Optional explanation of the code')
+    })).nullable()
+        .describe('Optional array of code snippets'),
 });
 
 /**
@@ -90,15 +76,21 @@ export const ChatGraphState = new StateSchema({
     socialMediaContentPreferences: z.string()
         .optional()
         .describe('User preferences for social media content style'),
-
+    socialPostsHistory: z.array(SocialPostSchema)
+        .optional()
+        .describe('History of social posts created in this session for context'),
 
     // ===== Processing (written by nodes) =====
-    intentResult: IntentResultSchema
+    intentResult: IntentRouterOutput
         .optional()
         .describe('Result of the intent detection process'),
-    platformResult: PlatformResultSchema
+    socialIntentResult: SocialIntentActionList
         .optional()
-        .describe('Result of the platform detection process'),
+        .describe('Result of the social intent classification (CREATE or EDIT)'),
+    socialPlatformResult: SocialPlatformList
+        .optional()
+        .describe('Result of the social platform detection (twitter or linkedin)'),
+
     editingSocialPostId: z.string()
         .optional()
         .describe('If editing an existing social post, the ID of that post'),

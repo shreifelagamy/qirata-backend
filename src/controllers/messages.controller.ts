@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { MessagesService } from '../services/messages.service';
+import { MessagesService } from '../services/domain';
 
 export class MessagesController {
     private messagesService: MessagesService;

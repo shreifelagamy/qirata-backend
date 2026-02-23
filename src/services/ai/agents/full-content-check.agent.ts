@@ -51,7 +51,7 @@ const responseSchema = z.object({
     reason: z.string()
 });
 
-async function isFullContentAgent(options: IsFullContentOptions): Promise<IsFullContentResult> {
+export default async function fullContentCheck(options: IsFullContentOptions): Promise<IsFullContentResult> {
     const { title, content } = options;
 
     if (!content || content.trim().length === 0) {
@@ -125,5 +125,3 @@ ${content.trim()}`));
 
     return messages;
 }
-
-export default isFullContentAgent;

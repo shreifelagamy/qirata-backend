@@ -1,8 +1,8 @@
 import { RunnableConfig } from '@langchain/core/runnables';
-import { socialPostCreateAgent } from '../../agents';
-import { ChatGraphState, ChatGraphUpdateType } from '../state';
 import { logger } from '../../../../utils/logger';
+import { socialPostCreateAgent } from '../../agents';
 import { ChatGraphConfigurable } from '../configurable';
+import { ChatGraphState, ChatGraphUpdateType } from '../state';
 
 /**
  * Social Post Generation Node
@@ -11,8 +11,8 @@ import { ChatGraphConfigurable } from '../configurable';
  * Uses the detected platform, post content, conversation context, and user preferences
  * to create engaging platform-optimized content.
  */
-export async function socialPostNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
-    logger.info("[NODE: SocialPostNode] Starting social post generation");
+export async function socialPostCreateNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
+    logger.info("[NODE: SocialPostCreateNode] Starting social post generation");
 
     const configurable = config.configurable as ChatGraphConfigurable | undefined;
 
@@ -23,12 +23,18 @@ export async function socialPostNode(state: typeof ChatGraphState.State, config:
     });
 
     // Extract context from state
-    const { message, lastMessages, post, platformResult, socialMediaContentPreferences } = state;
+    const {
+        message,
+        lastMessages,
+        post,
+        socialPlatformResult,
+        socialMediaContentPreferences
+    } = state;
 
     // Platform should be detected at this point
-    const platform = platformResult?.platform;
+    const platform = socialPlatformResult;
     if (!platform) {
-        logger.error('[NODE: SocialPostNode] No platform detected');
+        logger.error('[NODE: SocialPostCreateNode] No platform detected');
         return {
             response: 'I need to know which platform to create content for. Please specify Twitter or LinkedIn.',
             isSocialPost: false,
@@ -39,7 +45,7 @@ export async function socialPostNode(state: typeof ChatGraphState.State, config:
     // Post content should be available
     const postContent = post?.content;
     if (!postContent) {
-        logger.error('[NODE: SocialPostNode] No post content available');
+        logger.error('[NODE: SocialPostCreateNode] No post content available');
         return {
             response: 'I need article content to create a social post from. Please select an article first.',
             isSocialPost: false,
@@ -66,7 +72,6 @@ export async function socialPostNode(state: typeof ChatGraphState.State, config:
     // Return state update with the generated post
     return {
         response: result.message,
-        suggestedOptions: result.suggestedOptions,
         isSocialPost: true,
         structuredPost: result.structuredPost,
         error: undefined

@@ -1,6 +1,6 @@
 import { IPostProcessor, PostProcessorContext, PostProcessorResult } from './base.post-processor';
 import { ChatGraphState } from '../state';
-import { SocialPostsService } from '../../../social-posts.service';
+import { SocialPostsService } from '../../../domain/social-posts.service';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
 import { logger } from '../../../../utils/logger';
 
@@ -27,7 +27,7 @@ export class SocialPostEditPostProcessor implements IPostProcessor {
         });
 
         // Convert lowercase platform to SocialPlatform enum (if platform changed)
-        const platformEnum = result.platformResult?.platform === 'twitter'
+        const platformEnum = result.socialPlatformResult === 'twitter'
             ? SocialPlatform.TWITTER
             : SocialPlatform.LINKEDIN;
 

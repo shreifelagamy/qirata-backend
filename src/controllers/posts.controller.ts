@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { HttpError } from '../middleware/error.middleware';
-import { PostsService } from '../services/posts.service';
+import { PostsService } from '../services/domain';
 import { logger } from '../utils/logger';
 import { SSEResponse } from '../utils/sse';
 

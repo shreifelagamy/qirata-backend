@@ -1,9 +1,9 @@
 import { IsNull, Repository } from 'typeorm';
-import AppDataSource from '../config/database.config';
-import { Category } from '../entities/category.entity';
-import { UserFeed } from '../entities/user-feed.entity';
-import { HttpError } from '../middleware/error.middleware';
-import { logger } from '../utils/logger';
+import AppDataSource from '../../config/database.config';
+import { Category } from '../../entities/category.entity';
+import { UserFeed } from '../../entities/user-feed.entity';
+import { HttpError } from '../../middleware/error.middleware';
+import { logger } from '../../utils/logger';
 
 export interface CreateCategoryDto {
     name: string;

@@ -1,8 +1,8 @@
 import { RunnableConfig } from '@langchain/core/runnables';
-import { intentAgent } from '../../agents';
-import { ChatGraphState, ChatGraphUpdateType } from '../state';
 import { logger } from '../../../../utils/logger';
+import { intentAgent } from '../../agents';
 import { ChatGraphConfigurable } from '../configurable';
+import { ChatGraphState, ChatGraphUpdateType } from '../state';
 
 /**
  * Intent Detection Node
@@ -10,7 +10,7 @@ import { ChatGraphConfigurable } from '../configurable';
  * Classifies the user's intent using the intentAgent and updates the graph state
  * with the detected intent, confidence, reasoning, and optional clarifying question.
  */
-export async function intentNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
+export async function detectIntentNode(state: typeof ChatGraphState.State, config: RunnableConfig): Promise<ChatGraphUpdateType> {
     logger.info("[NODE: IntentNode] Starting intent detection");
 
     const configurable = config.configurable as ChatGraphConfigurable | undefined;
@@ -27,23 +27,17 @@ export async function intentNode(state: typeof ChatGraphState.State, config: Run
     // Call the intent agent with conversation context
     const result = await intentAgent({
         message,
-        lastMessages: lastMessages.map(msg => msg.user_message),
+        lastMessages: lastMessages,
         lastIntent
     });
 
     logger.info('[NODE: IntentNode] Intent detected:', {
-        type: result.intent,
+        intent: result.intent,
         confidence: result.confidence,
         reasoning: result.reasoning
     });
 
-    // Return state update with grouped intentResult
     return {
-        intentResult: {
-            type: result.intent,
-            confidence: result.confidence,
-            reasoning: result.reasoning,
-            clarifyingQuestion: result.clarifyingQuestion || undefined
-        }
+        intentResult: result
     };
 }

@@ -1,6 +1,6 @@
-import { Message } from '../entities/message.entity';
-import { MessagesRepository } from '../repositories';
-import { logger } from '../utils/logger';
+import { Message } from '../../entities/message.entity';
+import { MessagesRepository } from '../../repositories';
+import { logger } from '../../utils/logger';
 
 interface CursorPaginatedMessagesResponse {
     data: {

@@ -1,4 +1,4 @@
-import { ChatSessionService } from '../services/chat-session.service';
+import { ChatSessionService } from '../services/domain';
 import { AuthenticatedSocket } from '../types/socket.types';
 import { logger } from '../utils/logger';
 

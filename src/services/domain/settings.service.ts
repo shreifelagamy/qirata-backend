@@ -1,7 +1,7 @@
-import { Settings } from '../entities/settings.entity';
-import { HttpError } from '../middleware/error.middleware';
-import { SettingsModel } from '../models/settings.model';
-import { logger } from '../utils/logger';
+import { Settings } from '../../entities/settings.entity';
+import { HttpError } from '../../middleware/error.middleware';
+import { SettingsModel } from '../../models/settings.model';
+import { logger } from '../../utils/logger';
 
 export class SettingsService {
     private settingsModel: SettingsModel;

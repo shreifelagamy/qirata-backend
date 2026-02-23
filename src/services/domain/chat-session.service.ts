@@ -1,11 +1,10 @@
 import { Repository } from 'typeorm';
-import AppDataSource from '../config/database.config';
-import { CreateChatSessionDto } from '../dtos/chat-session.dto';
-import { ChatSession } from '../entities/chat-session.entity';
-import { Post } from '../entities/post.entity';
-import { ChatSessionRepository } from '../repositories';
-import { AIContext } from '../types/ai.types';
-import { logger } from '../utils/logger';
+import AppDataSource from '../../config/database.config';
+import { CreateChatSessionDto } from '../../dtos/chat-session.dto';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { Post } from '../../entities/post.entity';
+import { ChatSessionRepository } from '../../repositories';
+import { logger } from '../../utils/logger';
 import { MessagesService } from './messages.service';
 import { SocialPostsService } from './social-posts.service';
 
@@ -140,36 +139,6 @@ export class ChatSessionService {
 
         return session || null;
     }
-
-    /**
-     * Build AI context for chat session
-     * @param sessionId - The session ID
-     * @param userId - The user ID
-     * @param userPreferences - Optional user preferences
-     * @returns Promise<AIContext> - Context for AI processing
-     */
-    async buildAIContext(sessionId: string, userId: string): Promise<AIContext> {
-        const session = await this.getCachedSession(sessionId, userId);
-        const messages = await this.messagesService.getRecentMessages(sessionId, userId, 10);
-        const totalMessageCount = await this.messagesService.getTotalMessageCount(sessionId, userId);
-        const socialPosts = await this.socialPostsService.findByChatSession(sessionId, userId);
-
-        return {
-            postContent: session?.post?.expanded?.content,
-            postSummary: session?.post?.expanded?.summary,
-            previousMessages: messages.reverse(),
-            totalMessageCount: totalMessageCount,
-            socialPosts: socialPosts.map(post => ({
-                platform: post.platform,
-                content: post.content,
-                id: post.id,
-                createdAt: post.created_at,
-                publishedAt: post.published_at
-            })),
-            conversationSummary: session?.summary,
-        };
-    }
-
 
     /**
      * Update the chat session summary and last summary timestamp

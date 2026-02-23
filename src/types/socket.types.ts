@@ -1,5 +1,4 @@
 import { Socket } from 'socket.io';
-import { AICallbackData } from './ai.types';
 import { auth } from '../config/auth.config';
 
 // Extract User type from better-auth
@@ -21,11 +20,6 @@ export interface UserPreferences {
     hookPreference?: 'questions' | 'observations' | 'bold-claims';
     platform?: 'twitter' | 'linkedin' | 'general';
     length?: 'short' | 'medium' | 'long';
-}
-
-export interface AIStreamData extends AICallbackData {
-    sessionId: string;
-    intentType?: 'question' | 'social';
 }
 
 export interface StreamInterruptData {

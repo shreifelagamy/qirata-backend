@@ -3,7 +3,7 @@ import { ChatGraphState } from '../state';
 
 /**
  * Intent Router
- * 
+ *
  * Routes to the appropriate node based on detected intent.
  */
 export function intentRouter(state: typeof ChatGraphState.State): string {
@@ -14,27 +14,20 @@ export function intentRouter(state: typeof ChatGraphState.State): string {
         return END;
     }
 
-    console.log(`🔀 [IntentRouter] Routing based on intent: ${intentResult.type}`);
+    console.log(`🔀 [IntentRouter] Routing based on intent: ${intentResult.intent}`);
 
-    switch (intentResult.type) {
-        case 'GENERAL':
-            return 'support';
+    switch (intentResult.intent) {
+        case 'SUPPORT':
+            return 'Support';
 
         case 'ASK_POST':
-            return 'postQA';
+            return 'PostQA';
 
-        case 'REQ_SOCIAL_POST':
-            return 'platform';
-
-        case 'EDIT_SOCIAL_POST':
-            return 'socialPostEdit';
-
-        // TODO: Add CLARIFY_INTENT once clarify node is implemented
-        // case 'CLARIFY_INTENT':
-        //     return 'clarify';
+        case 'SOCIAL':
+            return 'SocialIntent';
 
         default:
-            console.warn(`⚠️ [IntentRouter] Unhandled intent: ${intentResult.type}, ending.`);
+            console.warn(`⚠️ [IntentRouter] Unhandled intent: ${intentResult.intent}, ending.`);
             return END;
     }
 }

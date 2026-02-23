@@ -2,70 +2,67 @@ import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
-import { createDebugCallback } from '../../../utils/debug-callback';
 import { createAgent, toolStrategy } from 'langchain';
+import { createDebugCallback } from '../../../utils/debug-callback';
 
 // Enhanced input schema with better context
 const IntentRouterInput = z.object({
     message: z.string().describe('The current user message to classify'),
-    lastMessages: z.array(z.string()).max(5).describe('Up to 5 previous messages for context'),
+    lastMessages: z.array(z.object({
+        user_message: z.string(),
+        ai_response: z.string()
+    })).max(10).describe('Previous conversation messages for context'),
     lastIntent: z.string().optional(),
 });
 
 // Enhanced output schema with confidence and reasoning
 export const IntentRouterOutput = z.object({
-    intent: z.enum(['GENERAL', 'REQ_SOCIAL_POST', 'ASK_POST', 'EDIT_SOCIAL_POST', 'CLARIFY_INTENT']).describe('The classified intent'),
+    intent: z.enum(['SUPPORT', 'SOCIAL', 'ASK_POST']).describe('The classified intent domain'),
     confidence: z.number().min(0).max(1).describe('Confidence score between 0 and 1'),
+    needsClarification: z.boolean().describe('True when the request is ambiguous and requires clarification inside the Support flow'),
     reasoning: z.string().min(10).describe('Brief explanation for the classification decision'),
-    clarifyingQuestion: z.string().nullable().describe('Clarifying question to ask when intent is unclear (required when intent is CLARIFY_INTENT)'),
-    suggestedOptions: z.array(z.string()).max(3).nullable().describe('Short, direct context-aware options for the user (required for CLARIFY_INTENT)'),
 });
 
 // Cached system prompt for consistent performance
-const CACHED_SYSTEM_PROMPT = `You are an expert qirata intent classifier for our application.
+const CACHED_SYSTEM_PROMPT = `You are the Qirata intent classifier.
 
-Your task is to classify the intent of the user last message to these avaliable intents:
+Task: classify the user's latest message into exactly ONE domain:
 
-1. GENERAL - General conversation, greetings, casual chat, or non-specific requests
-   Examples: "hi", "hello", "how are you?", "what should I do?", "thanks", "help me"
+1) SUPPORT
+- Questions about Qirata itself, general help, or topics with NO active article context.
+- Do NOT use SUPPORT for technical questions that are clearly about content from the current article being discussed.
+- Anything that is NOT social post creation/editing and NOT asking about a specific post/article.
+- Includes greetings, thanks, casual chat, vague requests, and app/help/troubleshooting questions.
 
-2. REQ_SOCIAL_POST - Requests to create new social media content
-   Examples: "create a LinkedIn post about AI", "make me a tweet", "write a post for Instagram"
+2) SOCIAL
+- Anything about creating, editing, rewriting, improving, repurposing, or generating social media content.
+- Do NOT decide create vs edit here; that happens inside the Social flow.
 
-3. ASK_POST - Questions about an existing post/articale or their content
-   Examples: "what is this post about?", "summarize the article", "explain this content", "What is x?"
+3) ASK_POST
+- Questions about an existing article/post/content: summarize, explain, extract key points, or clarify meaning.
 
-4. EDIT_SOCIAL_POST - Requests to modify any previously created social media post
-   Examples:
-   - "change the intro", "make it shorter" (implies most recent post)
-   - "edit the LinkedIn post", "update the Twitter post" (specific platform)
-   - "modify the post about AI", "change the marketing post" (content reference)
-   - "update the second post", "edit the first one" (position reference)
+Rules:
+- If lastIntent is ASK_POST and the user's question is a follow-up about the same article (asking about tools, concepts, or steps mentioned in it), classify as ASK_POST — even if the question sounds like a "how-to". The article context takes priority.
+- Only switch away from ASK_POST if the user clearly shifts topic (e.g., greets, asks about the app itself, or requests social content).
+- If the user refers to "it/that/this" and recent context is social-related, choose SOCIAL.
+- If confidence < 0.7, still choose the most likely domain and set needsClarification=true.
+- Never output anything except the JSON object described below.
 
-5. CLARIFY_INTENT - When you can't clarify the user's intent and it's seems ambiguous (confidence < 0.7)
-   Use this when you cannot confidently classify the message into the above categories.
-   Examples: "do something", "help with this", "change it", vague references without context
-
-Classification Guidelines:
-- Use previous messages to understand conversation flow
-- Consider the last intent to maintain context continuity
-- If confidence is below 0.7, use CLARIFY_INTENT and provide a clarifying question
-- If ambiguous but with reasonable context clues, choose the most likely intent with appropriate confidence
-- Consider ASK POST category if the user is likely asking about something
-
-You must respond with a JSON object containing:
-- intent: one of the five intents above
-- confidence: a number between 0.0 and 1.0
-- reasoning: a brief explanation for your decision
-- clarifyingQuestion: required when intent is CLARIFY_INTENT, optional otherwise
-- suggestedOptions: array of up to 3 context-aware options (required for CLARIFY_INTENT, optional for others)`;
+Output (STRICT JSON):
+{
+  "intent": "SUPPORT" | "SOCIAL" | "ASK_POST",
+  "confidence": number,
+  "needsClarification": boolean,
+  "reasoning": string
+}`;
 
 export default async function intentAgent(options: z.infer<typeof IntentRouterInput>): Promise<z.infer<typeof IntentRouterOutput>> {
     // Initialize model
     const model = new ChatOpenAI({
-        model: 'gpt-4.1-mini',
-        temperature: 0,
-        maxTokens: 200,
+        model: 'gpt-5-mini',
+        reasoning: {
+            effort: "low"
+        },
         openAIApiKey: process.env.OPENAI_API_KEY
     });
 
@@ -97,12 +94,13 @@ function buildMessagesArray(options: z.infer<typeof IntentRouterInput>): BaseMes
 
     if (options.lastMessages.length > 0) {
         options.lastMessages.forEach((msg, index) => {
-            messages.push(new HumanMessage(msg))
+            messages.push(new HumanMessage(msg.user_message))
+            messages.push(new AIMessage(msg.ai_response))
         })
     }
 
     // confirm receiving the old messages
-    messages.push(new AIMessage('I have the old messages and will maintain context.'))
+    messages.push(new AIMessage('I will use prior messages for context and continuity.'))
 
     messages.push(new HumanMessage(options.message))
 

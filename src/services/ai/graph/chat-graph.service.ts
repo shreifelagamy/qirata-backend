@@ -1,12 +1,10 @@
 import { AuthenticatedSocket } from '../../../types/socket.types';
-import { ChatSessionService } from '../../chat-session.service';
-import { MessagesService } from '../../messages.service';
-import { PostsService } from '../../posts.service';
-import { SocketMemoryService } from '../../websocket/socket-memory.service';
+import { logger } from '../../../utils/logger';
+import { ChatSessionService, MessagesService, PostsService, SettingsService, SocialPostsService } from '../../domain';
 import { chatGraph } from './chat.graph';
 import { ChatGraphConfigurable } from './configurable';
 import { PostProcessorManager } from './post-processors';
-import { logger } from '../../../utils/logger';
+import { ChatGraphUpdateType } from './state';
 
 /**
  * Service to orchestrate the Chat StateGraph execution.
@@ -14,11 +12,12 @@ import { logger } from '../../../utils/logger';
  */
 export class ChatGraphService {
     // Instantiate services
-    private socketMemoryService = new SocketMemoryService();
     private messagesService = new MessagesService();
     private postsService = new PostsService();
     private chatSessionService = new ChatSessionService();
     private postProcessorManager = new PostProcessorManager();
+    private settingsService = new SettingsService();
+    private socialPostsService = new SocialPostsService();
 
     /**
      * Main entry point to run the chat graph
@@ -34,36 +33,8 @@ export class ChatGraphService {
 
         console.log(`🚀 [ChatGraph] Starting workflow for session ${sessionId}`);
 
-        // 1. load the data from the DB
-        const chatSession = await this.chatSessionService.getById(sessionId, userId);
-        const post = await this.postsService.getPostWithExpanded(chatSession!.post_id!, userId)
-        const lastMessages = await this.messagesService.getRecentMessages(sessionId, userId, 5);
-
-        // 2. Prepare the initial state
-        // Map the existing memory structure to our new Zod-based state
-        const initialState = {
-            message,
-            sessionId,
-            userId,
-
-            // Map memory fields
-            lastMessages: lastMessages.reverse().map(m => ({
-                user_message: m.user_message,
-                ai_response: m.ai_response
-            })),
-            lastIntent: chatSession!.last_intent ?? undefined,
-
-            // post data
-            post: {
-                title: post!.title || '',
-                summary: post!.expanded!.summary || '',
-                content: post!.expanded!.content || ''
-            },
-
-            // Default empty values for outputs
-            response: undefined,
-            suggestedOptions: undefined
-        };
+        // 1. Prepare the langgraph state
+        const initialState = await this.prepareState(sessionId, userId, message);
 
         // 3. Prepare configuration (services)
         const config: { configurable: ChatGraphConfigurable } = {
@@ -85,13 +56,13 @@ export class ChatGraphService {
             const result = await chatGraph.invoke(initialState, config);
 
             // 5. Process Result using Post-Processor Manager
-            logger.info(`✅ [ChatGraph] Finished. Intent: ${result.intentResult?.type}`);
+            logger.info(`✅ [ChatGraph] Finished. Intent: ${result.intentResult?.intent}`);
 
             const processedResult = await this.postProcessorManager.process({
                 result,
                 sessionId,
                 userId,
-                postId: post?.id,
+                postId: initialState.post!.id,
                 message,
                 emit
             });
@@ -117,7 +88,7 @@ export class ChatGraphService {
             );
             await this.chatSessionService.updateLastIntent(
                 sessionId,
-                result.intentResult?.type || 'unknown'
+                result.intentResult?.intent || 'unknown'
             );
 
         } catch (error) {
@@ -128,5 +99,57 @@ export class ChatGraphService {
                 error: 'An error occurred while processing your request.'
             });
         }
+    }
+
+    private async prepareState(sessionId: string, userId: string, message: string): Promise<ChatGraphUpdateType> {
+        // 1. Load necessary data for the state in parallel
+        const [socialPosts, chatSession, lastMessages, socialMediaContentPreferences] = await Promise.all([
+            this.socialPostsService.findByChatSession(sessionId, userId),
+            this.chatSessionService.getById(sessionId, userId),
+            this.messagesService.getRecentMessages(sessionId, userId, 5),
+            this.settingsService.getSocialMediaContentPreferences(userId)
+        ]);
+
+        const post = await this.postsService.getPostWithExpanded(chatSession!.post_id!, userId)
+
+        // 2. Prepare the initial state
+        return {
+            message,
+            sessionId,
+            userId,
+            socialMediaContentPreferences,
+
+            // Map memory fields
+            lastMessages: lastMessages.reverse().map(m => ({
+                user_message: m.user_message,
+                ai_response: m.ai_response
+            })),
+            lastIntent: chatSession!.last_intent ?? undefined,
+
+            // post data
+            post: {
+                id: post!.id,
+                title: post!.title || '',
+                summary: post!.expanded!.summary || '',
+                content: post!.expanded!.content || ''
+            },
+
+            // social posts history for context
+            socialPostsHistory: socialPosts.map(sp => ({
+                id: sp.id,
+                platform: sp.platform as 'twitter' | 'linkedin',
+                content: sp.content,
+                codeExamples: sp.code_examples?.map(ce => ({
+                    language: ce.language,
+                    code: ce.code,
+                    description: ce.description ?? null
+                })) || [],
+            })),
+
+            // Default empty values for outputs
+            response: undefined,
+            suggestedOptions: undefined
+        };
+
     }
 }

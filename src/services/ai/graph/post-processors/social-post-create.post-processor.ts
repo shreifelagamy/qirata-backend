@@ -1,8 +1,8 @@
-import { IPostProcessor, PostProcessorContext, PostProcessorResult } from './base.post-processor';
-import { ChatGraphState } from '../state';
-import { SocialPostsService } from '../../../social-posts.service';
 import { SocialPlatform } from '../../../../entities/social-post.entity';
 import { logger } from '../../../../utils/logger';
+import { SocialPostsService } from '../../../domain/social-posts.service';
+import { ChatGraphState } from '../state';
+import { IPostProcessor, PostProcessorContext, PostProcessorResult } from './base.post-processor';
 
 /**
  * Post-processor for handling new social post creation.
@@ -15,7 +15,7 @@ export class SocialPostCreatePostProcessor implements IPostProcessor {
         return !!(
             result.isSocialPost &&
             result.structuredPost &&
-            result.platformResult?.platform &&
+            result.socialPlatformResult &&
             !result.editingSocialPostId // Not an edit operation
         );
     }
@@ -26,7 +26,7 @@ export class SocialPostCreatePostProcessor implements IPostProcessor {
         logger.info('[PostProcessor: SocialPostCreate] Creating new social post');
 
         // Convert lowercase platform to SocialPlatform enum
-        const platformEnum = result.platformResult!.platform === 'twitter'
+        const platformEnum = result.socialPlatformResult === 'twitter'
             ? SocialPlatform.TWITTER
             : SocialPlatform.LINKEDIN;
 

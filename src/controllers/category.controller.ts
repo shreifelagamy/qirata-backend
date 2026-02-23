@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { CategoryService, CreateCategoryDto, UpdateCategoryDto } from '../services/category.service';
+import { CategoryService, CreateCategoryDto, UpdateCategoryDto } from '../services/domain';
 import { logger } from '../utils/logger';
 
 export class CategoryController {

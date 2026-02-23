@@ -1,11 +1,11 @@
 import { Repository } from 'typeorm';
-import AppDataSource from '../config/database.config';
-import { Feed } from '../entities/feed.entity';
-import { UserFeed } from '../entities/user-feed.entity';
-import { HttpError } from '../middleware/error.middleware';
-import { logger } from '../utils/logger';
-import { RSSService } from './content/rss.service';
-import { ScraperService } from './content/scraper.service';
+import AppDataSource from '../../config/database.config';
+import { Feed } from '../../entities/feed.entity';
+import { UserFeed } from '../../entities/user-feed.entity';
+import { HttpError } from '../../middleware/error.middleware';
+import { logger } from '../../utils/logger';
+import { RSSService } from '../content/rss.service';
+import { ScraperService } from '../content/scraper.service';
 
 /**
  * FeedsService - Manages feed subscription system

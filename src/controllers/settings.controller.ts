@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { SettingsService } from '../services/settings.service';
+import { SettingsService } from '../services/domain';
 import { logger } from '../utils/logger';
 
 export class SettingsController {
