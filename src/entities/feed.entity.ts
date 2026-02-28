@@ -46,6 +46,10 @@ export class Feed extends BaseEntity {
     @IsIn(["active", "inactive", "error"])
     status: string = "active";
 
+    @Column({ type: "varchar", length: 20, default: "native" })
+    @IsIn(["native", "rsshub"])
+    source: string = "native";
+
     @Column({ type: "integer", default: 0 })
     @IsNumber()
     subscriber_count: number = 0;

@@ -11,6 +11,8 @@ import { logger } from '../../utils/logger';
 import { FeedLoggerService } from '../content/feed-logger.service';
 import { RSSService, RssValidationResult, RssValidationErrorCode } from '../content/rss.service';
 import { ScraperService } from '../content/scraper.service';
+import { isBlockedDomain } from '../../config/domain-blocklist';
+import rssHubService from '../content/rsshub.service';
 
 /**
  * FeedsService - Manages feed subscription system
@@ -107,12 +109,17 @@ export class FeedsService {
                 throw new HttpError(400, 'URL is required');
             }
 
+            // Check domain blocklist
+            if (isBlockedDomain(url)) {
+                throw new HttpError(400, 'This website is not supported');
+            }
+
             // Get RSS feed links and favicon
             const { feedUrls: feedLinks, faviconUrl } = await this.rssService.findFeedUrlsAndFavicon(url);
 
-            // If no RSS feed found, reject
+            // If no native RSS found, try RSSHub as fallback
             if (!feedLinks) {
-                throw new HttpError(400, 'No RSS feed found for this URL. We currently only accept blogs with public RSS feeds.');
+                return await this.discoverViaRSSHub(url, faviconUrl);
             }
 
             // If multiple feed links found, validate each and return them
@@ -159,6 +166,42 @@ export class FeedsService {
 
             throw new HttpError(500, 'Failed to discover feed');
         }
+    }
+
+    /**
+     * Fallback: attempt to resolve the URL via RSSHub radar rules.
+     * Returns a feed or array of feeds if RSSHub routes are found, otherwise throws 400.
+     */
+    private async discoverViaRSSHub(url: string, faviconUrl?: string): Promise<Feed | Feed[]> {
+        const rsshubFeedUrls = await rssHubService.findRoutes(url);
+
+        if (rsshubFeedUrls.length === 0) {
+            throw new HttpError(400, 'No RSS feed found for this URL.');
+        }
+
+        if (rsshubFeedUrls.length === 1) {
+            // Single RSSHub route found — validate and create feed
+            this.throwIfInvalid(await this.rssService.validateRssUrl(rsshubFeedUrls[0]));
+            const name = this.scraperService.extractNameFromUrl(url);
+            const feed = await this.getOrCreateFeed(rsshubFeedUrls[0], name, faviconUrl, 'rsshub');
+            logger.info(`Discovered RSSHub feed for URL: ${url}`);
+            return feed;
+        }
+
+        // Multiple RSSHub routes — validate each
+        const validatedUrls = await this.rssService.validateMultipleRssUrls(rsshubFeedUrls);
+        if (validatedUrls.length === 0) {
+            throw new HttpError(422, 'Found potential feeds via RSSHub, but none contain valid RSS content.');
+        }
+
+        const feedPromises = validatedUrls.map(async (feedUrl) => {
+            const name = this.scraperService.extractNameFromUrl(feedUrl);
+            return await this.getOrCreateFeed(feedUrl, name, faviconUrl, 'rsshub');
+        });
+
+        const feeds = await Promise.all(feedPromises);
+        logger.info(`Discovered ${feeds.length} RSSHub feeds for URL: ${url}`);
+        return feeds;
     }
 
     /**
@@ -246,6 +289,11 @@ export class FeedsService {
             // Validate RSS URL
             if (!rssUrl || rssUrl.trim() === '') {
                 throw new HttpError(400, 'RSS URL is required');
+            }
+
+            // Check domain blocklist
+            if (isBlockedDomain(rssUrl)) {
+                throw new HttpError(400, 'This website is not supported');
             }
 
             // Validate the RSS feed
@@ -344,7 +392,7 @@ export class FeedsService {
      * @param faviconUrl - Optional favicon URL
      * @returns The feed entity
      */
-    private async getOrCreateFeed(feedUrl: string, feedName?: string, faviconUrl?: string): Promise<Feed> {
+    private async getOrCreateFeed(feedUrl: string, feedName?: string, faviconUrl?: string, source: string = 'native'): Promise<Feed> {
         try {
             // Check if feed already exists
             let feed = await this.feedRepository.findOne({
@@ -375,7 +423,8 @@ export class FeedsService {
                 favicon_url: faviconUrl,
                 status: 'active',
                 fetch_error_count: 0,
-                subscriber_count: 0
+                subscriber_count: 0,
+                source
             });
 
             feed = await this.feedRepository.save(feed);
