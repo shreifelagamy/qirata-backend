@@ -164,7 +164,7 @@ export class FeedsController {
         try {
             const { url } = req.body;
 
-            const result = await this.feedsService.discoverFeedFromUrl(url);
+            const result = await this.feedsService.discover(url);
 
             logger.info(`Feed discovered from URL: ${url}`);
             res.status(200).json({ data: result, status: 200 });

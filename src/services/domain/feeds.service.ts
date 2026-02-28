@@ -1,10 +1,15 @@
 import { Repository } from 'typeorm';
 import AppDataSource from '../../config/database.config';
 import { Feed } from '../../entities/feed.entity';
+import { Post } from '../../entities/post.entity';
 import { UserFeed } from '../../entities/user-feed.entity';
 import { HttpError } from '../../middleware/error.middleware';
+import { PostRepository } from '../../repositories';
+import { FeedEntry } from '../../types/content.types';
+import { formatDateForDatabase, parseRSSDate } from '../../utils/date.util';
 import { logger } from '../../utils/logger';
-import { RSSService } from '../content/rss.service';
+import { FeedLoggerService } from '../content/feed-logger.service';
+import { RSSService, RssValidationResult, RssValidationErrorCode } from '../content/rss.service';
 import { ScraperService } from '../content/scraper.service';
 
 /**
@@ -21,12 +26,14 @@ export class FeedsService {
     private userFeedRepository: Repository<UserFeed>;
     private rssService: RSSService;
     private scraperService: ScraperService;
+    private feedLoggerService: FeedLoggerService;
 
     constructor() {
         this.feedRepository = AppDataSource.getRepository(Feed);
         this.userFeedRepository = AppDataSource.getRepository(UserFeed);
         this.rssService = new RSSService();
         this.scraperService = new ScraperService();
+        this.feedLoggerService = new FeedLoggerService();
     }
 
     /**
@@ -93,7 +100,7 @@ export class FeedsService {
      * @param url - The URL to discover feeds from
      * @returns Single feed object if one found, array of feed objects if multiple, or throws error if none
      */
-    async discoverFeedFromUrl(url: string) {
+    async discover(url: string) {
         try {
             // Validate URL format
             if (!url || url.trim() === '') {
@@ -110,7 +117,7 @@ export class FeedsService {
 
             // If multiple feed links found, validate each and return them
             if (Array.isArray(feedLinks) && feedLinks.length > 1) {
-                const validatedFeeds = await this.validateMultipleRssUrls(feedLinks);
+                const validatedFeeds = await this.rssService.validateMultipleRssUrls(feedLinks);
                 if (validatedFeeds.length === 0) {
                     throw new HttpError(422, 'Found RSS feed links, but none contain valid RSS content with articles.');
                 }
@@ -128,7 +135,7 @@ export class FeedsService {
 
             // Single feed found - validate it
             const singleFeedUrl = Array.isArray(feedLinks) ? feedLinks[0] : feedLinks;
-            await this.validateRssUrl(singleFeedUrl);
+            this.throwIfInvalid(await this.rssService.validateRssUrl(singleFeedUrl));
 
             // Create or get the feed
             const name = this.scraperService.extractNameFromUrl(singleFeedUrl);
@@ -242,7 +249,7 @@ export class FeedsService {
             }
 
             // Validate the RSS feed
-            await this.validateRssUrl(rssUrl);
+            this.throwIfInvalid(await this.rssService.validateRssUrl(rssUrl));
 
             // Get or create the feed
             const { faviconUrl } = await this.rssService.findFeedUrlsAndFavicon(rssUrl);
@@ -381,77 +388,191 @@ export class FeedsService {
     }
 
     /**
-     * Validate an RSS feed URL
-     * @param rssUrl - The RSS URL to validate
+     * Fetch and parse an RSS feed, creating/updating posts
+     * Uses conditional requests (ETag, If-Modified-Since) to avoid unnecessary processing
      */
-    private async validateRssUrl(rssUrl: string): Promise<void> {
+    async fetchFeed(feedId: string): Promise<{ feed: Feed; insertedCount: number }> {
+        const startTime = Date.now();
+        let statusCode: number | null = null;
+        let insertedCount = 0;
+
         try {
-            // Parse the RSS feed to validate its structure and content
-            const feed = await this.rssService.parseFeed(rssUrl);
+            const feed = await this.feedRepository.findOne({ where: { id: feedId } });
 
-            // Check if feed has valid structure and content
-            if (!this.rssService.validateFeed(feed)) {
-                throw new HttpError(422, 'The RSS feed exists but has an invalid structure or is missing required content.');
+            if (!feed) {
+                throw new HttpError(404, 'Feed not found');
             }
 
-            // Check if feed has any entries/articles
-            if (!feed.entries || feed.entries.length === 0) {
-                throw new HttpError(422, 'The RSS feed is valid but contains no articles. Please ensure the feed has published content.');
-            }
-
-            // Validate that at least one entry has the required fields
-            const hasValidEntries = feed.entries.some(entry =>
-                entry.title &&
-                entry.link &&
-                (entry.description || entry.content)
+            const fetchResult = await this.rssService.parseFeedWithCache(
+                feed.url,
+                feed.etag,
+                feed.last_modified
             );
 
-            if (!hasValidEntries) {
-                throw new HttpError(422, 'The RSS feed exists but the articles are missing required information (title, link, or content).');
+            const responseTimeMs = Date.now() - startTime;
+
+            if (fetchResult.notModified) {
+                statusCode = 304;
+                logger.info(`Feed not modified (304): ${feed.url}`);
+
+                feed.last_fetch_at = new Date();
+                feed.fetch_error_count = 0;
+                feed.status = 'active';
+                await this.feedRepository.save(feed);
+
+                await this.feedLoggerService.logFetchAttempt(feedId, statusCode, responseTimeMs, undefined, 0, false);
+                return { feed, insertedCount: 0 };
             }
+
+            statusCode = 200;
+
+            if (!fetchResult.feed) {
+                throw new Error('No feed data returned');
+            }
+
+            const entries = this.rssService.extractEntries(fetchResult.feed);
+
+            if (!entries.length) {
+                logger.warn(`No entries found in feed: ${feed.url}`);
+
+                feed.last_fetch_at = new Date();
+                feed.fetch_error_count = 0;
+                feed.status = 'active';
+                if (fetchResult.etag) feed.etag = fetchResult.etag;
+                if (fetchResult.lastModified) feed.last_modified = fetchResult.lastModified;
+                await this.feedRepository.save(feed);
+
+                await this.feedLoggerService.logFetchAttempt(feedId, statusCode, responseTimeMs, undefined, 0, true);
+                return { feed, insertedCount: 0 };
+            }
+
+            insertedCount = await this.createPostsFromEntries(entries, feed);
+
+            feed.last_fetch_at = new Date();
+            feed.fetch_error_count = 0;
+            feed.status = 'active';
+            if (fetchResult.etag) feed.etag = fetchResult.etag;
+            if (fetchResult.lastModified) feed.last_modified = fetchResult.lastModified;
+            await this.feedRepository.save(feed);
+
+            await this.feedLoggerService.logFetchAttempt(feedId, statusCode, responseTimeMs, undefined, insertedCount, true);
+            logger.info(`Feed fetched successfully: ${feed.url} - ${insertedCount} new posts`);
+
+            return { feed, insertedCount };
         } catch (error) {
-            if (error instanceof HttpError) {
-                throw error;
-            }
-            logger.error('Error validating RSS URL:', error);
+            const responseTimeMs = Date.now() - startTime;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error(`Error fetching feed ${feedId}:`, error);
 
-            // Handle different types of errors
-            if ((error as Error).message?.includes('Invalid URL format')) {
-                throw new HttpError(400, 'Invalid RSS URL format. Please provide a valid URL.');
-            }
-            if ((error as Error).message?.includes('Access to this website is blocked')) {
-                throw new HttpError(400, (error as Error).message);
-            }
-            if ((error as Error).message?.includes('fetch') || (error as Error).message?.includes('network') || (error as Error).message?.includes('timeout')) {
-                throw new HttpError(503, 'Unable to access the RSS feed. Please check the URL and try again.');
-            }
-            if ((error as Error).message?.includes('parse') || (error as Error).message?.includes('XML') || (error as Error).message?.includes('feed')) {
-                throw new HttpError(422, 'The URL does not contain valid RSS content. Please provide a direct link to an RSS feed.');
+            try {
+                await this.feedLoggerService.logFetchAttempt(feedId, statusCode || 500, responseTimeMs, errorMessage, 0, false);
+            } catch (logError) {
+                logger.error('Error logging fetch attempt:', logError);
             }
 
-            throw new HttpError(500, 'Failed to validate RSS feed');
+            await this.handleFeedError(feedId);
+
+            if (error instanceof HttpError) throw error;
+            throw new HttpError(500, 'Failed to fetch feed');
         }
     }
 
     /**
-     * Validate multiple RSS URLs
-     * @param rssUrls - Array of RSS URLs to validate
-     * @returns Array of valid RSS URLs
+     * Get feeds that need to be fetched (based on subscriber count and last fetch time)
      */
-    private async validateMultipleRssUrls(rssUrls: string[]): Promise<string[]> {
-        const validFeeds: string[] = [];
+    async getFeedsToFetch(limit: number = 100): Promise<Feed[]> {
+        try {
+            const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
 
-        // Validate each RSS URL and collect only valid ones
-        for (const rssUrl of rssUrls) {
-            try {
-                await this.validateRssUrl(rssUrl);
-                validFeeds.push(rssUrl);
-            } catch (error) {
-                // Log validation failures but continue with other feeds
-                logger.warn(`RSS validation failed for ${rssUrl}:`, (error as Error).message);
-            }
+            return await this.feedRepository
+                .createQueryBuilder('feed')
+                .where('feed.status = :status', { status: 'active' })
+                .andWhere('(feed.last_fetch_at IS NULL OR feed.last_fetch_at < :fetchTime)', {
+                    fetchTime: fifteenMinutesAgo
+                })
+                .orderBy('feed.subscriber_count', 'DESC')
+                .addOrderBy('feed.last_fetch_at', 'ASC', 'NULLS FIRST')
+                .limit(limit)
+                .getMany();
+        } catch (error) {
+            logger.error('Error getting feeds to fetch:', error);
+            return [];
         }
+    }
 
-        return validFeeds;
+    /**
+     * Create posts from RSS feed entries
+     */
+    private async createPostsFromEntries(entries: FeedEntry[], feed: Feed): Promise<number> {
+        if (!entries.length) return 0;
+
+        try {
+            const posts = entries.map(entry => {
+                const publishedDate = parseRSSDate(entry.pubDate);
+
+                return PostRepository.create({
+                    title: entry.title || 'Untitled Post',
+                    content: entry.description || entry.content || '',
+                    external_link: entry.link,
+                    feed_id: feed.id,
+                    image_url: entry.image_url,
+                    published_date: formatDateForDatabase(publishedDate)
+                });
+            });
+
+            const result = await PostRepository
+                .createQueryBuilder()
+                .insert()
+                .into(Post)
+                .values(posts)
+                .orIgnore()
+                .returning('id')
+                .execute();
+
+            return result.raw?.length || 0;
+        } catch (error) {
+            logger.error('Error creating posts from entries:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Handle feed fetch errors - increment error count and mark as error after 5 failures
+     */
+    private async handleFeedError(feedId: string): Promise<void> {
+        try {
+            const feed = await this.feedRepository.findOne({ where: { id: feedId } });
+            if (!feed) return;
+
+            feed.fetch_error_count += 1;
+            if (feed.fetch_error_count >= 5) {
+                feed.status = 'error';
+            }
+
+            await this.feedRepository.save(feed);
+        } catch (error) {
+            logger.error(`Error handling feed error for ${feedId}:`, error);
+        }
+    }
+
+    private static readonly ERROR_CODE_TO_HTTP: Record<RssValidationErrorCode, number> = {
+        invalid_structure: 422,
+        no_entries: 422,
+        missing_fields: 422,
+        parse_error: 422,
+        invalid_url: 400,
+        blocked: 400,
+        network_error: 503,
+        unknown: 500
+    };
+
+    /**
+     * Maps an RSS validation result to an HttpError if invalid.
+     */
+    private throwIfInvalid(result: RssValidationResult): void {
+        if (result.valid) return;
+
+        const status = FeedsService.ERROR_CODE_TO_HTTP[result.errorCode || 'unknown'];
+        throw new HttpError(status, result.error || 'Failed to validate RSS feed');
     }
 }

@@ -1,8 +1,17 @@
 import FeedParser, { Item, Meta } from 'feedparser';
 import { Readable } from 'stream';
 import { FeedEntry, RSSFeed } from '../../types/content.types';
+import { HttpError } from '../../middleware/error.middleware';
 import { fetchWithTimeout, fetchWithHeaders, validateUrl } from '../../utils/http.util';
 import { logger } from '../../utils/logger';
+
+export type RssValidationErrorCode = 'invalid_structure' | 'no_entries' | 'missing_fields' | 'invalid_url' | 'blocked' | 'network_error' | 'parse_error' | 'unknown';
+
+export interface RssValidationResult {
+    valid: boolean;
+    error?: string;
+    errorCode?: RssValidationErrorCode;
+}
 
 export interface FeedFetchResult {
     feed?: RSSFeed;
@@ -38,6 +47,15 @@ export class RSSService {
         try {
             if (!validateUrl(url)) {
                 throw new Error('Invalid URL format');
+            }
+
+            // Check for known platform RSS conventions before HTML scraping
+            const platformFeed = this.tryResolvePlatformFeedUrl(url);
+            if (platformFeed) {
+                return {
+                    feedUrls: platformFeed.feedUrl,
+                    faviconUrl: platformFeed.faviconUrl
+                };
             }
 
             // Single HTTP request to get HTML content
@@ -537,6 +555,97 @@ export class RSSService {
         const faviconKeywords = /(favicon|icon|logo|apple-touch)/i;
 
         return faviconExtensions.test(url) || faviconKeywords.test(url);
+    }
+
+    /**
+     * Validate an RSS feed URL by parsing and checking its structure and content.
+     * @returns Validation result with error details if invalid
+     */
+    async validateRssUrl(rssUrl: string): Promise<RssValidationResult> {
+        try {
+            const feed = await this.parseFeed(rssUrl);
+
+            if (!this.validateFeed(feed)) {
+                return { valid: false, error: 'The RSS feed has an invalid structure or is missing required content.', errorCode: 'invalid_structure' };
+            }
+
+            if (!feed.entries || feed.entries.length === 0) {
+                return { valid: false, error: 'The RSS feed contains no articles.', errorCode: 'no_entries' };
+            }
+
+            const hasValidEntries = feed.entries.some(entry =>
+                entry.title && entry.link && (entry.description || entry.content)
+            );
+
+            if (!hasValidEntries) {
+                return { valid: false, error: 'The RSS feed articles are missing required information (title, link, or content).', errorCode: 'missing_fields' };
+            }
+
+            return { valid: true };
+        } catch (error) {
+            const message = (error as Error).message || '';
+
+            if (message.includes('Invalid URL format')) {
+                return { valid: false, error: 'Invalid RSS URL format.', errorCode: 'invalid_url' };
+            }
+            if (message.includes('Access to this website is blocked')) {
+                return { valid: false, error: message, errorCode: 'blocked' };
+            }
+            if (message.includes('fetch') || message.includes('network') || message.includes('timeout')) {
+                return { valid: false, error: 'Unable to access the RSS feed.', errorCode: 'network_error' };
+            }
+            if (message.includes('parse') || message.includes('XML') || message.includes('feed')) {
+                return { valid: false, error: 'The URL does not contain valid RSS content.', errorCode: 'parse_error' };
+            }
+
+            logger.error('Error validating RSS URL:', error);
+            return { valid: false, error: 'Failed to validate RSS feed.', errorCode: 'unknown' };
+        }
+    }
+
+    /**
+     * Validate multiple RSS URLs, returning only the valid ones.
+     */
+    async validateMultipleRssUrls(rssUrls: string[]): Promise<string[]> {
+        const validFeeds: string[] = [];
+
+        for (const rssUrl of rssUrls) {
+            const result = await this.validateRssUrl(rssUrl);
+            if (result.valid) {
+                validFeeds.push(rssUrl);
+            } else {
+                logger.warn(`RSS validation failed for ${rssUrl}: ${result.error}`);
+            }
+        }
+
+        return validFeeds;
+    }
+
+    /**
+     * Detect known platform URLs and resolve to their RSS feed URL.
+     * Skips HTML scraping for platforms with known RSS conventions.
+     */
+    private tryResolvePlatformFeedUrl(url: string): { feedUrl: string; faviconUrl: string } | null {
+        try {
+            const parsed = new URL(url);
+            const hostname = parsed.hostname.toLowerCase();
+
+            // Reddit: /r/subreddit or /user/username → .rss
+            if (hostname === 'reddit.com' || hostname === 'www.reddit.com' || hostname === 'old.reddit.com') {
+                const match = parsed.pathname.match(/^\/(r|u|user)\/([A-Za-z0-9_-]+?)(?:\.rss)?\/?$/);
+                if (match) {
+                    const prefix = match[1] === 'u' ? 'user' : match[1];
+                    return {
+                        feedUrl: `https://www.reddit.com/${prefix}/${match[2]}.rss`,
+                        faviconUrl: 'https://www.reddit.com/favicon.ico'
+                    };
+                }
+            }
+
+            return null;
+        } catch {
+            return null;
+        }
     }
 }
 

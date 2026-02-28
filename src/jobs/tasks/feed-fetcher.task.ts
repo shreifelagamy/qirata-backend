@@ -1,4 +1,4 @@
-import { FeedService } from '../../services/content/feed.service';
+import { FeedsService } from '../../services/domain/feeds.service';
 import AppDataSource from '../../config/database.config';
 import { logger } from '../../utils/logger';
 
@@ -22,8 +22,7 @@ export async function feedFetcherTask(): Promise<void> {
             logger.info('Database connected');
         }
 
-        // Initialize FeedService
-        const feedService = new FeedService();
+        const feedService = new FeedsService();
 
         // Get feeds that need to be fetched (max 1000)
         const feeds = await feedService.getFeedsToFetch(1000);
