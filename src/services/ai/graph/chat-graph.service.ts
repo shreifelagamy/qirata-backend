@@ -103,11 +103,12 @@ export class ChatGraphService {
 
     private async prepareState(sessionId: string, userId: string, message: string): Promise<ChatGraphUpdateType> {
         // 1. Load necessary data for the state in parallel
-        const [socialPosts, chatSession, lastMessages, socialMediaContentPreferences] = await Promise.all([
+        const [socialPosts, chatSession, lastMessages, socialMediaContentPreferences, postQAReplyPreferences] = await Promise.all([
             this.socialPostsService.findByChatSession(sessionId, userId),
             this.chatSessionService.getById(sessionId, userId),
             this.messagesService.getRecentMessages(sessionId, userId, 5),
-            this.settingsService.getSocialMediaContentPreferences(userId)
+            this.settingsService.getSocialMediaContentPreferences(userId),
+            this.settingsService.getPostQAReplyPreferences(userId)
         ]);
 
         const post = await this.postsService.getPostWithExpanded(chatSession!.post_id!, userId)
@@ -118,6 +119,7 @@ export class ChatGraphService {
             sessionId,
             userId,
             socialMediaContentPreferences,
+            postQAReplyPreferences,
 
             // Map memory fields
             lastMessages: lastMessages.reverse().map(m => ({

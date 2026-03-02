@@ -30,7 +30,8 @@ export async function postQANode(
         lastMessages: state.lastMessages,
         postSummary: post?.summary || '',
         conversationSummary: undefined,
-        postContent: post?.content || ''
+        postContent: post?.content || '',
+        replyPreferences: state.postQAReplyPreferences || ''
     });
 
     return {

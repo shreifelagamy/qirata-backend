@@ -79,4 +79,30 @@ export class SettingsService {
             throw new HttpError(500, 'Failed to set social media content preferences');
         }
     }
+
+    async getPostQAReplyPreferences(userId: string): Promise<string> {
+        try {
+            const setting = await this.settingsModel.findByKeyAndUser('post_qa_reply_preferences', userId);
+            return setting?.value || '';
+        } catch (error) {
+            if (error instanceof HttpError && error.status === 404) {
+                return '';
+            }
+            logger.error('Error getting post QA reply preferences:', error);
+            throw new HttpError(500, 'Failed to get post QA reply preferences');
+        }
+    }
+
+    async setPostQAReplyPreferences(preferences: string, userId: string): Promise<Settings> {
+        try {
+            const sanitized = preferences.trim().slice(0, 500);
+            return await this.settingsModel.updateByUser('post_qa_reply_preferences', {
+                value: sanitized,
+                description: 'User preferences for post Q&A reply style'
+            }, userId);
+        } catch (error) {
+            logger.error('Error setting post QA reply preferences:', error);
+            throw new HttpError(500, 'Failed to set post QA reply preferences');
+        }
+    }
 }

@@ -76,6 +76,9 @@ export const ChatGraphState = new StateSchema({
     socialMediaContentPreferences: z.string()
         .optional()
         .describe('User preferences for social media content style'),
+    postQAReplyPreferences: z.string()
+        .optional()
+        .describe('User preferences for how the post Q&A agent should format replies'),
     socialPostsHistory: z.array(SocialPostSchema)
         .optional()
         .describe('History of social posts created in this session for context'),
