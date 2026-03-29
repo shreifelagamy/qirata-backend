@@ -63,6 +63,10 @@ export function createFeedsRouter(): Router {
                 .trim()
                 .isLength({ max: 255 })
                 .withMessage('custom_name must be 255 characters or less'),
+            body('category_id')
+                .optional()
+                .isUUID()
+                .withMessage('category_id must be a valid UUID'),
             // Custom validation: either feed_id or rss_url required, but not both
             body().custom((value, { req }) => {
                 const { feed_id, rss_url } = req.body;

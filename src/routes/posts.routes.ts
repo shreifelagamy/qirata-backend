@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import { PostsController } from '../controllers/posts.controller';
 import { validate, commonValidation } from '../middleware/validation.middleware';
 
@@ -22,7 +22,9 @@ export function createPostsRouter(): Router {
       ...commonValidation.search,
       body('read').optional().isBoolean(),
       body('link_id').optional().isUUID(),
-      body('source').optional().isString().trim()
+      body('source').optional().isString().trim(),
+      query('feed_id').optional().isUUID().withMessage('feed_id must be a valid UUID'),
+      query('category_id').optional().isUUID().withMessage('category_id must be a valid UUID')
     ]),
     postsController.index.bind(postsController)
   );

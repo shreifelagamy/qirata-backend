@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param, query } from 'express-validator';
+import { body, param } from 'express-validator';
 import { CategoryController } from '../controllers/category.controller';
 import { commonValidation, validate } from '../middleware/validation.middleware';
 
@@ -15,11 +15,7 @@ export function createCategoryRouter(): Router {
                 .isString()
                 .trim()
                 .isLength({ min: 1, max: 100 })
-                .withMessage('Category name must be between 1 and 100 characters'),
-            body('parent_id')
-                .optional()
-                .isUUID()
-                .withMessage('Parent ID must be a valid UUID')
+                .withMessage('Category name must be between 1 and 100 characters')
         ]),
         categoryController.create.bind(categoryController)
     );
@@ -47,11 +43,7 @@ export function createCategoryRouter(): Router {
                 .isString()
                 .trim()
                 .isLength({ min: 1, max: 100 })
-                .withMessage('Category name must be between 1 and 100 characters'),
-            body('parent_id')
-                .optional({ nullable: true })
-                .custom((value) => value === null || typeof value === 'string')
-                .withMessage('Parent ID must be null or a string')
+                .withMessage('Category name must be between 1 and 100 characters')
         ]),
         categoryController.update.bind(categoryController)
     );
@@ -59,13 +51,7 @@ export function createCategoryRouter(): Router {
     // DELETE /categories/:id - Delete category
     router.delete(
         '/:id',
-        validate([
-            ...commonValidation.id(),
-            query('recursive')
-                .optional()
-                .isBoolean()
-                .withMessage('Recursive must be a boolean')
-        ]),
+        validate(commonValidation.id()),
         categoryController.destroy.bind(categoryController)
     );
 
@@ -93,13 +79,7 @@ export function createCategoryRouter(): Router {
     // GET /categories/:id/feeds - Get feeds in category
     router.get(
         '/:id/feeds',
-        validate([
-            ...commonValidation.id(),
-            query('recursive')
-                .optional()
-                .isBoolean()
-                .withMessage('Recursive must be a boolean')
-        ]),
+        validate(commonValidation.id()),
         categoryController.getFeeds.bind(categoryController)
     );
 

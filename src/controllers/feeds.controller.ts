@@ -201,6 +201,10 @@ export class FeedsController {
      *                 type: string
      *                 maxLength: 255
      *                 description: Optional custom name for the feed
+     *               category_id:
+     *                 type: string
+     *                 format: uuid
+     *                 description: Optional category ID to assign the subscription to
      *             oneOf:
      *               - required: [feed_id]
      *               - required: [rss_url]
@@ -256,7 +260,7 @@ export class FeedsController {
      */
     async subscribeToFeed(req: Request, res: Response, next: NextFunction) {
         try {
-            const { feed_id, rss_url, custom_name } = req.body;
+            const { feed_id, rss_url, custom_name, category_id } = req.body;
             const userId = req.user!.id;
 
             let subscription;
@@ -265,13 +269,15 @@ export class FeedsController {
                 subscription = await this.feedsService.subscribeUserToFeed(
                     userId,
                     feed_id,
-                    custom_name
+                    custom_name,
+                    category_id
                 );
             } else {
                 subscription = await this.feedsService.subscribeUserByRssUrl(
                     userId,
                     rss_url,
-                    custom_name
+                    custom_name,
+                    category_id
                 );
             }
 

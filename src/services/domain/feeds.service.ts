@@ -211,7 +211,7 @@ export class FeedsService {
      * @param customName - Optional custom name for the feed
      * @returns The created UserFeed subscription
      */
-    async subscribeUserToFeed(userId: string, feedId: string, customName?: string) {
+    async subscribeUserToFeed(userId: string, feedId: string, customName?: string, categoryId?: string) {
         const queryRunner = AppDataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -240,6 +240,7 @@ export class FeedsService {
                 user_id: userId,
                 feed_id: feedId,
                 custom_name: customName,
+                ...(categoryId ? { category_id: categoryId } : {}),
                 subscribed_at: new Date()
             });
 
@@ -284,7 +285,7 @@ export class FeedsService {
      * @param customName - Optional custom name for the feed
      * @returns The created UserFeed subscription
      */
-    async subscribeUserByRssUrl(userId: string, rssUrl: string, customName?: string) {
+    async subscribeUserByRssUrl(userId: string, rssUrl: string, customName?: string, categoryId?: string) {
         try {
             // Validate RSS URL
             if (!rssUrl || rssUrl.trim() === '') {
@@ -305,7 +306,7 @@ export class FeedsService {
             const feed = await this.getOrCreateFeed(rssUrl, name, faviconUrl);
 
             // Subscribe user to the feed
-            return await this.subscribeUserToFeed(userId, feed.id, customName);
+            return await this.subscribeUserToFeed(userId, feed.id, customName, categoryId);
         } catch (error) {
             if (error instanceof HttpError) {
                 throw error;

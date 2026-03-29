@@ -3,6 +3,7 @@ export interface PostFilters {
     link_id?: string;
     search?: string;
     feed_id?: string;
+    category_id?: string;
     limit?: number;
     offset?: number;
     external_links?: string[];

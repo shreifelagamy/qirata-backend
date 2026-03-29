@@ -31,11 +31,6 @@ export class CategoryController {
      *                 type: string
      *                 example: "Tech Blogs"
      *                 maxLength: 100
-     *               parent_id:
-     *                 type: string
-     *                 format: uuid
-     *                 description: Parent category ID for nested folders
-     *                 nullable: true
      *     responses:
      *       201:
      *         description: Category created successfully
@@ -188,11 +183,6 @@ export class CategoryController {
      *                 type: string
      *                 example: "Updated Tech Blogs"
      *                 maxLength: 100
-     *               parent_id:
-     *                 type: string
-     *                 format: uuid
-     *                 nullable: true
-     *                 description: New parent category ID (null for root level)
      *     responses:
      *       200:
      *         description: Category updated successfully
@@ -206,14 +196,8 @@ export class CategoryController {
      *                 status:
      *                   type: integer
      *                   example: 200
-     *       400:
-     *         description: Bad request - Cannot create circular reference or set self as parent
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
      *       404:
-     *         description: Category or parent category not found
+     *         description: Category not found
      *         content:
      *           application/json:
      *             schema:
@@ -258,12 +242,6 @@ export class CategoryController {
      *           type: string
      *           format: uuid
      *         description: Category ID
-     *       - in: query
-     *         name: recursive
-     *         schema:
-     *           type: boolean
-     *           default: false
-     *         description: Delete child categories recursively
      *     responses:
      *       204:
      *         description: Category deleted successfully
@@ -273,19 +251,12 @@ export class CategoryController {
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/Error'
-     *       409:
-     *         description: Category has child categories (use recursive=true)
-     *         content:
-     *           application/json:
-     *             schema:
-     *               $ref: '#/components/schemas/Error'
      */
     async destroy(req: Request, res: Response, next: NextFunction) {
         try {
-            const recursive = req.query.recursive === 'true';
-            await this.categoryService.deleteCategory(req.params.id, req.user!.id, recursive);
+            await this.categoryService.deleteCategory(req.params.id, req.user!.id);
 
-            logger.info('Category deleted:', { id: req.params.id, recursive });
+            logger.info('Category deleted:', { id: req.params.id });
             res.status(204).send();
         } catch (error) {
             next(error);
@@ -400,12 +371,6 @@ export class CategoryController {
      *           type: string
      *           format: uuid
      *         description: Category ID
-     *       - in: query
-     *         name: recursive
-     *         schema:
-     *           type: boolean
-     *           default: false
-     *         description: Include feeds from subcategories
      *     responses:
      *       200:
      *         description: List of feeds in category
@@ -430,11 +395,9 @@ export class CategoryController {
      */
     async getFeeds(req: Request, res: Response, next: NextFunction) {
         try {
-            const recursive = req.query.recursive === 'true';
             const feeds = await this.categoryService.getFeedsInCategory(
                 req.params.id,
-                req.user!.id,
-                recursive
+                req.user!.id
             );
 
             res.json({ data: feeds, status: 200 });

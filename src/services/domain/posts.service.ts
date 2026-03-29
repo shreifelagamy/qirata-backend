@@ -68,6 +68,10 @@ export class PostsService {
                 query.andWhere('post.feed_id = :feedId', { feedId: filters.feed_id });
             }
 
+            if (filters.category_id) {
+                query.andWhere('uf.category_id = :categoryId', { categoryId: filters.category_id });
+            }
+
             if (filters.limit) {
                 query.take(filters.limit);
             }

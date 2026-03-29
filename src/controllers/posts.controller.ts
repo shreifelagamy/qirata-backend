@@ -49,6 +49,12 @@ export class PostsController {
      *           format: uuid
      *         description: Filter posts by feed ID
      *       - in: query
+     *         name: category_id
+     *         schema:
+     *           type: string
+     *           format: uuid
+     *         description: Filter posts by category ID
+     *       - in: query
      *         name: sortBy
      *         schema:
      *           type: string
@@ -96,6 +102,7 @@ export class PostsController {
                 link_id: req.query.link_id as string,
                 search: req.query.search as string,
                 feed_id: req.query.feed_id as string,
+                category_id: req.query.category_id as string,
                 limit: pageSize,
                 offset: (page - 1) * pageSize,
                 sortBy: req.query.sortBy as string,
