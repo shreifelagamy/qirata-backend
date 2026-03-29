@@ -95,7 +95,28 @@ export function createFeedsRouter(): Router {
                 .optional()
                 .isInt({ min: 0 })
                 .withMessage('Offset must be a non-negative integer')
-                .toInt()
+                .toInt(),
+            query('search')
+                .optional()
+                .isString()
+                .trim()
+                .isLength({ max: 255 })
+                .withMessage('search must be at most 255 characters'),
+            query('category_id')
+                .optional()
+                .custom((val) =>
+                    val === 'uncategorized' ||
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+                )
+                .withMessage('category_id must be a UUID or "uncategorized"'),
+            query('sort_by')
+                .optional()
+                .isIn(['subscribed_at', 'name'])
+                .withMessage('sort_by must be "subscribed_at" or "name"'),
+            query('sort_order')
+                .optional()
+                .isIn(['ASC', 'DESC'])
+                .withMessage('sort_order must be "ASC" or "DESC"')
         ]),
         feedsController.getUserSubscriptions.bind(feedsController)
     );

@@ -354,13 +354,21 @@ export class FeedsController {
      */
     async getUserSubscriptions(req: Request, res: Response, next: NextFunction) {
         try {
-            const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+            const page     = req.query.page     ? parseInt(req.query.page     as string, 10) : 1;
             const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 50;
+            const search      = req.query.search      as string | undefined;
+            const category_id = req.query.category_id as string | undefined;
+            const sort_by     = req.query.sort_by     as 'subscribed_at' | 'name' | undefined;
+            const sort_order  = req.query.sort_order  as 'ASC' | 'DESC' | undefined;
             const userId = req.user!.id;
 
             const result = await this.feedsService.getUserSubscriptions(userId, {
                 limit: pageSize,
-                offset: (page - 1) * pageSize
+                offset: (page - 1) * pageSize,
+                search,
+                category_id,
+                sort_by,
+                sort_order
             });
 
             const totalPages = Math.ceil(result.total / pageSize);

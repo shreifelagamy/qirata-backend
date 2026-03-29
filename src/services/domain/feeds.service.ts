@@ -317,23 +317,59 @@ export class FeedsService {
     }
 
     /**
-     * Get all subscriptions for a user
+     * Get all subscriptions for a user with optional search, category filter, and sorting
      * @param userId - The user ID
-     * @param options - Pagination options (limit, offset)
+     * @param options - Pagination, search, category filter, and sort options
      * @returns Paginated array of user subscriptions with feed details
      */
-    async getUserSubscriptions(userId: string, options?: { limit?: number; offset?: number }) {
+    async getUserSubscriptions(userId: string, options?: {
+        limit?: number;
+        offset?: number;
+        search?: string;
+        category_id?: string; // UUID or 'uncategorized' for null category
+        sort_by?: 'subscribed_at' | 'name';
+        sort_order?: 'ASC' | 'DESC';
+    }) {
         try {
             const limit = Math.min(Math.max(1, options?.limit || 50), 100);
             const offset = Math.max(0, options?.offset || 0);
+            const sortOrder = options?.sort_order === 'ASC' ? 'ASC' : 'DESC';
 
-            const [subscriptions, total] = await this.userFeedRepository.findAndCount({
-                where: { user_id: userId },
-                relations: ['feed', 'category'],
-                order: { subscribed_at: 'DESC' },
-                skip: offset,
-                take: limit
-            });
+            const query = this.userFeedRepository
+                .createQueryBuilder('uf')
+                .leftJoinAndSelect('uf.feed', 'feed')
+                .leftJoinAndSelect('uf.category', 'category')
+                .where('uf.user_id = :userId', { userId });
+
+            // Full-text search across custom_name, feed.name, feed.url
+            if (options?.search) {
+                query.andWhere(
+                    '(uf.custom_name ILIKE :search OR feed.name ILIKE :search OR feed.url ILIKE :search)',
+                    { search: `%${options.search}%` }
+                );
+            }
+
+            // Category filter
+            if (options?.category_id === 'uncategorized') {
+                query.andWhere('uf.category_id IS NULL');
+            } else if (options?.category_id) {
+                query.andWhere('uf.category_id = :categoryId', { categoryId: options.category_id });
+            }
+
+            // Sorting
+            if (options?.sort_by === 'name') {
+                // Sort by custom_name (nulls last), then by feed.name
+                query
+                    .orderBy('uf.custom_name', sortOrder, 'NULLS LAST')
+                    .addOrderBy('feed.name', sortOrder);
+            } else {
+                query.orderBy('uf.subscribed_at', sortOrder);
+            }
+
+            const [subscriptions, total] = await query
+                .skip(offset)
+                .take(limit)
+                .getManyAndCount();
 
             logger.info(`Retrieved ${subscriptions.length} subscriptions for user ${userId}`);
             return { subscriptions, total };
