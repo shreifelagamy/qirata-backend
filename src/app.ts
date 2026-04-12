@@ -22,6 +22,12 @@ startupProfiler.log('env-config');
 // Create Express app and HTTP server immediately
 startupProfiler.startTimer('express-setup');
 const app: Express = express();
+
+// Trust Railway's reverse proxy (required for secure cookies behind SSL termination)
+if (isProduction) {
+    app.set('trust proxy', 1);
+}
+
 const httpServer = createServer(app);
 startupProfiler.log('express-setup');
 
