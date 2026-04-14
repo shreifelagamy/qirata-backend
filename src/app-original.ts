@@ -42,6 +42,7 @@ app.use(cors({
         'http://localhost:5173', // Frontend dev server
         'http://localhost:3000', // Backend API
         ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend
+        ...(process.env.LANDING_URL ? [process.env.LANDING_URL] : []), // Production landing from env
         ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []) // Additional origins
     ],
     credentials: true, // Essential for cookies

@@ -65,11 +65,13 @@ export const auth = betterAuth({
     },
 
     trustedOrigins: [
-        "http://localhost:5173",   // Vite dev
+        "http://localhost:5173",   // Vite dev frontend app
+        "http://localhost:5174",   // Vite dev landing
         "http://localhost:3000",   // your API host
         "https://accounts.google.com", // Required for Google sign-in
         "https://github.com", // Required for GitHub sign-in
         ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []), // Production frontend from env
+        ...(process.env.LANDING_URL ? [process.env.LANDING_URL] : []), // Production landing from env
         ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []) // Additional trusted origins from env
     ],
 
