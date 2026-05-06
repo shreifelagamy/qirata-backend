@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { openAPI } from 'better-auth/plugins';
+import { admin } from "better-auth/plugins/admin";
 import { Pool } from "pg";
 
 import dotenv from 'dotenv';
@@ -95,6 +96,7 @@ export const auth = betterAuth({
 
     plugins: [
         openAPI(), // Keep OpenAPI documentation plugin
+        admin({ defaultRole: "user", adminRoles: ["admin"] }),
     ]
 });
 

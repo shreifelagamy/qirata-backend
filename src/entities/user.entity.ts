@@ -24,6 +24,18 @@ export class User extends BaseEntity {
     @IsOptional()
     image?: string;
 
+    @Column({ type: "text", nullable: true, default: "user" })
+    role!: string | null;
+
+    @Column({ type: "boolean", nullable: true, default: false })
+    banned!: boolean | null;
+
+    @Column({ type: "text", nullable: true })
+    banReason!: string | null;
+
+    @Column({ type: "timestamptz", nullable: true })
+    banExpires!: Date | null;
+
     // Relationships to user's data
     @OneToMany("ChatSession", "user")
     chat_sessions!: any[];
