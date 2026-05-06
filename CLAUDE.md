@@ -205,6 +205,10 @@
 - WebSocket authentication middleware
 - Bearer token support (JWT placeholder)
 - User context propagation through socket data
+- **better-auth** with `admin` plugin (`src/config/auth.config.ts`) — `defaultRole: "user"`, `adminRoles: ["admin"]`
+- `User` entity has `role`, `banned`, `banReason`, `banExpires` columns; `session` table has `impersonatedBy` (no TypeORM Session entity — better-auth manages session table directly via its pg adapter)
+- Admin endpoints auto-mounted under `/api/auth/admin/*` by the plugin (listUsers, setRole, banUser, impersonateUser, etc.)
+- Seed admin: `UPDATE "user" SET role='admin' WHERE email=...` (initial seed in migration `1778075637149-AddAdminPluginColumns`)
 
 **AI Integration Patterns**:
 - Workflow orchestration with LangGraph
