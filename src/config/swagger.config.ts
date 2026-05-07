@@ -1302,7 +1302,9 @@ Authentication endpoints are available at \`/api/auth/*\`.
     },
     apis: [
         './src/controllers/*.ts',
+        './src/controllers/**/*.ts',
         './src/routes/*.ts',
+        './src/routes/**/*.ts',
     ],
 };
 
